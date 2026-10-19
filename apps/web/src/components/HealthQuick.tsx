@@ -34,6 +34,7 @@ function QuickRow({ item, quick }: { item: HealthItem; quick: Quick }) {
       {(quick === 'release-date' || quick === 'single-date') && <input type="date" className="input !w-40 !py-1 text-xs" aria-label="Release date" value={value} onChange={(e) => setValue(e.target.value)} />}
       {isGenre && <div className="w-64 max-w-full"><TagInput value={genres} onChange={setGenres} suggestions={lib.genres.map((g) => g.name)} placeholder="Genre, press Enter" /></div>}
       {LINK[quick] && <input className="input !w-72 max-w-full !py-1 text-xs" placeholder={LINK[quick]} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />}
+      {quick === 'youtubeMusicUrl' && item.albumId && <button className="btn btn-ghost !py-1 text-xs" title="This album is not on YouTube Music: move it to its own list" onClick={() => patch('albums', item.albumId!, { noYoutube: true })}>Album not on YouTube Music</button>}
       <button className="btn btn-accent !py-1 text-xs" disabled={!ready} onClick={save}><Check size={13} />Save</button>
     </div>
   );

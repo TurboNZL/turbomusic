@@ -42,6 +42,13 @@ export function trackMatcher(lib: Library) {
     (uri && byId.get(spotifyTrackId(uri) ?? '')) || byName.get(`${norm(name)}|${norm(artist)}`) || null;
 }
 
+/** Plays per track (TurboMusic's own and imported Spotify plays; skips are not plays). */
+export function playCounts(lib: Library): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const l of buildListens(lib)) if (l.trackId && !l.skipped) out.set(l.trackId, (out.get(l.trackId) ?? 0) + 1);
+  return out;
+}
+
 const cache = new WeakMap<Library, Listen[]>();
 
 /** Every play, oldest first. Cached per library snapshot. */

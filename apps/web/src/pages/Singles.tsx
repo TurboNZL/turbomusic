@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { matchesAll, splitTyped, trackSubject, type Chip } from '../lib/filters.ts';
+import { playCounts } from '../lib/listens.ts';
 import { TRACK_SORTS, sortTracks } from '../lib/trackSort.ts';
 import { usePageState } from '../lib/pageState.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
@@ -22,7 +23,7 @@ export function SinglesPage() {
   const page = usePageState('singles', TRACK_SORTS, { sort: 'title' });
   const singles = useMemo(() => {
     const needle = splitTyped(q, 'singles') ? '' : q.toLowerCase();
-    return sortTracks(lib.singles.filter((t) => `${t.title} ${t.artistName}`.toLowerCase().includes(needle) && matchesAll(chips, trackSubject(lib, t))), page.sort, page.dir);
+    return sortTracks(lib.singles.filter((t) => `${t.title} ${t.artistName}`.toLowerCase().includes(needle) && matchesAll(chips, trackSubject(lib, t))), page.sort, page.dir, page.sort === 'plays' ? playCounts(lib) : undefined);
   }, [lib, q, chips, page.sort, page.dir]);
   const playable = singles.filter(canPlay).map((t) => t.id);
   return (

@@ -5,7 +5,7 @@ import type { Track } from '../lib/derive.ts';
 import type { EditTarget } from '../lib/editor.ts';
 import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
-import { useStore } from '../lib/store.ts';
+import { addMemory, removeMemory } from '../lib/memories.ts';
 import { trackPath } from '../lib/trackPath.ts';
 import type { MenuItem } from './Menu.tsx';
 
@@ -13,7 +13,6 @@ import type { MenuItem } from './Menu.tsx';
 export function useTrackMenuItems() {
   const edit = useEditor((s) => s.open);
   const enqueue = usePlayer((s) => s.enqueue);
-  const patch = useStore((s) => s.patch);
   return (t: Track, onPlay: () => void): MenuItem[] => {
     const memories = t.memories ?? 0;
     const open = (target: EditTarget) => () => edit(target);
@@ -24,8 +23,8 @@ export function useTrackMenuItems() {
       { label: 'Add to playlist…', icon: <ListPlus size={15} />, run: open({ kind: 'add-to-playlist', id: t.id }) },
       ...(t.albumId ? [] : [{ label: 'Add to album…', icon: <Disc3 size={15} />, run: open({ kind: 'add-to-album', id: t.id }) }]),
       { separator: true },
-      { label: `Add memory (${memories})`, icon: <Plus size={15} />, run: () => patch('tracks', t.id, { memories: memories + 1 }) },
-      { label: 'Remove a memory', icon: <Minus size={15} />, run: () => patch('tracks', t.id, { memories: Math.max(0, memories - 1) }), disabled: memories < 1 },
+      { label: `Add memory (${memories})`, icon: <Plus size={15} />, run: () => addMemory(t.id) },
+      { label: 'Remove a memory', icon: <Minus size={15} />, run: () => removeMemory(t.id), disabled: memories < 1 },
       { separator: true },
       ...t.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),
       ...(t.albumId ? [{ label: 'Go to album', icon: <Disc3 size={15} />, to: trackPath(t) }] : []),

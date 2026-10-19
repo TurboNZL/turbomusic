@@ -3,6 +3,7 @@ import { Minus, Plus, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type { VoteData } from '@turbomusic/core';
 import type { Track } from '../lib/derive.ts';
 import { useStore } from '../lib/store.ts';
+import { addMemory, removeMemory } from '../lib/memories.ts';
 import { cn } from '../lib/cn.ts';
 
 /**
@@ -11,7 +12,6 @@ import { cn } from '../lib/cn.ts';
  */
 export function RateBlock({ track, className }: { track: Track; className?: string }) {
   const put = useStore((s) => s.put);
-  const patch = useStore((s) => s.patch);
   const [pulse, setPulse] = useState<{ n: number; dir: 1 | -1; id: string } | null>(null);
   // the highlight belongs to the track it was given on; the next track starts clean
   const mine = pulse?.id === track.id ? pulse : null;
@@ -30,9 +30,9 @@ export function RateBlock({ track, className }: { track: Track; className?: stri
         <ThumbsDown key={mine?.dir === -1 ? mine.n : 'd'} size={15} className={mine?.dir === -1 ? 'bt-thumb-pulse' : undefined} />
       </button>
       <div className="col-span-2 grid grid-cols-[1.6rem_1fr_1.6rem] items-center rounded-theme border border-line/70 bg-raised/40 text-xs">
-        <button type="button" className="btn btn-ghost !p-1" title="Remove a memory" aria-label="Remove a memory" disabled={memories < 1} onClick={() => patch('tracks', track.id, { memories: Math.max(0, memories - 1) })}><Minus size={12} /></button>
+        <button type="button" className="btn btn-ghost !p-1" title="Remove a memory" aria-label="Remove a memory" disabled={memories < 1} onClick={() => removeMemory(track.id)}><Minus size={12} /></button>
         <span className="text-center font-semibold tabular-nums" title="Memories">{memories}</span>
-        <button type="button" className="btn btn-ghost !p-1" title="Add a memory" aria-label="Add a memory" onClick={() => patch('tracks', track.id, { memories: memories + 1 })}><Plus size={12} /></button>
+        <button type="button" className="btn btn-ghost !p-1" title="Add a memory" aria-label="Add a memory" onClick={() => addMemory(track.id)}><Plus size={12} /></button>
       </div>
     </div>
   );

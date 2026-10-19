@@ -4,7 +4,7 @@ import type { Library } from './library.ts';
 import { qualityOf } from './audioCheck.ts';
 
 export type HealthKind = 'album-source' | 'track' | 'album' | 'artist' | 'genre' | 'role' | 'release' | 'noteCategory';
-export interface HealthItem { kind: HealthKind; id: string; label: string; detail?: string; /** items that belong together (duplicates of one song) share a group */ group?: string; /** why a group was listed (duplicates) */ note?: string }
+export interface HealthItem { kind: HealthKind; id: string; label: string; /** the album a track is on (for "this album has no YouTube Music link") */ albumId?: string | null; detail?: string; /** items that belong together (duplicates of one song) share a group */ group?: string; /** why a group was listed (duplicates) */ note?: string }
 export interface HealthCheck {
   id: string; title: string; why: string; items: HealthItem[];
   /** only for checks that are safe to fix in one click */
@@ -25,6 +25,8 @@ export interface HealthCheck {
   notDuplicates?: boolean;
   /** each row can be fixed in place (a date, a genre or a link typed on the row itself) */
   quick?: 'release-date' | 'single-date' | 'album-genre' | 'track-genre' | 'youtubeMusicUrl' | 'spotifyUrl' | 'geniusUrl';
+  /** each row (an album) can be taken back out of this list */
+  unmarkNoYoutube?: boolean;
   /** items can have their dead-link mark cleared */
   clearDead?: boolean;
 }
@@ -50,7 +52,7 @@ export function computeHealth(lib: Library): HealthCheck[] {
   const t = (x: (typeof lib.tracks)[number], detail?: string): HealthItem => ({ kind: 'track', id: x.id, label: `${x.title} · ${x.artistName}`, detail });
 
   const usedArtists = new Set<string>();
-  for (const x of lib.tracks) { usedArtists.add(x.artistId); x.credits.forEach((c) => usedArtists.add(c.artistId)); }
+  for (const x of lib.tracks) { usedArtists.add(x.artistId); x.credits.forEach((c) => usedArtists.add(c.artistId)); (x.storedCredits ?? []).forEach((c) => usedArtists.add(c.artistId)); }
   for (const a of lib.albums) { usedArtists.add(a.artistId); a.credits.forEach((c) => usedArtists.add(c.artistId)); }
   for (const g of lib.groups) g.members.forEach((m) => m.entityType === 'artist' && usedArtists.add(m.entityId));
 
@@ -67,6 +69,7 @@ export function computeHealth(lib: Library): HealthCheck[] {
   const lowQuality = lib.tracks.filter((x) => x.bitrate && parseInt(x.bitrate) > 0 && parseInt(x.bitrate) < 192);
 
   const fakes = lib.tracks.filter((x) => { const q = qualityOf(x); return q === 'transcode' || q === 'mismatch'; });
+  const noLinkAlbums = new Set(lib.albums.filter((a) => (a as { noYoutube?: boolean }).noYoutube).map((a) => a.id));
   const waiting = lib.albums.filter((a) => (a as { needsSource?: boolean }).needsSource);
   return [
     { id: 'needs-source', title: 'Albums waiting for a YouTube album link', why: 'These came from a Spotify import and only hold the songs you picked. Paste a YouTube Music link of the whole album: it fills in the real tracklist, the cover and the audio, and keeps the songs you already have.', albumLinks: true,
@@ -86,7 +89,9 @@ export function computeHealth(lib: Library): HealthCheck[] {
     { id: 'no-source', title: 'Tracks with no audio and no YouTube link', why: 'Nothing to download from. Add a link in the track editor.',
       items: lib.tracks.filter((x) => !x.file && !x.youtubeMusicUrl).map((x) => t(x)) },
     { id: 'no-youtube', quick: 'youtubeMusicUrl', title: 'Tracks without a YouTube Music link', why: 'The link is what lets the server download (or re-download) the audio. Let the server find the YouTube Music album, paste links by album, or add one in the track editor.', bulk: 'youtubeMusicUrl', matchLinks: true,
-      items: lib.tracks.filter((x) => !x.youtubeMusicUrl).map((x) => t(x, x.file ? 'has audio' : 'no audio')) },
+      items: lib.tracks.filter((x) => !x.youtubeMusicUrl && !(x.albumId && noLinkAlbums.has(x.albumId))).map((x) => ({ ...t(x, x.file ? 'has audio' : 'no audio'), albumId: x.albumId })) },
+    { id: 'no-youtube-album', unmarkNoYoutube: true, title: 'Albums marked as not on YouTube Music', why: 'You said these have no YouTube Music album, so their tracks are left out of “Tracks without a YouTube Music link”. “Put back” returns an album to that list.',
+      items: lib.albums.filter((a) => noLinkAlbums.has(a.id)).map((a) => ({ kind: 'album' as const, id: a.id, label: `${a.title} · ${a.artistName}`, detail: `${a.trackIds.length} track${a.trackIds.length === 1 ? '' : 's'}` })) },
     { id: 'no-spotify', quick: 'spotifyUrl', title: 'Tracks without a Spotify link', why: 'Optional, but handy for opening the track elsewhere.', bulk: 'spotifyUrl',
       items: lib.tracks.filter((x) => !x.spotifyUrl).map((x) => t(x)) },
     { id: 'no-genius', quick: 'geniusUrl', title: 'Tracks without a Genius link', why: 'Optional: lyrics and annotations.', bulk: 'geniusUrl',
