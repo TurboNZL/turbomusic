@@ -10,6 +10,7 @@ import { FileAudio, Search as SearchIcon, Play, Plus, Shuffle } from 'lucide-rea
 import { shuffleWithRules } from '@turbomusic/core';
 import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
+import { playCounts } from '../lib/listens.ts';
 import { TRACK_SORTS, sortTracks } from '../lib/trackSort.ts';
 import { TrackTable } from '../components/TrackTable.tsx';
 
@@ -36,7 +37,7 @@ export function TracksPage() {
     const needle = splitTyped(q, 'tracks') ? '' : q.toLowerCase(); // while a `key:` is being typed it is not a search word
     const f = lib.tracks.filter((t) =>
       (!needle || `${t.title} ${t.artistName} ${t.albumTitle ?? ''}`.toLowerCase().includes(needle)) && matchesAll(chips, trackSubject(lib, t)));
-    return sortTracks(f, page.sort, page.dir);
+    return sortTracks(f, page.sort, page.dir, page.sort === 'plays' ? playCounts(lib) : undefined);
   }, [lib, q, page.sort, page.dir, chips]);
 
   const playable = tracks.filter(canPlay).map((t) => t.id);

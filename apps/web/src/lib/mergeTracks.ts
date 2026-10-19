@@ -96,6 +96,7 @@ export function planMerge(lib: Library, keepId: string, dropIds: string[], raw: 
   const logs = lib.logs.filter((l) => dropSet.has(l.trackId));
   for (const l of logs) patches.push({ table: 'playbackLogs', id: l.id, patch: { trackId: keepId } });
   if (logs.length) summary.push(`${logs.length} plays move to this track`);
+  for (const m of (lib.memoryLogs ?? []).filter((m) => dropSet.has(m.trackId))) patches.push({ table: 'memoryLogs', id: m.id, patch: { trackId: keepId } });
   for (const g of lib.groups) {
     if (!g.members.some((m) => m.entityType === 'track' && dropSet.has(m.entityId))) continue;
     const seen = new Set<string>();

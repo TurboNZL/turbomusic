@@ -1,6 +1,6 @@
 import { leadArtistId, leadArtistIds, hasLead, isFeatured } from './defaults.ts';
 import { albumCover, coverPool } from './covers.ts';
-import { balancedRatings, replayVotes, type AlbumData, type Credit, type ArtistData, type PlaylistData, type PlaybackRule, type ReleaseData, type SyncRecord, type TrackData, type VoteData, type GenreData, type GroupData, type NoteData, type ProfileData, type PlaybackLogData, type RoleCategoryData, type TimelineData, type EraData, type NoteCategoryData, type ReleaseNameData } from '@turbomusic/core';
+import { balancedRatings, replayVotes, type AlbumData, type Credit, type ArtistData, type PlaylistData, type PlaybackRule, type ReleaseData, type SyncRecord, type TrackData, type VoteData, type GenreData, type GroupData, type NoteData, type ProfileData, type PlaybackLogData, type RoleCategoryData, type TimelineData, type EraData, type NoteCategoryData, type ReleaseNameData, type MemoryLogData } from '@turbomusic/core';
 
 export type Row<T> = T & { id: string };
 
@@ -60,6 +60,8 @@ export interface Library {
   legacyNotes: Row<NoteData>[];
   votes: Row<VoteData>[];
   logs: Row<PlaybackLogData>[];
+  /** when each memory was added (only memories added since this was recorded) */
+  memoryLogs: Row<MemoryLogData>[];
   profile: Row<ProfileData> | null;
   rules: PlaybackRule[];
 }
@@ -200,7 +202,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     eras: eras, eraById: by(eras), singles: tracks.filter((t) => !t.albumId),
     releases, releaseNames: live<ReleaseNameData>(rows.releaseNames), playlists: live<PlaylistData>(rows.playlists),
     genres: live<GenreData>(rows.genres), roles: live<RoleCategoryData>(rows.roleCategories), timeline: live<TimelineData>(rows.timeline), groups: live<GroupData>(rows.groups), noteCategories: live<NoteCategoryData>(rows.noteCategories), legacyNotes: live<NoteData>(rows.notes),
-    votes, logs: live<PlaybackLogData>(rows.playbackLogs), profile, rules: profile?.playbackRules ?? [],
+    votes, logs: live<PlaybackLogData>(rows.playbackLogs), memoryLogs: live<MemoryLogData>(rows.memoryLogs), profile, rules: profile?.playbackRules ?? [],
   };
 }
 

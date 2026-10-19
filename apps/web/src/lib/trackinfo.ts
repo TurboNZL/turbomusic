@@ -1,5 +1,6 @@
 import type { Library } from './library.ts';
 import { buildListens } from './listens.ts';
+import { memoryDates } from './memories.ts';
 
 export interface VoteLine { voteId: string; opponent: string; opponentExists: boolean; result: 'won' | 'lost' | 'equal' | 'thumb up' | 'thumb down'; timestamp: number }
 export interface PlayLine { logId: string; timestamp: number; seconds: number; isSkip: boolean; source: string | null; imported?: boolean }
@@ -8,6 +9,8 @@ export interface TrackInfo {
   history: PlayLine[];
   wins: number; losses: number; draws: number;
   votes: VoteLine[];
+  /** when each memory was added since they were recorded, newest first (earlier ones are only in the track's counter) */
+  memories: { id: string; timestamp: number }[];
   plays: number; skips: number; secondsListened: number; lastPlayed: number | null;
 }
 
@@ -35,7 +38,7 @@ export function trackInfo(lib: Library, trackId: string): TrackInfo {
   const history = logs.map((l) => ({ logId: l.id, timestamp: l.ts, seconds: l.ms / 1000, isSkip: l.skipped, source: l.source === 'spotify' ? 'Spotify' : sourceOf.get(l.id) ?? null, imported: l.source === 'spotify' }))
     .sort((a, b) => b.timestamp - a.timestamp);
   return {
-    history, wins, losses, draws, votes,
+    history, wins, losses, draws, votes, memories: memoryDates(lib, trackId),
     plays: logs.length, skips: logs.filter((l) => l.skipped).length,
     secondsListened: logs.reduce((s, l) => s + l.ms / 1000, 0),
     lastPlayed: logs.length ? Math.max(...logs.map((l) => l.ts)) : null,

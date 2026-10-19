@@ -136,7 +136,7 @@ export function EntityStatsPage() {
         </>
       ) : <p className="text-sm text-muted">No plays of {kind === 'track' ? 'this track' : 'these tracks'} yet, so there are no listening charts. Play something and they fill in.</p>}
 
-      {info && <Panel title="History"><TrackHistory info={info} /></Panel>}
+      {info && <Panel title="History"><TrackHistory info={info} track={track ?? {}} /></Panel>}
     </div>
   );
 }

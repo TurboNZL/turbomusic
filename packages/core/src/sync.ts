@@ -7,7 +7,7 @@ import { z } from 'zod';
  */
 export const RECORD_TABLES = [
   'artists', 'eras', 'albums', 'releases', 'tracks', 'playlists', 'groups',
-  'genres', 'roleCategories', 'timeline', 'votes', 'playbackLogs', 'profiles', 'notes', 'noteCategories', 'releaseNames',
+  'genres', 'roleCategories', 'timeline', 'votes', 'playbackLogs', 'profiles', 'notes', 'noteCategories', 'releaseNames', 'memoryLogs',
 ] as const;
 export type RecordTable = (typeof RECORD_TABLES)[number];
 

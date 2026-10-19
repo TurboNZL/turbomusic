@@ -148,6 +148,8 @@ export interface VoteData {
   boost?: 1 | -1;
   timestamp: number;
 }
+/** One memory added to a track (the track's `memories` counter holds the total, including memories from before these were recorded). Deleted when that memory is removed. */
+export interface MemoryLogData { trackId: string; timestamp: number }
 export interface PlaybackLogData {
   /** '' for a play imported from another service whose track is not in the library (it is matched again whenever the library changes) */
   trackId: string; timestamp: number; duration: number | null;
