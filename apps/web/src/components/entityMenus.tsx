@@ -68,6 +68,7 @@ export function useAlbumMenuItems() {
   const actions = useTrackListActions();
   const lib = useLibrary();
   const convert = useConvertToSingle();
+  const patch = useStore((s) => s.patch);
   return (album: Album, ids: string[] = album.trackIds): MenuItem[] => [
     ...actions(ids, { type: 'album', id: album.id }),
     { separator: true },
@@ -79,6 +80,9 @@ export function useAlbumMenuItems() {
     { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => edit({ kind: 'import-into-album', id: album.id }) },
     ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
     ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
+    (album as { noYoutube?: boolean }).noYoutube
+      ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
+      : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
     { separator: true },
     ...album.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),
     ...album.eraIds.flatMap((e) => lib.eraById.get(e) ?? []).map((e) => ({ label: `Go to ${e.name}`, icon: <Layers size={15} />, to: `/eras/${e.id}` })),

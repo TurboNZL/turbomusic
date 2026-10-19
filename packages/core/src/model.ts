@@ -41,6 +41,8 @@ export interface AlbumData {
   defaultReleaseId?: string | null;
   /** made by a Spotify import from a few tracks and no source for the whole album: Health asks for a YouTube album link to complete it */
   needsSource?: boolean;
+  /** the user marked that this album is not on YouTube Music: Health keeps it out of the main "missing YouTube link" list and shows it in its own */
+  noYoutube?: boolean;
   /** explicit track order (ids); wins over the release tracklist. Set when the user reorders or adds tracks by hand. */
   trackOrder?: string[];
 }

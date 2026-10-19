@@ -13,6 +13,8 @@ export interface Track extends Omit<Row<TrackData>, 'artistId'> {
   leads: Lead[];
   /** artists credited as "Featured artist" who are not leads: shown after the leads ("A feat. X") */
   featured: Lead[];
+  /** the credits as stored on the track (a track that follows its album shows the album's credits in `credits`) */
+  storedCredits: Credit[];
   elo: number; comparisons: number;
   /** 0-10 from the votes (unfloored by comparisons); see effectiveRating */
   rating: number;
@@ -164,7 +166,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     const artistId = leadArtistId(credits, t.artistId ?? '');
     const leads = leadsOf(credits, t.artistId, artistById);
     return {
-      ...t, credits, artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, rating, effectiveRating: eff, tenStarRank: null,
+      ...t, credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, rating, effectiveRating: eff, tenStarRank: null,
       artistName: namesOf(leads),
       albumId: album?.id ?? null, albumTitle: album?.title ?? null, cover: t.cover || album?.cover || null,
       releaseDate: album ? earliestRelease.get(t.id) ?? albumDate.get(album.id) ?? null : t.releaseDate || null, // a single keeps its own

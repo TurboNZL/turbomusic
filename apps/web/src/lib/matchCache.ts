@@ -24,7 +24,7 @@ export function forgetMatches(albumId: string) { const c = read(); delete c[albu
 
 /** Albums that still have no YouTube Music link (they wait for one after a Spotify import, or none of their songs has a link). */
 export function albumsWithoutLink(lib: Library) {
-  return lib.albums.filter((a) => (a as { needsSource?: boolean }).needsSource || (a.trackIds.length > 0 && a.trackIds.every((id) => !lib.trackById.get(id)?.youtubeMusicUrl)));
+  return lib.albums.filter((a) => !(a as { noYoutube?: boolean }).noYoutube).filter((a) => (a as { needsSource?: boolean }).needsSource || (a.trackIds.length > 0 && a.trackIds.every((id) => !lib.trackById.get(id)?.youtubeMusicUrl)));
 }
 
 /** The albums whose best song rates highest: where a missing link costs the most. */
