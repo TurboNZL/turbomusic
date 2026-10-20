@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { computeWrapped, defaultWeek, musicPhases, personalityScores, seededShuffle, weekStart, weeklyRecap, weeksWithPlays, wrappedYears, yearOf } from '../src/lib/recap.ts';
 import type { Listen } from '../src/lib/listens.ts';
+import { longestSession, obsession } from '../src/lib/recap.ts';
+import { MOTIFS, shapes } from '../src/components/AbstractArt.tsx';
 
 let n = 0;
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
@@ -30,7 +32,7 @@ describe('weekly recap', () => {
     L(at(2026, 10, 12), { title: 'A', artist: 'X', album: 'AA' }), L(at(2026, 10, 13), { title: 'A', artist: 'X', album: 'AA' }), L(at(2026, 10, 13, 23), { title: 'B', artist: 'Y', album: 'BB' }),
     L(at(2026, 10, 15), { title: 'C', artist: 'Y', album: 'BB' }), L(at(2026, 10, 16), { title: 'Skipped', ms: 4000 }),
   ];
-  const lib = { votes: [{ id: 'v1', trackAId: 'a', trackBId: '', winnerId: null, isEqual: false, boost: 1 as const, timestamp: at(2026, 10, 13) }, { id: 'v2', trackAId: 'a', trackBId: 'b', winnerId: 'a', isEqual: false, timestamp: at(2026, 10, 14) }, { id: 'v3', trackAId: 'a', trackBId: 'b', winnerId: 'a', isEqual: false, timestamp: at(2026, 9, 1) }], memoryLogs: [{ id: 'm1', trackId: 'a', timestamp: at(2026, 10, 15) }] };
+  const lib = { votes: [{ id: 'v1', trackAId: 'a', trackBId: '', winnerId: null, isEqual: false, boost: 1 as const, timestamp: at(2026, 10, 13) }, { id: 'v2', trackAId: 'a', trackBId: 'b', winnerId: 'a', isEqual: false, timestamp: at(2026, 10, 14) }, { id: 'v3', trackAId: 'a', trackBId: 'b', winnerId: 'a', isEqual: false, timestamp: at(2026, 9, 1) }], memoryLogs: [{ id: 'm1', trackId: 'a', timestamp: at(2026, 10, 15) }], trackById: new Map() };
   const r = weeklyRecap(lib as never, all, w, at(2026, 10, 21));
   it('totals the week and compares with the one before', () => {
     expect(r.plays).toBe(4);
@@ -103,5 +105,69 @@ describe('wrapped', () => {
     expect(top(personalityScores({ ...base, nightShare: 0.5 }))).toBe('nightowl');
     expect(top(personalityScores({ ...base, oldShare: 0.9 }))).toBe('timetraveller');
     expect(w.personality).not.toBeNull();
+  });
+});
+
+describe('more weekly stats', () => {
+  const w = weekStart(at(2026, 10, 14));
+  const all = [
+    L(at(2026, 10, 5), { title: 'Old', artist: 'Z', uri: 'u:old' }),
+    L(at(2026, 10, 12, 1), { title: 'A', artist: 'X', uri: 'u:a' }), L(at(2026, 10, 12, 1), { title: 'A', artist: 'X', uri: 'u:a' }), L(at(2026, 10, 12, 2), { title: 'A', artist: 'X', uri: 'u:a' }),
+    L(at(2026, 10, 14, 20), { title: 'Old', artist: 'Z', uri: 'u:old' }), L(at(2026, 10, 14, 21), { title: 'B', artist: 'Y', uri: 'u:b', skipped: true }),
+  ];
+  const r = weeklyRecap({ votes: [], memoryLogs: [], trackById: new Map() } as never, all, w, at(2026, 10, 21));
+  it('splits the week by day and finds the long session', () => {
+    expect(r.byDay[0]).toBe(600000); expect(r.byDay[2]).toBe(400000); expect(r.byDay[1]).toBe(0);
+    expect(r.longestSessionMs).toBeGreaterThanOrEqual(400000);
+  });
+  it('knows what is new, on repeat, late at night and skipped', () => {
+    expect(r.newSongs).toBe(2);           // A and B; "Old" was heard the week before
+    expect(r.onRepeat).toMatchObject({ label: 'A', plays: 3 });
+    expect(r.lateNight).toBe(3);
+    expect(r.completion).toBeCloseTo(0.8, 5);
+  });
+  it('finds sessions and obsessions', () => {
+    expect(longestSession([])).toBeNull();
+    expect(longestSession([L(at(2026, 1, 1, 10)), L(at(2026, 1, 1, 10)), L(at(2026, 1, 3, 10))])?.ms).toBe(400000);
+    expect(obsession([L(at(2026, 1, 1), { title: 'S' }), L(at(2026, 1, 1), { title: 'S' })])).toBeNull(); // needs three
+    expect(obsession([1, 2, 3, 4].map(() => L(at(2026, 1, 1), { title: 'S' })))).toMatchObject({ label: 'S', plays: 4 });
+  });
+});
+
+describe('more wrapped stats', () => {
+  const tracks = new Map([['t1', { releaseDate: '1994-02', allGenres: ['rock'] }], ['t2', { releaseDate: '2024', allGenres: ['pop'] }]]);
+  const lib = { votes: [], memoryLogs: [], trackById: tracks as never };
+  const all = [L(at(2025, 6, 1), { uri: 'u:1', trackId: 't1', title: 'Old' })];
+  for (let i = 0; i < 6; i++) all.push(L(at(2026, 7, 4, 23), { uri: 'u:1', trackId: 't1', title: 'Old', artist: 'A' }));
+  for (let i = 0; i < 4; i++) all.push(L(at(2026, 7, 5 + i, 2), { uri: 'u:2', trackId: 't2', title: 'New', artist: 'B', skipped: i === 0 }));
+  const w = computeWrapped(lib as never, all, 2026, at(2026, 12, 1));
+  it('splits listening by hour, weekday and decade', () => {
+    expect(w.hours[23]).toBe(6 * 200000); expect(w.hours[2]).toBe(4 * 200000);
+    expect(w.weekdays.reduce((a, b) => a + b, 0)).toBe(10);
+    expect(w.decades).toEqual([{ label: '1990s', plays: 6 }, { label: '2020s', plays: 4 }]);
+    expect(w.lateNight).toBe(4);
+  });
+  it('counts new songs only if never heard before the year', () => {
+    expect(w.newSongs).toBe(1); // "Old" was played in 2025
+  });
+  it('finds the obsession, the share of the top artists and the season', () => {
+    expect(w.obsession).toMatchObject({ label: 'Old', plays: 6 });
+    expect(w.topFiveShare).toBe(1);
+    expect(w.skipRate).toBeCloseTo(0.1, 5);
+    expect(w.busiestSeason).toBe('summer');
+    expect(w.albums).toBe(Math.round((10 * 200000) / 60000 / 40));
+    expect(w.lastPlay?.title).toBe('New');
+  });
+});
+
+describe('abstract art', () => {
+  it('draws the same picture from the same seed, and each motif draws something', () => {
+    for (const m of MOTIFS) {
+      const a = shapes('2026-summary', m), b = shapes('2026-summary', m);
+      expect(a.length).toBeGreaterThan(2);
+      expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+      expect(JSON.stringify(shapes('another', m))).not.toBe(JSON.stringify(a));
+      for (const s of a) expect(s.opacity).toBeGreaterThan(0);
+    }
   });
 });

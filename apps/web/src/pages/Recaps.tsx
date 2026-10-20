@@ -11,6 +11,7 @@ import { Cover } from '../components/Cover.tsx';
 import { fmtHours } from '../components/charts.tsx';
 import { ShareButton } from '../components/ShareButton.tsx';
 import { CountUp } from '../components/CountUp.tsx';
+import { AbstractArt, MOTIFS } from '../components/AbstractArt.tsx';
 
 const iso = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const fromIso = (s: string | null) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s ?? ''); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : null; };
@@ -28,7 +29,7 @@ export function weekCard(r: WeeklyRecap): ShareCardSpec {
       { heading: 'Top artists', rows: r.topArtists.map((t) => t.label) },
       ...(r.album ? [{ heading: 'Album of the week', rows: [r.album.label] }] : []),
     ],
-    footer: 'TurboMusic',
+    footer: 'TurboMusic', art: { seed: iso(r.from), motif: MOTIFS[Math.floor(r.from / 604_800_000) % MOTIFS.length] },
   };
 }
 
@@ -77,8 +78,9 @@ export function RecapsPage() {
         <button className="btn" disabled={newer === null} onClick={() => newer !== null && go(newer)} aria-label="Newer week"><ChevronRight size={16} /></button>
       </div>
 
-      <article key={start} className="rc-rise space-y-5 rounded-theme p-5 text-white shadow-lg" style={{ background: 'linear-gradient(160deg, #7c3aed 0%, #4c1d95 55%, #1e1b4b 100%)' }}>
-        <header>
+      <article key={start} className="rc-rise relative space-y-5 overflow-hidden rounded-theme p-5 text-white shadow-lg" style={{ background: 'linear-gradient(160deg, #7c3aed 0%, #4c1d95 55%, #1e1b4b 100%)' }}>
+        <AbstractArt seed={iso(r.from)} motif={MOTIFS[Math.floor(r.from / 604_800_000) % MOTIFS.length]} />
+        <header className="relative">
           <div className="text-xs font-semibold uppercase tracking-widest text-white/70">{r.partial ? 'So far this week' : 'Your week in music'}</div>
           <div className="mt-1 text-5xl font-black tabular-nums"><CountUp value={r.ms} format={fmtHours} ms={1300} /></div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/80">
@@ -87,16 +89,16 @@ export function RecapsPage() {
           </div>
         </header>
 
-        <section><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Top songs</h2>
+        <section className="relative"><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Top songs</h2>
           {r.topTracks.map((t, i) => <Row key={t.key} i={i} base={2} r={t} kind="track" image={t.id ? lib.trackById.get(t.id)?.cover : null} />)}</section>
 
-        <section><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Top artists</h2>
+        <section className="relative"><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Top artists</h2>
           {r.topArtists.map((t, i) => <Row key={t.key} i={i} base={8} r={t} kind="artist" image={t.id ? lib.artistById.get(t.id)?.image : null} />)}</section>
 
-        {r.album && <section><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Album of the week</h2>
+        {r.album && <section className="relative"><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Album of the week</h2>
           <Row i={0} base={12} r={r.album} kind="album" image={r.album.id ? lib.albumById.get(r.album.id)?.cover : null} /></section>}
 
-        <section><h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-white/70">Your reactions</h2>
+        <section className="relative"><h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-white/70">Your reactions</h2>
           {reactionsTotal === 0 ? <p className="text-sm text-white/70">No thumbs, votes or memories this week.</p> : (
             <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
               {([['Thumbs up', r.reactions.thumbsUp, ThumbsUp], ['Thumbs down', r.reactions.thumbsDown, ThumbsDown], ['Votes', r.reactions.votes, Swords], ['Memories', r.reactions.memories, Heart]] as const).map(([label, n, Icon]) =>
@@ -104,7 +106,14 @@ export function RecapsPage() {
             </div>)}
         </section>
 
-        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/75">
+        <section className="relative space-y-3"><h2 className="text-sm font-semibold uppercase tracking-wider text-white/70">Your days</h2>
+          <div className="flex h-20 items-end gap-2" role="img" aria-label="Listening time per day">{r.byDay.map((ms, k) => <div key={k} className="flex flex-1 flex-col items-center gap-1"><div className={`rc-bar w-full rounded-t ${ms > 0 && k === r.byDay.indexOf(Math.max(...r.byDay)) ? 'bg-yellow-300' : 'bg-white/60'}`} style={{ height: `${Math.max(4, (ms / Math.max(1, ...r.byDay)) * 56)}px`, '--i': k } as CSSProperties} /><span className="text-[10px] text-white/70">{['M', 'T', 'W', 'T', 'F', 'S', 'S'][k]}</span></div>)}</div>
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+            {([['Longest session', r.longestSessionMs > 0 ? fmtHours(r.longestSessionMs) : null], ['New songs', r.newSongs > 0 ? String(r.newSongs) : null], ['Not skipped', r.plays ? `${Math.round(r.completion * 100)}%` : null], ['Top genre', r.topGenre], ['After midnight', r.lateNight > 0 ? `${r.lateNight} plays` : null], ['On repeat', r.onRepeat ? `${r.onRepeat.label} ×${r.onRepeat.plays}` : null]] as const).filter(([, v]) => v).map(([l, v], k) =>
+              <div key={l} className="rc-pop rounded-lg bg-white/10 p-2.5" style={{ '--i': 15 + k } as CSSProperties}><div className="text-[10px] uppercase tracking-wider text-white/70">{l}</div><div className={`truncate text-base font-bold ${l === 'Top genre' ? 'capitalize' : ''}`}>{v}</div></div>)}
+          </div></section>
+
+        <footer className="relative flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/75">
           {DP && <span className="inline-flex items-center gap-1"><DP.Icon size={13} />{DP.text}</span>}
           {r.busiestDay && <span className="inline-flex items-center gap-1"><Flame size={13} />Biggest day: {new Date(`${r.busiestDay.key}T12:00`).toLocaleDateString(undefined, { weekday: 'long' })}, {fmtHours(r.busiestDay.ms)}</span>}
           {r.newArtists > 0 && <span>{r.newArtists} new artist{r.newArtists === 1 ? '' : 's'}</span>}

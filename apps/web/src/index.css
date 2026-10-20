@@ -66,4 +66,12 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 .rc-grow { transform-origin: left; animation: rc-grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 90ms + 250ms); }
 .rc-draw { stroke-dasharray: 1; animation: rc-draw 1.5s ease-out both; animation-delay: calc(var(--i, 0) * 160ms + 250ms); }
 .rc-shake { animation: rc-shake 0.45s ease-out both; }
-@media (prefers-reduced-motion: reduce) { .rc-rise, .rc-pop, .rc-slide-fwd, .rc-slide-back, .rc-grow, .rc-draw, .rc-shake { animation: none; } .rc-draw { stroke-dasharray: none; } }
+@keyframes rc-bar { from { transform: scaleY(0); } to { transform: none; } }
+.rc-bar { transform-origin: bottom; animation: rc-bar 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 28ms + 250ms); }
+@keyframes rc-float-a { from { transform: translate(-10px, 6px) rotate(-2deg); } to { transform: translate(12px, -8px) rotate(2deg); } }
+@keyframes rc-float-b { from { transform: translate(8px, 10px) scale(1); } to { transform: translate(-12px, -6px) scale(1.04); } }
+@keyframes rc-float-c { from { transform: translate(0, -8px); } to { transform: translate(0, 10px); } }
+.rc-float { transform-box: fill-box; transform-origin: center; animation: rc-float-a 14s ease-in-out infinite alternate; }
+.rc-float-1 { animation-name: rc-float-b; animation-duration: 18s; }
+.rc-float-2 { animation-name: rc-float-c; animation-duration: 11s; }
+@media (prefers-reduced-motion: reduce) { .rc-bar, .rc-float { animation: none; } .rc-rise, .rc-pop, .rc-slide-fwd, .rc-slide-back, .rc-grow, .rc-draw, .rc-shake { animation: none; } .rc-draw { stroke-dasharray: none; } }

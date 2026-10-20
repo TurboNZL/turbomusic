@@ -11,9 +11,13 @@ import { Cover } from '../components/Cover.tsx';
 import { fmtHours } from '../components/charts.tsx';
 import { ShareButton } from '../components/ShareButton.tsx';
 import { CountUp } from '../components/CountUp.tsx';
+import { AbstractArt, type Motif } from '../components/AbstractArt.tsx';
 import { hourLabel } from '../lib/listenStats.ts';
 
 const SLIDE_MS = 8000;
+const MOTIF: Record<string, Motif> = { intro: 'rings', minutes: 'blobs', quiz: 'dots', songs: 'waves', artists: 'arcs', albums: 'stripes', genres: 'blobs', age: 'rings', phases: 'waves', race: 'dots', day: 'stripes', marathon: 'rings', decades: 'blobs', numbers: 'dots', days: 'arcs', reactions: 'waves', personality: 'arcs', summary: 'blobs' };
+const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const dayLong = (key: string) => new Date(`${key}T12:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 const i2 = (l: string) => ['thumbs up', 'thumbs down', 'head-to-head votes', 'memories made'].indexOf(l);
 const MONTH = (m: string) => new Date(`${m}-15T12:00`).toLocaleDateString(undefined, { month: 'short' });
 const MONTH_LONG = (m: string) => new Date(`${m}-15T12:00`).toLocaleDateString(undefined, { month: 'long' });
@@ -34,7 +38,7 @@ export function wrappedCard(w: Wrapped): ShareCardSpec {
       { heading: 'Top albums', rows: w.topAlbums.map((t) => t.label) },
       { heading: 'Top genres', rows: w.topGenres.map((g) => g.name) },
     ],
-    footer: 'TurboMusic',
+    footer: 'TurboMusic', art: { seed: `${w.year}-summary`, motif: 'blobs' },
   };
 }
 
@@ -130,6 +134,32 @@ function Story({ w }: { w: Wrapped }) {
     if (w.phases.length >= 2) s.push({ id: 'phases', node: <div className="space-y-4"><Title sub="Your year came in phases.">Your music evolution</Title>
       <ol className="space-y-3">{w.phases.map((p, k) => <li key={k} className="rc-rise rounded-xl bg-white/12 p-3" style={{ '--i': k + 2 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">{p.fromMonth === p.toMonth ? MONTH_LONG(p.fromMonth) : `${MONTH_LONG(p.fromMonth)} – ${MONTH_LONG(p.toMonth)}`}</div><div className="text-xl font-bold">{p.name}</div><div className="text-sm text-white/80">{p.artists.join(', ')}</div></li>)}</ol></div> });
     if (w.race) s.push({ id: 'race', node: <div className="space-y-4"><Title sub="Where your top five stood after each month.">Top artist race</Title><RaceChart race={w.race} /></div> });
+    {
+      const maxH = Math.max(1, ...w.hours), maxD = Math.max(1, ...w.weekdays);
+      if (w.peakHour !== null) s.push({ id: 'day', node: <div className="space-y-5"><Title sub={w.lateNight > 0 ? `${w.lateNight.toLocaleString()} plays came after midnight.` : undefined}>{`Your day runs on ${hourLabel(w.peakHour).replace(/([ap])$/, ' $1m')}`}</Title>
+        <div><div className="flex h-28 items-end gap-[3px]" role="img" aria-label="Listening by hour of the day">{w.hours.map((h, k) => <div key={k} className={`rc-bar flex-1 rounded-t ${k === w.peakHour ? 'bg-yellow-300' : 'bg-white/70'}`} style={{ height: `${Math.max(3, (h / maxH) * 100)}%`, '--i': k } as CSSProperties} />)}</div>
+          <div className="mt-1 flex justify-between text-[10px] text-white/70"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span></div></div>
+        <div><div className="flex h-12 items-end gap-2">{w.weekdays.map((d, k) => <div key={k} className="rc-bar flex-1 rounded-t bg-white/55" style={{ height: `${Math.max(6, (d / maxD) * 100)}%`, '--i': k + 24 } as CSSProperties} />)}</div>
+          <div className="mt-1 flex gap-2 text-[10px] text-white/70">{DAYS.map((d, k) => <span key={k} className="flex-1 text-center">{d}</span>)}</div></div>
+        <p className="rc-rise text-sm text-white/80" style={{ '--i': 6 } as CSSProperties}>{Math.round(w.weekendShare * 100)}% of your plays were on weekends.</p></div> });
+    }
+    if (w.longestSession || w.obsession) s.push({ id: 'marathon', node: <div className="space-y-5"><Title>Your marathons</Title>
+      {w.longestSession && <div className="rc-rise" style={{ '--i': 2 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">Longest listening session</div><div className="text-5xl font-black"><CountUp value={w.longestSession.ms} format={fmtHours} ms={1400} /></div><div className="text-sm text-white/75">{new Date(w.longestSession.start).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}, without a break of half an hour.</div></div>}
+      {w.obsession && <div className="rc-rise" style={{ '--i': 4 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">Your obsession</div><div className="text-2xl font-black leading-tight">{w.obsession.label}</div><div className="text-sm text-white/80">{w.obsession.artist} · played {w.obsession.plays} times on {dayLong(w.obsession.day)}.</div></div>}</div> });
+    if (w.decades.length >= 2) { const top = Math.max(...w.decades.map((d) => d.plays)); s.push({ id: 'decades', node: <div className="space-y-4"><Title sub="When your songs were released.">Your music by decade</Title>
+      <ul className="space-y-2">{w.decades.map((d, k) => <li key={d.label} className="rc-rise" style={{ '--i': k + 2 } as CSSProperties}><div className="flex justify-between text-lg font-semibold"><span>{d.label}</span><span className="text-sm tabular-nums text-white/75">{d.plays}×</span></div>
+        <div className="mt-1 h-2 rounded-full bg-white/15"><div className="rc-grow h-2 rounded-full bg-white/80" style={{ width: `${(d.plays / top) * 100}%`, '--i': k + 2 } as CSSProperties} /></div></li>)}</ul></div> }); }
+    {
+      const tiles: [string, ReactNode, string][] = [];
+      if (w.newSongs > 0) tiles.push(['New to you', <CountUp key="n" value={w.newSongs} ms={1000} />, 'songs you had never played before']);
+      if (w.topFiveShare > 0) tiles.push(['Your inner circle', <><CountUp key="t" value={Math.round(w.topFiveShare * 100)} ms={1000} />%</>, 'of plays were your top 5 artists']);
+      tiles.push(['Skipped', <><CountUp key="s" value={Math.round(w.skipRate * 100)} ms={1000} />%</>, 'of plays you cut short']);
+      if (w.albums > 0) tiles.push(['That is about', <CountUp key="a" value={w.albums} ms={1100} />, 'full albums of 40 minutes']);
+      if (w.busiestSeason) tiles.push(['Your season', <span key="se" className="capitalize">{w.busiestSeason}</span>, 'was the loudest']);
+      if (w.lateNight > 0) tiles.push(['After midnight', <CountUp key="l" value={w.lateNight} ms={1000} />, 'plays between 12 and 5 a.m.']);
+      if (w.lastPlay) tiles.push(['Latest', <span key="lp" className="text-xl leading-tight">{w.lastPlay.title}</span>, w.lastPlay.artist]);
+      s.push({ id: 'numbers', node: <div className="space-y-4"><Title>Your year in numbers</Title><div className="grid grid-cols-2 gap-3">{tiles.slice(0, 6).map(([l, v, sub], k) => <div key={l} className="rc-pop rounded-xl bg-white/12 p-3" style={{ '--i': k + 2 } as CSSProperties}><div className="text-[10px] uppercase tracking-wider text-white/70">{l}</div><div className="text-3xl font-black tabular-nums leading-tight">{v}</div><div className="text-xs text-white/75">{sub}</div></div>)}</div></div> });
+    }
     s.push({ id: 'days', node: <div className="space-y-4"><Title>When it happened</Title>
       <dl className="space-y-3">
         {w.streak.days > 1 && <div className="rc-rise" style={{ '--i': 2 } as CSSProperties}><dt className="text-xs uppercase tracking-wider text-white/70">Longest streak</dt><dd className="text-3xl font-black"><CountUp value={w.streak.days} ms={1000} /> days in a row</dd></div>}
@@ -185,7 +215,8 @@ function Story({ w }: { w: Wrapped }) {
         </div>
         <button className="absolute inset-y-0 left-0 z-10 w-1/5" aria-label="Previous" onClick={(e) => { e.stopPropagation(); go(i - 1); }} />
         <button className="absolute inset-y-0 right-0 z-10 w-1/5" aria-label="Next" onClick={(e) => { e.stopPropagation(); go(i + 1); }} />
-        <div key={cur.id} className={`rc-slide-${dir} flex min-h-[inherit] flex-col justify-center p-7 pt-10`}>{cur.node}</div>
+        <AbstractArt key={`art-${cur.id}`} seed={`${w.year}-${cur.id}`} motif={MOTIF[cur.id] ?? 'blobs'} />
+        <div key={cur.id} className={`rc-slide-${dir} relative flex min-h-[inherit] flex-col justify-center p-7 pt-10`}>{cur.node}</div>
       </div>
       <div className="flex items-center justify-between gap-2">
         <button className="btn" onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous slide"><ChevronLeft size={16} /></button>

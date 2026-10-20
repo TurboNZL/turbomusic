@@ -1,3 +1,5 @@
+import { shapes, W as ART_W, H as ART_H, type Motif } from '../components/AbstractArt.tsx';
+
 /**
  * A share picture for a recap, drawn on a canvas (no libraries, no pictures fetched: a gradient, the numbers and the lists), 1080 x 1350.
  * `drawShareCard` returns a PNG; `saveOrShare` hands it to the system share sheet when the browser can share files, else downloads it.
@@ -10,6 +12,8 @@ export interface ShareCardSpec {
   footer: string;
   /** two CSS colours for the background gradient */
   colors?: [string, string];
+  /** the abstract background: the same seed and motif as the page's art */
+  art?: { seed: string; motif: Motif };
 }
 
 const W = 1080, H = 1350, FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -30,9 +34,22 @@ export async function drawShareCard(spec: ShareCardSpec): Promise<Blob> {
   const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
   g.addColorStop(0, a); g.addColorStop(1, b);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(255,255,255,0.07)';
-  ctx.beginPath(); ctx.arc(W - 120, 150, 330, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(80, H - 60, 260, 0, Math.PI * 2); ctx.fill();
+  if (spec.art) {
+    // the page's own SVG shapes (400 x 600, "slice" fit), drawn with Path2D
+    const k = Math.max(W / ART_W, H / ART_H);
+    ctx.save(); ctx.translate((W - ART_W * k) / 2, (H - ART_H * k) / 2); ctx.scale(k, k);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#fff';
+    for (const sh of shapes(spec.art.seed, spec.art.motif)) {
+      ctx.globalAlpha = sh.opacity; ctx.lineWidth = sh.width;
+      const path = new Path2D(sh.kind === 'path' ? sh.d : `M${sh.cx - sh.r} ${sh.cy}a${sh.r} ${sh.r} 0 1 0 ${sh.r * 2} 0a${sh.r} ${sh.r} 0 1 0 ${-sh.r * 2} 0Z`);
+      if (sh.fill) ctx.fill(path); else ctx.stroke(path);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.beginPath(); ctx.arc(W - 120, 150, 330, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(80, H - 60, 260, 0, Math.PI * 2); ctx.fill();
+  }
 
   ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
   ctx.font = `600 34px ${FONT}`; ctx.globalAlpha = 0.8; ctx.fillText(spec.kicker.toUpperCase(), 72, 110); ctx.globalAlpha = 1;

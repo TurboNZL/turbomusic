@@ -44,6 +44,33 @@ export function defaultWeek(weeks: number[], now = Date.now()): number | null {
   return weeks.find((w) => w < thisWeek) ?? weeks[0];
 }
 
+const keyOf = (l: Listen) => (l.trackId ? `t:${l.trackId}` : l.uri ?? `${l.title}|${l.artist}`.toLowerCase());
+
+/** The longest stretch of listening with no gap over 30 minutes (rows sorted by time). */
+export function longestSession(rows: Listen[]): { ms: number; start: number } | null {
+  let best: { ms: number; start: number } | null = null, cur = 0, start = 0, lastEnd = -Infinity;
+  for (const l of rows) {
+    const s = l.ts - l.ms;
+    if (s - lastEnd > 30 * 60_000) { cur = 0; start = s; }
+    cur += l.ms; lastEnd = l.ts;
+    if (!best || cur > best.ms) best = { ms: cur, start };
+  }
+  return best;
+}
+
+/** The plays of one song on its busiest day: "you played it 14 times on March 3". */
+export function obsession(rows: Listen[]): { label: string; artist: string; plays: number; day: string } | null {
+  const m = new Map<string, { label: string; artist: string; plays: number; day: string }>();
+  let best: { label: string; artist: string; plays: number; day: string } | null = null;
+  for (const l of rows) {
+    const day = dayKey(l.ts), k = `${keyOf(l)}@${day}`;
+    const e = m.get(k) ?? { label: l.title, artist: l.artist, plays: 0, day };
+    e.plays++; m.set(k, e);
+    if (!best || e.plays > best.plays) best = e;
+  }
+  return best && best.plays >= 3 ? best : null;
+}
+
 export interface Reactions { thumbsUp: number; thumbsDown: number; votes: number; memories: number }
 
 export interface WeeklyRecap {
@@ -63,6 +90,18 @@ export interface WeeklyRecap {
   newArtists: number;
   skipRate: number;
   daypart: 'night' | 'morning' | 'afternoon' | 'evening' | null;
+  /** milliseconds listened per day, Monday first */
+  byDay: number[];
+  longestSessionMs: number;
+  /** a song played three times or more this week */
+  onRepeat: { label: string; artist: string; plays: number } | null;
+  /** songs heard for the first time this week (never played before, in the library or imported history) */
+  newSongs: number;
+  topGenre: string | null;
+  /** plays between midnight and 5 a.m. */
+  lateNight: number;
+  /** share of plays that were not skipped (0..1) */
+  completion: number;
 }
 
 const daypartOf = (hour: number) => (hour < 5 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening') as NonNullable<WeeklyRecap['daypart']>;
@@ -77,14 +116,29 @@ function reactionsIn(lib: Pick<Library, 'votes' | 'memoryLogs'>, from: number, t
   return r;
 }
 
-export function weeklyRecap(lib: Pick<Library, 'votes' | 'memoryLogs'>, all: Listen[], start: number, now = Date.now()): WeeklyRecap {
+export function weeklyRecap(lib: Pick<Library, 'votes' | 'memoryLogs' | 'trackById'>, all: Listen[], start: number, now = Date.now()): WeeklyRecap {
   const end = nextWeek(start);
   const s = computeListenStats(all, { from: start, to: end }, { minMs: RECAP_MIN_MS, now, topN: 5 });
   const prev = computeListenStats(all, { from: prevWeek(start), to: start }, { minMs: RECAP_MIN_MS, now, topN: 1 });
   let busiest: WeeklyRecap['busiestDay'] = null;
   for (const [key, ms] of s.byDay) if (!busiest || ms > busiest.ms) busiest = { key, ms };
   const best = s.byHour.reduce((bi, v, i, a) => (v > a[bi] ? i : bi), 0);
+  const rows = all.filter((l) => l.ms >= RECAP_MIN_MS && l.ts >= start && l.ts < end);
+  const byDay = Array<number>(7).fill(0);
+  let lateNight = 0;
+  const genres = new Map<string, number>(), seen = new Set<string>(), fresh = new Set<string>();
+  for (const l of all) if (l.ms >= RECAP_MIN_MS && l.ts < start) seen.add(keyOf(l));
+  for (const l of rows) {
+    byDay[(new Date(l.ts).getDay() + 6) % 7] += l.ms;
+    if (new Date(l.ts).getHours() < 5) lateNight++;
+    if (!seen.has(keyOf(l))) fresh.add(keyOf(l));
+    for (const g of (l.trackId ? lib.trackById.get(l.trackId)?.allGenres ?? [] : [])) genres.set(g, (genres.get(g) ?? 0) + 1);
+  }
+  const rep = s.topTracks[0];
   return {
+    byDay, longestSessionMs: longestSession(rows)?.ms ?? 0, newSongs: fresh.size, lateNight, completion: 1 - s.skipRate,
+    onRepeat: rep && rep.plays >= 3 ? { label: rep.label, artist: rep.sub, plays: rep.plays } : null,
+    topGenre: [...genres.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     from: start, to: end, partial: now < end,
     plays: s.plays, ms: s.ms, prevMs: prev.ms, change: prev.ms > 0 ? s.ms / prev.ms - 1 : null,
     topTracks: s.topTracks, topArtists: s.topArtists.slice(0, 3), album: s.topAlbums[0] ?? null,
@@ -125,6 +179,26 @@ export interface Wrapped {
   busiestMonth: { month: string; ms: number } | null;
   reactions: Reactions;
   personality: { kind: Personality; scores: Record<Personality, number> } | null;
+  /** milliseconds listened per hour of the day */
+  hours: number[];
+  /** plays per weekday, Monday first */
+  weekdays: number[];
+  weekendShare: number;
+  longestSession: { ms: number; start: number } | null;
+  obsession: { label: string; artist: string; plays: number; day: string } | null;
+  /** how much of your listening the five most played artists took (0..1) */
+  topFiveShare: number;
+  skipRate: number;
+  /** songs heard for the first time this year */
+  newSongs: number;
+  /** plays between midnight and 5 a.m. */
+  lateNight: number;
+  /** plays by decade of release, oldest first (library songs with a release date only) */
+  decades: { label: string; plays: number }[];
+  /** the listening time in albums of 40 minutes */
+  albums: number;
+  busiestSeason: 'winter' | 'spring' | 'summer' | 'autumn' | null;
+  lastPlay: { title: string; artist: string; ts: number } | null;
 }
 
 const monthsOf = (year: number) => Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
@@ -255,7 +329,32 @@ export function computeWrapped(lib: Pick<Library, 'votes' | 'memoryLogs' | 'trac
   const scores = personalityScores({ plays: s.plays, distinctTracks: s.distinctTracks, newArtists, topArtistShare, nightShare: sum(s.byHour, 0, 5) / total, morningShare: sum(s.byHour, 5, 12) / total, oldShare });
   const kind = PERSONALITY_ORDER.reduce((b, k) => (scores[k] > scores[b] ? k : b), PERSONALITY_ORDER[0]);
 
+  const seenBefore = new Set<string>();
+  for (const l of all) if (l.ms >= RECAP_MIN_MS && l.ts < from) seenBefore.add(keyOf(l));
+  const freshSongs = new Set<string>();
+  const dec = new Map<number, number>();
+  let late = 0, weekend = 0;
+  const season = [0, 0, 0, 0]; // winter, spring, summer, autumn (northern hemisphere months)
+  for (const l of rows) {
+    if (!seenBefore.has(keyOf(l))) freshSongs.add(keyOf(l));
+    const d = new Date(l.ts);
+    if (d.getHours() < 5) late++;
+    if (d.getDay() === 0 || d.getDay() === 6) weekend++;
+    season[[0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 0][d.getMonth()]] += l.ms;
+    const y = l.trackId ? yearOf(lib.trackById.get(l.trackId)?.releaseDate) : null;
+    if (y) dec.set(Math.floor(y / 10) * 10, (dec.get(Math.floor(y / 10) * 10) ?? 0) + 1);
+  }
+  const topFive = s.topArtists.slice(0, 5).reduce((n, a) => n + a.plays, 0);
+  const last = rows[rows.length - 1];
+  const sMax = Math.max(...season);
   return {
+    hours: s.byHour, weekdays: s.byWeekday, weekendShare: rows.length ? weekend / rows.length : 0,
+    longestSession: longestSession(rows), obsession: obsession(rows), topFiveShare: s.plays ? topFive / s.plays : 0,
+    skipRate: s.skipRate, newSongs: freshSongs.size, lateNight: late,
+    decades: [...dec.entries()].sort((a, b) => a[0] - b[0]).map(([d, plays]) => ({ label: `${d}s`, plays })),
+    albums: Math.round(s.ms / 60000 / 40),
+    busiestSeason: sMax > 0 ? (['winter', 'spring', 'summer', 'autumn'] as const)[season.indexOf(sMax)] : null,
+    lastPlay: last ? { title: last.title, artist: last.artist, ts: last.ts } : null,
     year, from, to: Math.min(yearEnd, now), partial: now < yearEnd, plays: s.plays, ms: s.ms, minutes: Math.round(s.ms / 60000),
     distinctTracks: s.distinctTracks, distinctArtists: s.distinctArtists,
     topTracks, topArtists, topAlbums, topGenres, topArtistShare, quiz, listening, phases, race,
