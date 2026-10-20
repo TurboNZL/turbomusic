@@ -11,16 +11,16 @@ export function fadeGains(progress: number): { out: number; in: number } {
 }
 
 /** The shortest fade there is; anything below counts as a cut. */
-export const MIN_FADE_SEC = 0.1;
+export const MIN_FADE_SEC = 0.05;
 
 /**
- * The stops of the crossfade sliders: fine where it matters (a tenth of a second up to 2 s), then a quarter, then half seconds up to
- * the longest fade. One slider position is one stop, so the short lengths can be told apart without a huge slider.
+ * The stops of the crossfade sliders: finest where a small gap is being closed (0.05 s up to half a second), then a tenth up to 2 s, then a
+ * quarter, then half seconds up to the longest fade. One slider position is one stop, so the short lengths can be told apart.
  */
 export function fadeStops(max: number): number[] {
   const out: number[] = [];
   const add = (from: number, to: number, step: number) => { for (let n = Math.round(from / step); n * step <= to + 1e-9; n++) { const v = Math.round(n * step * 100) / 100; if (v <= max && (!out.length || v > out[out.length - 1])) out.push(v); } };
-  add(0, 2, 0.1); add(2.25, 5, 0.25); add(5.5, max, 0.5);
+  add(0, 0.5, 0.05); add(0.6, 2, 0.1); add(2.25, 5, 0.25); add(5.5, max, 0.5);
   return out;
 }
 /** The stop nearest to a length. */
@@ -58,11 +58,28 @@ export const shouldPrepare = (wantedSec: number, remainingSec: number, shiftSec 
 /** Is it time to start the fade? */
 export const shouldFade = (wantedSec: number, remainingSec: number, shiftSec = 0) => wantedSec > 0 && remainingSec <= wantedSec + shiftSec + TRIGGER_SLACK_SEC;
 
-/** The seconds of the end of a track that the alignment picture shows: the longest fade plus the furthest shift, plus a little air. */
-export const ALIGN_WINDOW_SEC = 26;
-/** New shift after dragging the fade `dxPx` to the right (later) over a picture `widthPx` wide: left = earlier = more shift, in tenths of a second. */
-export function shiftFromDrag(startShift: number, dxPx: number, widthPx: number, maxShift: number): number {
+/** The windows (seconds across the whole picture) the alignment picture can show, centred on the end of the first song: fine, medium, wide. */
+export const ALIGN_WINDOWS: readonly number[] = [3, 8, 26];
+/** The smallest window that holds a fade placed `shiftSec` early (its far edge is `shiftSec + fadeSec` before the end) with room to spare. */
+export function windowFor(fadeSec: number, shiftSec: number): number {
+  const reach = (shiftSec + fadeSec) * 1.2;
+  return ALIGN_WINDOWS.find((w) => reach <= w / 2) ?? ALIGN_WINDOWS[ALIGN_WINDOWS.length - 1];
+}
+/** New shift after dragging the fade `dxPx` to the right (later) over a picture `widthPx` wide showing `windowSec`: left = earlier = more shift, in hundredths of a second. */
+export function shiftFromDrag(startShift: number, dxPx: number, widthPx: number, maxShift: number, windowSec: number = ALIGN_WINDOWS[2]): number {
   if (!(widthPx > 0)) return startShift;
-  const next = startShift - (dxPx / widthPx) * ALIGN_WINDOW_SEC;
-  return Math.round(Math.min(maxShift, Math.max(0, next)) * 10) / 10;
+  const next = startShift - (dxPx / widthPx) * windowSec;
+  return Math.round(Math.min(maxShift, Math.max(0, next)) * 100) / 100;
+}
+/** A shift moved by `delta` seconds, clamped and rounded to hundredths (for the buttons and keys). */
+export const nudgeShift = (shift: number, delta: number, maxShift: number) => Math.round(Math.min(maxShift, Math.max(0, shift + delta)) * 100) / 100;
+
+/**
+ * Milliseconds to wait before the fade must start, when it is close enough to be worth a timer (the player reports its time only about four
+ * times a second, which is too coarse to place a short fade or close a small gap). null = not yet / no timer needed.
+ */
+export function fadeDelayMs(wantedSec: number, remainingSec: number, shiftSec: number, rate = 1): number | null {
+  if (!(wantedSec > 0)) return null;
+  const until = (remainingSec - (wantedSec + shiftSec)) / (rate > 0 ? rate : 1);
+  return until > 0 && until <= 1.5 ? Math.round(until * 1000) : until <= 0 ? 0 : null;
 }

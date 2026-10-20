@@ -8,7 +8,7 @@ import { BEAM_ID, beamActive, beamFailed, setBeamVolume } from './beam.ts';
 import { getLibrary } from './derive.ts';
 import { useStore } from './store.ts';
 import { addEqElement, resumeEq, setEq } from './eq.ts';
-import { clampShift, fadeGains, fadeLength, shouldFade, shouldPrepare } from './crossfadeMath.ts';
+import { clampShift, fadeDelayMs, fadeGains, fadeLength, shouldPrepare } from './crossfadeMath.ts';
 import { eqConfig } from './eqConfig.ts';
 import { isFlat } from './eqPresets.ts';
 import { refreshSpotifyStatus, spotifyCan, spotifyEngine, spotifyUriOf } from './spotifyPlayer.ts';
@@ -219,8 +219,21 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const remaining = a.duration - a.currentTime, shift = clampShift(plan.shift, a.duration);
     if (!shouldPrepare(plan.wanted, remaining, shift) || prepFailed === plan.nextId) return;
     if (!prep || prep.id !== plan.nextId) { void prepare(plan.nextId); return; }
-    if (shouldFade(plan.wanted, remaining, shift) && prep.el.readyState >= 3) void startFade(plan.nextId, plan.wanted, shift);
+    if (prep.el.readyState < 3) return;
+    // a timer lands the start on the exact moment instead of the next report (up to a quarter of a second late)
+    const delay = fadeDelayMs(plan.wanted, remaining, shift, a.playbackRate || 1);
+    if (delay === null) return;
+    if (delay <= 20) { clearFadeTimer(); void startFade(plan.nextId, plan.wanted, shift); return; }
+    clearFadeTimer(); fadeTimerFor = a;
+    const nextId = plan.nextId, wanted = plan.wanted;
+    fadeTimer = setTimeout(() => { // re-checked now: a seek or pause since scheduling moves the moment
+      fadeTimer = undefined;
+      const d = fadeDelayMs(wanted, a.duration - a.currentTime, shift, a.playbackRate || 1);
+      if (audio === a && !a.paused && !fade && !fading && d !== null && d <= 80) void startFade(nextId, wanted, shift);
+    }, delay);
   }
+  let fadeTimer: ReturnType<typeof setTimeout> | undefined, fadeTimerFor: HTMLAudioElement | null = null;
+  function clearFadeTimer() { if (fadeTimer) clearTimeout(fadeTimer); fadeTimer = undefined; fadeTimerFor = null; }
 
   /** playbackLogs are append-only; skips are logged too so stats can tell them apart */
   const position = () => (spotifyEngine.active() || native ? get().time : audio?.currentTime ?? get().time);
