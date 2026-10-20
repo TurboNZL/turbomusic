@@ -10,9 +10,11 @@ import type { ShareCardSpec } from '../lib/shareCard.ts';
 import { Cover } from '../components/Cover.tsx';
 import { fmtHours } from '../components/charts.tsx';
 import { ShareButton } from '../components/ShareButton.tsx';
+import { CountUp } from '../components/CountUp.tsx';
 import { hourLabel } from '../lib/listenStats.ts';
 
 const SLIDE_MS = 8000;
+const i2 = (l: string) => ['thumbs up', 'thumbs down', 'head-to-head votes', 'memories made'].indexOf(l);
 const MONTH = (m: string) => new Date(`${m}-15T12:00`).toLocaleDateString(undefined, { month: 'short' });
 const MONTH_LONG = (m: string) => new Date(`${m}-15T12:00`).toLocaleDateString(undefined, { month: 'long' });
 
@@ -37,9 +39,9 @@ export function wrappedCard(w: Wrapped): ShareCardSpec {
 }
 
 function Title({ children, sub }: { children: ReactNode; sub?: string }) {
-  return <div className="space-y-1"><h2 className="text-3xl font-black leading-tight sm:text-4xl">{children}</h2>{sub && <p className="text-sm text-white/75">{sub}</p>}</div>;
+  return <div className="space-y-1"><h2 className="rc-rise text-3xl font-black leading-tight sm:text-4xl">{children}</h2>{sub && <p className="rc-rise text-sm text-white/75" style={{ '--i': 1 } as CSSProperties}>{sub}</p>}</div>;
 }
-const Big = ({ children }: { children: ReactNode }) => <div className="text-6xl font-black leading-none tabular-nums sm:text-7xl">{children}</div>;
+const Big = ({ children }: { children: ReactNode }) => <div className="rc-pop text-6xl font-black leading-none tabular-nums sm:text-7xl">{children}</div>;
 
 function TopList({ rows, kind, image, ranked = true }: { rows: TopRow[]; kind: 'track' | 'artist' | 'album'; image: (r: TopRow) => string | null | undefined; ranked?: boolean }) {
   return (
@@ -52,7 +54,7 @@ function TopList({ rows, kind, image, ranked = true }: { rows: TopRow[]; kind: '
           <span className="min-w-0 flex-1"><span className="block truncate text-lg font-semibold">{r.label}</span><span className="block truncate text-xs text-white/70">{r.sub || `${fmtHours(r.ms)}`}</span></span>
           <span className="shrink-0 text-sm tabular-nums text-white/80">{r.plays}×</span>
         </>;
-        return <li key={r.key}>{to ? <Link to={to} className="flex items-center gap-3 rounded-xl p-1 hover:bg-white/10">{inner}</Link> : <div className="flex items-center gap-3 p-1">{inner}</div>}</li>;
+        return <li key={r.key} className="rc-rise" style={{ '--i': i + 2 } as CSSProperties}>{to ? <Link to={to} className="flex items-center gap-3 rounded-xl p-1 hover:bg-white/10">{inner}</Link> : <div className="flex items-center gap-3 p-1">{inner}</div>}</li>;
       })}
     </ol>
   );
@@ -69,8 +71,8 @@ function RaceChart({ race }: { race: NonNullable<Wrapped['race']> }) {
         {race.ranks.map((rs, a) => {
           let d = '';
           rs.forEach((r, m) => { if (r !== null) d += `${d && rs[m - 1] !== null ? 'L' : 'M'}${x(m).toFixed(1)} ${y(r).toFixed(1)}`; });
-          return <g key={a}><path d={d} fill="none" stroke={colors[a % colors.length]} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-            {rs.map((r, m) => r !== null ? <circle key={m} cx={x(m)} cy={y(r)} r={m === 11 ? 4.5 : 2.5} fill={colors[a % colors.length]} /> : null)}</g>;
+          return <g key={a}><path d={d} pathLength={1} className="rc-draw" style={{ '--i': a } as CSSProperties} fill="none" stroke={colors[a % colors.length]} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+            {rs.map((r, m) => r !== null ? <circle key={m} className="rc-pop" style={{ '--d': `${400 + a * 160 + m * 110}ms` } as CSSProperties} cx={x(m)} cy={y(r)} r={m === 11 ? 4.5 : 2.5} fill={colors[a % colors.length]} /> : null)}</g>;
         })}
         {race.months.map((m, i) => i % 3 === 0 ? <text key={m} x={x(i)} y={h - 1} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,.7)">{MONTH(m)}</text> : null)}
       </svg>
@@ -88,8 +90,8 @@ function Quiz({ w, onAnswered }: { w: Wrapped; onAnswered: (done: boolean) => vo
       <Title sub={pick === null ? 'Tap the one you think you played most.' : undefined}>{pick === null ? 'Guess your number one song' : pick === q.answer ? 'You know yourself.' : 'Not quite…'}</Title>
       <div className="space-y-2">
         {q.options.map((o, i) => {
-          const state = pick === null ? '' : i === q.answer ? 'ring-2 ring-yellow-300 bg-white/25' : i === pick ? 'opacity-60 line-through' : 'opacity-50';
-          return <button key={o.key} disabled={pick !== null} onClick={() => setPick(i)} className={`block w-full rounded-xl bg-white/12 px-4 py-3 text-left transition hover:bg-white/20 ${state}`}>
+          const state = pick === null ? 'rc-rise' : i === q.answer ? 'rc-pop ring-2 ring-yellow-300 bg-white/25' : i === pick ? 'rc-shake opacity-60 line-through' : 'rc-rise opacity-50';
+          return <button key={o.key} disabled={pick !== null} onClick={() => setPick(i)} style={{ '--i': i + 2, '--d': '0ms' } as CSSProperties} className={`block w-full rounded-xl bg-white/12 px-4 py-3 text-left transition-colors hover:bg-white/20 ${state}`}>
             <span className="block truncate text-lg font-semibold">{o.label}</span><span className="block truncate text-xs text-white/70">{o.sub}</span></button>;
         })}
       </div>
@@ -105,6 +107,7 @@ function Story({ w }: { w: Wrapped }) {
   const [held, setHeld] = useState(false);
   const [quizDone, setQuizDone] = useState(false);
   const [t, setT] = useState(0);
+  const [dir, setDir] = useState<'fwd' | 'back'>('fwd');
   const trackImg = (r: TopRow) => (r.id ? lib.trackById.get(r.id)?.cover : null);
   const artistImg = (r: TopRow) => (r.id ? lib.artistById.get(r.id)?.image : null);
   const albumImg = (r: TopRow) => (r.id ? lib.albumById.get(r.id)?.cover : null);
@@ -113,53 +116,53 @@ function Story({ w }: { w: Wrapped }) {
   const slides = useMemo(() => {
     const s: { id: string; hold?: boolean; node: ReactNode }[] = [];
     s.push({ id: 'intro', node: <div className="space-y-4"><div className="text-sm font-semibold uppercase tracking-widest text-white/70">TurboMusic</div><Big>{w.year}</Big><Title sub={w.partial ? `January 1 to today. Spotify's version lands in December; this one is ready now.` : undefined}>Your Wrapped</Title></div> });
-    s.push({ id: 'minutes', node: <div className="space-y-5"><Title>This year you listened for</Title><Big>{w.minutes.toLocaleString()}</Big><div className="text-2xl font-bold">minutes</div>
-      <p className="text-white/80">That is {daysOfMusic >= 1 ? `${daysOfMusic.toFixed(1)} days` : fmtHours(w.ms)} of music: {w.plays.toLocaleString()} plays of {w.distinctTracks.toLocaleString()} different songs by {w.distinctArtists.toLocaleString()} artists.</p></div> });
+    s.push({ id: 'minutes', node: <div className="space-y-5"><Title>This year you listened for</Title><Big><CountUp value={w.minutes} ms={1600} /></Big><div className="rc-rise text-2xl font-bold" style={{ '--i': 3 } as CSSProperties}>minutes</div>
+      <p className="rc-rise text-white/80" style={{ '--i': 5 } as CSSProperties}>That is {daysOfMusic >= 1 ? `${daysOfMusic.toFixed(1)} days` : fmtHours(w.ms)} of music: {w.plays.toLocaleString()} plays of {w.distinctTracks.toLocaleString()} different songs by {w.distinctArtists.toLocaleString()} artists.</p></div> });
     if (w.quiz) s.push({ id: 'quiz', hold: true, node: <Quiz w={w} onAnswered={setQuizDone} /> });
     if (w.topTracks.length) s.push({ id: 'songs', node: <div className="space-y-4"><Title sub={w.topTracks[0] ? `${w.topTracks[0].label} was on repeat ${w.topTracks[0].plays} times.` : undefined}>Your top songs</Title><TopList rows={w.topTracks} kind="track" image={trackImg} /></div> });
     if (w.topArtists.length) s.push({ id: 'artists', node: <div className="space-y-4"><Title sub={`${w.topArtists[0].label} alone took ${Math.round(w.topArtistShare * 100)}% of your listening time.`}>Your top artists</Title><TopList rows={w.topArtists} kind="artist" image={artistImg} /></div> });
     if (w.topAlbums.length) s.push({ id: 'albums', node: <div className="space-y-4"><Title>Your top albums</Title><TopList rows={w.topAlbums} kind="album" image={albumImg} /></div> });
     if (w.topGenres.length) s.push({ id: 'genres', node: <div className="space-y-4"><Title>Your top genres</Title>
-      <ul className="space-y-2">{w.topGenres.map((g, k) => <li key={g.name}><div className="flex justify-between text-lg font-semibold"><span className="capitalize">{k + 1}. {g.name}</span><span className="text-sm tabular-nums text-white/75">{g.plays}×</span></div>
-        <div className="mt-1 h-2 rounded-full bg-white/15"><div className="h-2 rounded-full bg-white/80" style={{ width: `${(g.plays / w.topGenres[0].plays) * 100}%` }} /></div></li>)}</ul></div> });
-    if (w.listening) s.push({ id: 'age', node: <div className="space-y-4"><Title sub={`Your most played songs are mostly from ${w.listening.medianYear}. People tend to love the music from their teens most, so by that measure your taste lives in the body of a…`}>Your listening age</Title><Big>{w.listening.age}</Big>
+      <ul className="space-y-2">{w.topGenres.map((g, k) => <li key={g.name} className="rc-rise" style={{ '--i': k + 2 } as CSSProperties}><div className="flex justify-between text-lg font-semibold"><span className="capitalize">{k + 1}. {g.name}</span><span className="text-sm tabular-nums text-white/75">{g.plays}×</span></div>
+        <div className="mt-1 h-2 rounded-full bg-white/15"><div className="rc-grow h-2 rounded-full bg-white/80" style={{ width: `${(g.plays / w.topGenres[0].plays) * 100}%`, '--i': k + 2 } as CSSProperties} /></div></li>)}</ul></div> });
+    if (w.listening) s.push({ id: 'age', node: <div className="space-y-4"><Title sub={`Your most played songs are mostly from ${w.listening.medianYear}. People tend to love the music from their teens most, so by that measure your taste lives in the body of a…`}>Your listening age</Title><Big><CountUp value={w.listening.age} ms={1400} /></Big>
       <p className="text-sm text-white/75">A playful estimate, not science: this year minus the median release year of your top songs, plus 16.</p></div> });
     if (w.phases.length >= 2) s.push({ id: 'phases', node: <div className="space-y-4"><Title sub="Your year came in phases.">Your music evolution</Title>
-      <ol className="space-y-3">{w.phases.map((p, k) => <li key={k} className="rounded-xl bg-white/12 p-3"><div className="text-xs uppercase tracking-wider text-white/70">{p.fromMonth === p.toMonth ? MONTH_LONG(p.fromMonth) : `${MONTH_LONG(p.fromMonth)} – ${MONTH_LONG(p.toMonth)}`}</div><div className="text-xl font-bold">{p.name}</div><div className="text-sm text-white/80">{p.artists.join(', ')}</div></li>)}</ol></div> });
+      <ol className="space-y-3">{w.phases.map((p, k) => <li key={k} className="rc-rise rounded-xl bg-white/12 p-3" style={{ '--i': k + 2 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">{p.fromMonth === p.toMonth ? MONTH_LONG(p.fromMonth) : `${MONTH_LONG(p.fromMonth)} – ${MONTH_LONG(p.toMonth)}`}</div><div className="text-xl font-bold">{p.name}</div><div className="text-sm text-white/80">{p.artists.join(', ')}</div></li>)}</ol></div> });
     if (w.race) s.push({ id: 'race', node: <div className="space-y-4"><Title sub="Where your top five stood after each month.">Top artist race</Title><RaceChart race={w.race} /></div> });
     s.push({ id: 'days', node: <div className="space-y-4"><Title>When it happened</Title>
       <dl className="space-y-3">
-        {w.streak.days > 1 && <div><dt className="text-xs uppercase tracking-wider text-white/70">Longest streak</dt><dd className="text-3xl font-black">{w.streak.days} days in a row</dd></div>}
-        {w.busiestMonth && <div><dt className="text-xs uppercase tracking-wider text-white/70">Busiest month</dt><dd className="text-3xl font-black">{MONTH_LONG(w.busiestMonth.month)}</dd><dd className="text-sm text-white/75">{fmtHours(w.busiestMonth.ms)}</dd></div>}
-        {w.peakHour !== null && <div><dt className="text-xs uppercase tracking-wider text-white/70">Favourite hour</dt><dd className="text-3xl font-black">{hourLabel(w.peakHour).replace(/([ap])$/, ' $1m')}</dd></div>}
-        {w.biggestDays[0] && <div><dt className="text-xs uppercase tracking-wider text-white/70">Biggest day</dt><dd className="text-3xl font-black">{new Date(`${w.biggestDays[0].key}T12:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}</dd><dd className="text-sm text-white/75">{fmtHours(w.biggestDays[0].ms)} of music</dd></div>}
-        {w.firstPlay && <div><dt className="text-xs uppercase tracking-wider text-white/70">First song of the year</dt><dd className="text-xl font-bold">{w.firstPlay.title}</dd><dd className="text-sm text-white/75">{w.firstPlay.artist}</dd></div>}
+        {w.streak.days > 1 && <div className="rc-rise" style={{ '--i': 2 } as CSSProperties}><dt className="text-xs uppercase tracking-wider text-white/70">Longest streak</dt><dd className="text-3xl font-black"><CountUp value={w.streak.days} ms={1000} /> days in a row</dd></div>}
+        {w.busiestMonth && <div className="rc-rise" style={{ '--i': 3 } as CSSProperties}><dt className="text-xs uppercase tracking-wider text-white/70">Busiest month</dt><dd className="text-3xl font-black">{MONTH_LONG(w.busiestMonth.month)}</dd><dd className="text-sm text-white/75">{fmtHours(w.busiestMonth.ms)}</dd></div>}
+        {w.peakHour !== null && <div className="rc-rise" style={{ '--i': 4 } as CSSProperties}><dt className="text-xs uppercase tracking-wider text-white/70">Favourite hour</dt><dd className="text-3xl font-black">{hourLabel(w.peakHour).replace(/([ap])$/, ' $1m')}</dd></div>}
+        {w.biggestDays[0] && <div className="rc-rise" style={{ '--i': 5 } as CSSProperties}><dt className="text-xs uppercase tracking-wider text-white/70">Biggest day</dt><dd className="text-3xl font-black">{new Date(`${w.biggestDays[0].key}T12:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}</dd><dd className="text-sm text-white/75">{fmtHours(w.biggestDays[0].ms)} of music</dd></div>}
+        {w.firstPlay && <div className="rc-rise" style={{ '--i': 6 } as CSSProperties}><dt className="text-xs uppercase tracking-wider text-white/70">First song of the year</dt><dd className="text-xl font-bold">{w.firstPlay.title}</dd><dd className="text-sm text-white/75">{w.firstPlay.artist}</dd></div>}
       </dl></div> });
     const rx = w.reactions;
     if (rx.thumbsUp + rx.thumbsDown + rx.votes + rx.memories > 0) s.push({ id: 'reactions', node: <div className="space-y-4"><Title>How you reacted</Title>
-      <div className="grid grid-cols-2 gap-3">{([['thumbs up', rx.thumbsUp], ['thumbs down', rx.thumbsDown], ['head-to-head votes', rx.votes], ['memories made', rx.memories]] as const).map(([l, n]) => <div key={l} className="rounded-xl bg-white/12 p-3"><div className="text-3xl font-black tabular-nums">{n}</div><div className="text-sm text-white/75">{l}</div></div>)}</div>
+      <div className="grid grid-cols-2 gap-3">{([['thumbs up', rx.thumbsUp], ['thumbs down', rx.thumbsDown], ['head-to-head votes', rx.votes], ['memories made', rx.memories]] as const).map(([l, n]) => <div key={l} className="rc-pop rounded-xl bg-white/12 p-3" style={{ '--i': i2(l) + 2 } as CSSProperties}><div className="text-3xl font-black tabular-nums"><CountUp value={n} ms={900} /></div><div className="text-sm text-white/75">{l}</div></div>)}</div>
       {w.newArtists > 0 && <p className="text-white/80">And you met {w.newArtists} artist{w.newArtists === 1 ? '' : 's'} for the first time.</p>}</div> });
-    if (w.personality) { const p = PERSONALITIES[w.personality.kind]; s.push({ id: 'personality', node: <div className="space-y-4"><Title>Your listening personality</Title><Big>{p.name}</Big><p className="text-lg text-white/85">{p.blurb}</p><p className="text-xs text-white/60">TurboMusic's own set of types, worked out from how often you repeat, explore, stay loyal, and when you listen.</p></div> }); }
+    if (w.personality) { const p = PERSONALITIES[w.personality.kind]; s.push({ id: 'personality', node: <div className="space-y-4"><Title>Your listening personality</Title><Big>{p.name}</Big><p className="rc-rise text-lg text-white/85" style={{ '--i': 4 } as CSSProperties}>{p.blurb}</p><p className="rc-rise text-xs text-white/60" style={{ '--i': 6 } as CSSProperties}>TurboMusic's own set of types, worked out from how often you repeat, explore, stay loyal, and when you listen.</p></div> }); }
     s.push({ id: 'summary', node: <div className="space-y-5"><Title>That was your {w.year}</Title>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <div><div className="text-xs uppercase tracking-wider text-white/70">Top songs</div>{w.topTracks.slice(0, 3).map((t) => <div key={t.key} className="truncate font-medium">{t.label}</div>)}</div>
-        <div><div className="text-xs uppercase tracking-wider text-white/70">Top artists</div>{w.topArtists.slice(0, 3).map((t) => <div key={t.key} className="truncate font-medium">{t.label}</div>)}</div>
-        <div><div className="text-xs uppercase tracking-wider text-white/70">Top albums</div>{w.topAlbums.slice(0, 3).map((t) => <div key={t.key} className="truncate font-medium">{t.label}</div>)}</div>
-        <div><div className="text-xs uppercase tracking-wider text-white/70">Minutes</div><div className="text-2xl font-black tabular-nums">{w.minutes.toLocaleString()}</div></div>
+        <div className="rc-rise" style={{ '--i': 2 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">Top songs</div>{w.topTracks.slice(0, 3).map((t) => <div key={t.key} className="truncate font-medium">{t.label}</div>)}</div>
+        <div className="rc-rise" style={{ '--i': 3 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">Top artists</div>{w.topArtists.slice(0, 3).map((t) => <div key={t.key} className="truncate font-medium">{t.label}</div>)}</div>
+        <div className="rc-rise" style={{ '--i': 4 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">Top albums</div>{w.topAlbums.slice(0, 3).map((t) => <div key={t.key} className="truncate font-medium">{t.label}</div>)}</div>
+        <div className="rc-rise" style={{ '--i': 5 } as CSSProperties}><div className="text-xs uppercase tracking-wider text-white/70">Minutes</div><div className="text-2xl font-black tabular-nums">{w.minutes.toLocaleString()}</div></div>
       </div><ShareButton spec={wrappedCard(w)} name={`turbomusic-wrapped-${w.year}`} label="Save summary picture" /></div> });
     return s;
   }, [w, daysOfMusic]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const last = slides.length - 1, cur = slides[Math.min(i, last)];
   const paused = !auto || held || (cur.hold && !quizDone);
-  const go = (n: number) => { setI(Math.max(0, Math.min(last, n))); setT(0); setQuizDone(false); };
+  const go = (n: number) => { setDir(n < ref.current.i ? 'back' : 'fwd'); setI(Math.max(0, Math.min(last, n))); setT(0); setQuizDone(false); };
   const ref = useRef({ i, last, paused });
   ref.current = { i, last, paused };
   useEffect(() => {
     const id = setInterval(() => {
       const { i: cI, last: cL, paused: p } = ref.current;
       if (p) return;
-      setT((x) => { const nx = x + 100 / SLIDE_MS; if (nx < 1) return nx; if (cI < cL) { setI(cI + 1); setQuizDone(false); return 0; } return 1; });
+      setT((x) => { const nx = x + 100 / SLIDE_MS; if (nx < 1) return nx; if (cI < cL) { setDir('fwd'); setI(cI + 1); setQuizDone(false); return 0; } return 1; });
     }, 100);
     return () => clearInterval(id);
   }, []);
@@ -182,7 +185,7 @@ function Story({ w }: { w: Wrapped }) {
         </div>
         <button className="absolute inset-y-0 left-0 z-10 w-1/5" aria-label="Previous" onClick={(e) => { e.stopPropagation(); go(i - 1); }} />
         <button className="absolute inset-y-0 right-0 z-10 w-1/5" aria-label="Next" onClick={(e) => { e.stopPropagation(); go(i + 1); }} />
-        <div key={cur.id} className="tk-page-fwd flex min-h-[inherit] flex-col justify-center p-7 pt-10">{cur.node}</div>
+        <div key={cur.id} className={`rc-slide-${dir} flex min-h-[inherit] flex-col justify-center p-7 pt-10`}>{cur.node}</div>
       </div>
       <div className="flex items-center justify-between gap-2">
         <button className="btn" onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous slide"><ChevronLeft size={16} /></button>

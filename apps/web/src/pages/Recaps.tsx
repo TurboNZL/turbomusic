@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Flame, Gift, Heart, Moon, Sun, Sunrise, Sunset, ThumbsDown, ThumbsUp, Swords, TrendingDown, TrendingUp } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
@@ -10,6 +10,7 @@ import type { ShareCardSpec } from '../lib/shareCard.ts';
 import { Cover } from '../components/Cover.tsx';
 import { fmtHours } from '../components/charts.tsx';
 import { ShareButton } from '../components/ShareButton.tsx';
+import { CountUp } from '../components/CountUp.tsx';
 
 const iso = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const fromIso = (s: string | null) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s ?? ''); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : null; };
@@ -31,7 +32,8 @@ export function weekCard(r: WeeklyRecap): ShareCardSpec {
   };
 }
 
-function Row({ i, r, kind, image }: { i: number; r: TopRow; kind: 'track' | 'artist' | 'album'; image: string | null | undefined }) {
+function Row({ i, base = 0, r, kind, image }: { i: number; base?: number; r: TopRow; kind: 'track' | 'artist' | 'album'; image: string | null | undefined }) {
+  const rise = { className: 'rc-rise', style: { '--i': i + base } as CSSProperties };
   const to = r.id ? statsPath(kind, r.id) : null;
   const body = <>
     <span className="w-5 shrink-0 text-center text-sm font-bold tabular-nums text-white/70">{i + 1}</span>
@@ -39,7 +41,7 @@ function Row({ i, r, kind, image }: { i: number; r: TopRow; kind: 'track' | 'art
     <span className="min-w-0 flex-1"><span className="block truncate font-medium">{r.label}</span>{r.sub && <span className="block truncate text-xs text-white/70">{r.sub}</span>}</span>
     <span className="shrink-0 text-xs tabular-nums text-white/70">{r.plays}×</span>
   </>;
-  return to ? <Link to={to} className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-white/10">{body}</Link> : <div className="flex items-center gap-3 px-1 py-1">{body}</div>;
+  return to ? <Link to={to} className={`${rise.className} flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-white/10`} style={rise.style}>{body}</Link> : <div className={`${rise.className} flex items-center gap-3 px-1 py-1`} style={rise.style}>{body}</div>;
 }
 
 export function RecapsPage() {
@@ -75,30 +77,30 @@ export function RecapsPage() {
         <button className="btn" disabled={newer === null} onClick={() => newer !== null && go(newer)} aria-label="Newer week"><ChevronRight size={16} /></button>
       </div>
 
-      <article className="space-y-5 rounded-theme p-5 text-white shadow-lg" style={{ background: 'linear-gradient(160deg, #7c3aed 0%, #4c1d95 55%, #1e1b4b 100%)' }}>
+      <article key={start} className="rc-rise space-y-5 rounded-theme p-5 text-white shadow-lg" style={{ background: 'linear-gradient(160deg, #7c3aed 0%, #4c1d95 55%, #1e1b4b 100%)' }}>
         <header>
           <div className="text-xs font-semibold uppercase tracking-widest text-white/70">{r.partial ? 'So far this week' : 'Your week in music'}</div>
-          <div className="mt-1 text-5xl font-black tabular-nums">{fmtHours(r.ms)}</div>
+          <div className="mt-1 text-5xl font-black tabular-nums"><CountUp value={r.ms} format={fmtHours} ms={1300} /></div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/80">
             <span>{r.plays.toLocaleString()} plays on {r.activeDays} day{r.activeDays === 1 ? '' : 's'}</span>
-            {r.change !== null && <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">{r.change >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}{Math.abs(Math.round(r.change * 100))}% {r.change >= 0 ? 'more' : 'less'} than last week</span>}
+            {r.change !== null && <span className="rc-pop inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold">{r.change >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}{Math.abs(Math.round(r.change * 100))}% {r.change >= 0 ? 'more' : 'less'} than last week</span>}
           </div>
         </header>
 
         <section><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Top songs</h2>
-          {r.topTracks.map((t, i) => <Row key={t.key} i={i} r={t} kind="track" image={t.id ? lib.trackById.get(t.id)?.cover : null} />)}</section>
+          {r.topTracks.map((t, i) => <Row key={t.key} i={i} base={2} r={t} kind="track" image={t.id ? lib.trackById.get(t.id)?.cover : null} />)}</section>
 
         <section><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Top artists</h2>
-          {r.topArtists.map((t, i) => <Row key={t.key} i={i} r={t} kind="artist" image={t.id ? lib.artistById.get(t.id)?.image : null} />)}</section>
+          {r.topArtists.map((t, i) => <Row key={t.key} i={i} base={8} r={t} kind="artist" image={t.id ? lib.artistById.get(t.id)?.image : null} />)}</section>
 
         {r.album && <section><h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/70">Album of the week</h2>
-          <Row i={0} r={r.album} kind="album" image={r.album.id ? lib.albumById.get(r.album.id)?.cover : null} /></section>}
+          <Row i={0} base={12} r={r.album} kind="album" image={r.album.id ? lib.albumById.get(r.album.id)?.cover : null} /></section>}
 
         <section><h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-white/70">Your reactions</h2>
           {reactionsTotal === 0 ? <p className="text-sm text-white/70">No thumbs, votes or memories this week.</p> : (
             <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
               {([['Thumbs up', r.reactions.thumbsUp, ThumbsUp], ['Thumbs down', r.reactions.thumbsDown, ThumbsDown], ['Votes', r.reactions.votes, Swords], ['Memories', r.reactions.memories, Heart]] as const).map(([label, n, Icon]) =>
-                <div key={label} className="rounded-lg bg-white/10 p-2.5"><Icon size={15} className="text-white/70" /><div className="mt-1 text-2xl font-bold tabular-nums">{n}</div><div className="text-xs text-white/70">{label}</div></div>)}
+                <div key={label} className="rc-pop rounded-lg bg-white/10 p-2.5" style={{ '--i': 14 } as CSSProperties}><Icon size={15} className="text-white/70" /><div className="mt-1 text-2xl font-bold tabular-nums"><CountUp value={n} ms={800} delay={1000} /></div><div className="text-xs text-white/70">{label}</div></div>)}
             </div>)}
         </section>
 
