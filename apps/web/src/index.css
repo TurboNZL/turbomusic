@@ -51,3 +51,27 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 @media (prefers-reduced-motion: reduce) { .bt-drift { animation: none; } }
 /* the full-screen player: a click on an icon must count as a click on its button (the glyph itself was not reliably the target) */
 .bt-now button svg, .bt-now button svg * { pointer-events: none; }
+/* weekly recaps and Wrapped: things rise in one after another (--i = place in line, --d = extra delay), numbers count up, lines draw themselves */
+@keyframes rc-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes rc-pop { 0% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: none; } }
+@keyframes rc-in-fwd { from { opacity: 0; transform: translateX(30px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes rc-in-back { from { opacity: 0; transform: translateX(-30px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes rc-grow { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes rc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes rc-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.rc-rise { animation: rc-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 70ms + var(--d, 0ms)); }
+.rc-pop { transform-box: fill-box; transform-origin: center; animation: rc-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; animation-delay: calc(var(--i, 0) * 70ms + var(--d, 0ms)); }
+.rc-slide-fwd { animation: rc-in-fwd 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.rc-slide-back { animation: rc-in-back 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.rc-grow { transform-origin: left; animation: rc-grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 90ms + 250ms); }
+.rc-draw { stroke-dasharray: 1; animation: rc-draw 1.5s ease-out both; animation-delay: calc(var(--i, 0) * 160ms + 250ms); }
+.rc-shake { animation: rc-shake 0.45s ease-out both; }
+@keyframes rc-bar { from { transform: scaleY(0); } to { transform: none; } }
+.rc-bar { transform-origin: bottom; animation: rc-bar 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 28ms + 250ms); }
+@keyframes rc-float-a { from { transform: translate(-10px, 6px) rotate(-2deg); } to { transform: translate(12px, -8px) rotate(2deg); } }
+@keyframes rc-float-b { from { transform: translate(8px, 10px) scale(1); } to { transform: translate(-12px, -6px) scale(1.04); } }
+@keyframes rc-float-c { from { transform: translate(0, -8px); } to { transform: translate(0, 10px); } }
+.rc-float { transform-box: fill-box; transform-origin: center; animation: rc-float-a 14s ease-in-out infinite alternate; }
+.rc-float-1 { animation-name: rc-float-b; animation-duration: 18s; }
+.rc-float-2 { animation-name: rc-float-c; animation-duration: 11s; }
+@media (prefers-reduced-motion: reduce) { .rc-bar, .rc-float { animation: none; } .rc-rise, .rc-pop, .rc-slide-fwd, .rc-slide-back, .rc-grow, .rc-draw, .rc-shake { animation: none; } .rc-draw { stroke-dasharray: none; } }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Clock, Download, Flame, History, LayoutGrid, List, Upload, Users, SkipForward, Shuffle } from 'lucide-react';
+import { CalendarDays, Gift, Clock, Download, Flame, History, LayoutGrid, List, Upload, Users, SkipForward, Shuffle } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
 import { computeStats } from '../lib/stats.ts';
 import { buildListens, type Listen } from '../lib/listens.ts';
@@ -211,6 +211,8 @@ export function StatsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-2xl font-bold">Stats</h1>
+        <Link to="/recaps" className="btn"><CalendarDays size={15} />Weekly recap</Link>
+        <Link to="/wrapped" className="btn"><Gift size={15} />Wrapped</Link>
         <button className="btn" onClick={() => setDialog('import')}><Upload size={15} />Import listening history</button>
         <button className="btn" onClick={() => setDialog('export')}><Download size={15} />Export listening history</button>
       </div>

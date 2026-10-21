@@ -19,6 +19,8 @@ import { PlaylistsPage } from './pages/Playlists.tsx';
 import { SearchPage } from './pages/Search.tsx';
 import { DiscoverPage } from './pages/Discover.tsx';
 import { EntityStatsPage } from './pages/EntityStats.tsx';
+import { RecapsPage } from './pages/Recaps.tsx';
+import { WrappedPage } from './pages/Wrapped.tsx';
 import { StatsPage } from './pages/Stats.tsx';
 import { SettingsPage } from './pages/Settings.tsx';
 
@@ -51,6 +53,8 @@ export function App() {
         <Route path="discover" element={<DiscoverPage />} />
         <Route path="stats" element={<StatsPage />} />
         <Route path="stats/:kind/:id" element={<EntityStatsPage />} />
+        <Route path="recaps" element={<RecapsPage />} />
+        <Route path="wrapped" element={<WrappedPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<div className="p-8 text-muted">Nothing here.</div>} />
       </Route>
