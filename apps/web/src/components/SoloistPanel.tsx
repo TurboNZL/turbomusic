@@ -46,6 +46,7 @@ export function SoloistPanel() {
   const updateSettings = useStore((s) => s.updateSettings);
   const chosen = useStore((s) => s.settings.spotifyDeviceId);
   const spotifyBeam = useStore((s) => s.settings.spotifyBeam);
+  const spotifyMirror = useStore((s) => s.settings.spotifyMirror);
   const [info, setInfo] = useState<SoloistInfo | null>(null);
   const [name, setName] = useState('TurboMusic');
   const [key, setKey] = useState('');
@@ -108,6 +109,7 @@ export function SoloistPanel() {
           {info.beam.enabled && info.beam.error && <div className="rounded-theme bg-bad/15 p-2 text-xs text-bad">{info.beam.error}</div>}
           {info.beam.enabled && <p className="text-xs text-muted">{info.beam.running ? `Streaming now to ${info.beam.listeners} listener${info.beam.listeners === 1 ? '' : 's'}.` : 'The stream starts when a device plays Spotify.'}</p>}
           {info.beam.enabled && <label className="flex items-center gap-2 text-muted"><input type="checkbox" checked={spotifyBeam} onChange={(e) => updateSettings({ spotifyBeam: e.target.checked })} />Hear it on this device</label>}
+          {info.beam.enabled && <label className="flex items-start gap-2 text-muted"><input type="checkbox" className="mt-0.5" checked={spotifyMirror} onChange={(e) => updateSettings({ spotifyMirror: e.target.checked })} /><span>Count my plays on Spotify <span className="text-warn">(silent mirror)</span>: while a song plays from its file here and has a Spotify link, Soloist plays it silently so Spotify counts the stream for Wrapped. Works only when this device uses this Soloist. Spotify’s terms forbid artificially inflating streams and can flag an account for it: use at your own risk.</span></label>}
         </li>
         <li className="space-y-1.5"><div className="font-medium">5. Run</div>
           <div className="flex flex-wrap items-center gap-2">
