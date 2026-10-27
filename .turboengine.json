@@ -1,7 +1,7 @@
 {
   "engine": {
     "repo": "TurboNZL/turboengine",
-    "ref": "b40e96b"
+    "ref": "26378a3"
   },
   "modules": [
     "release-pipeline",
@@ -19,6 +19,7 @@
     "cloudflare-access",
     "server-install-update",
     "self-hosted-server",
+    "prebuilt-release",
     "logos"
   ],
   "moved": {},

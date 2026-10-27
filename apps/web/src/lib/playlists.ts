@@ -51,3 +51,34 @@ export function coverPlan(own: string | null, covers: string[]): { mode: 'own'; 
   if (covers.length) return { mode: 'single', hash: covers[0] };
   return { mode: 'none' };
 }
+
+/** Ids of the two automatic playlists. They are worked out from the thumbs, never stored. */
+export const QUICK_LIKED = 'quick:liked';
+export const QUICK_DISLIKED = 'quick:disliked';
+export const isQuickPlaylist = (id: string | null | undefined) => id === QUICK_LIKED || id === QUICK_DISLIKED;
+
+/**
+ * Track ids by thumbs: liked = more thumbs up than down, disliked = more down than up. A track with no thumbs, or as many up as down,
+ * is in neither. Head-to-head votes do not count. Ordered by how far ahead the thumbs are, then by the newest thumb.
+ */
+export function thumbLists(votes: { trackAId: string; boost?: 1 | -1; timestamp: number }[]): { liked: string[]; disliked: string[] } {
+  const tally = new Map<string, { net: number; last: number }>();
+  for (const v of votes) {
+    if (!v.boost) continue;
+    const t = tally.get(v.trackAId) ?? { net: 0, last: 0 };
+    t.net += v.boost; t.last = Math.max(t.last, v.timestamp);
+    tally.set(v.trackAId, t);
+  }
+  const pick = (sign: 1 | -1) => [...tally].filter(([, t]) => t.net * sign > 0).sort((a, b) => (b[1].net * sign - a[1].net * sign) || b[1].last - a[1].last).map(([id]) => id);
+  return { liked: pick(1), disliked: pick(-1) };
+}
+
+/** The two automatic playlists as playlist objects (only tracks that still exist), for the Playlists page. */
+export function quickPlaylists(lib: Library): Playlist[] {
+  const { liked, disliked } = thumbLists(lib.votes);
+  const make = (id: string, name: string, description: string, ids: string[]): Playlist => ({ id, name, description, cover: null, createdAt: 0, trackIds: ids.filter((t) => lib.trackById.has(t)) });
+  return [
+    make(QUICK_LIKED, 'Thumbs up', 'Songs with more thumbs up than thumbs down. Updates by itself.', liked),
+    make(QUICK_DISLIKED, 'Thumbs down', 'Songs with more thumbs down than thumbs up. Updates by itself.', disliked),
+  ];
+}

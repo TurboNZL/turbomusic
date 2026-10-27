@@ -18,11 +18,24 @@ let mirrored: string | null = null; // the Spotify uri the mirror is playing (or
 let running = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
-async function silentDevice(): Promise<boolean> {
+/**
+ * The Spotify device id of the server's Soloist, found by its name. The mirror depends only on the switch in Settings and on Soloist
+ * running with its beam on: not on which device this app has chosen for Spotify, so "Play on this device only" or disconnecting
+ * every device does not stop it.
+ */
+let soloistId: { name: string; id: string; at: number } | null = null;
+async function silentDevice(): Promise<string | null> {
   const s = useStore.getState().settings;
-  if (!s.spotifyMirror || !s.token || !s.spotifyDeviceId) return false;
+  if (!s.spotifyMirror || !s.token) return null;
   const b = await refreshSoloistInfo();
-  return b.enabled && b.deviceName !== '' && s.spotifyDeviceName === b.deviceName;
+  if (!b.enabled || b.deviceName === '') return null;
+  if (soloistId && soloistId.name === b.deviceName && Date.now() - soloistId.at < 60_000) return soloistId.id;
+  try {
+    const d = (await api().spotifyDevices()).devices.find((x) => x.name === b.deviceName && x.id);
+    if (!d) return null;
+    soloistId = { name: b.deviceName, id: d.id, at: Date.now() };
+    return d.id;
+  } catch { return null; }
 }
 
 async function apply() {
@@ -30,17 +43,17 @@ async function apply() {
   const p = usePlayer.getState();
   const track = p.queue.currentId ? getLibrary().trackById.get(p.queue.currentId) : undefined;
   const uri = track ? spotifyUriOf(track) : null;
-  const want = mirrorWanted({ enabled: st.spotifyMirror, engine: p.engine, playing: p.playing, loading: p.loading, hasFile: !!track?.file, uri, signedIn: useSpotifyLink.getState().signedIn, silent: st.spotifyMirror ? await silentDevice() : false });
-  const device = st.spotifyDeviceId;
+  const device = st.spotifyMirror ? await silentDevice() : null;
+  const want = mirrorWanted({ enabled: st.spotifyMirror, engine: p.engine, playing: p.playing, loading: p.loading, hasFile: !!track?.file, uri, signedIn: useSpotifyLink.getState().signedIn, silent: !!device });
   try {
     if (!want || !uri) {
-      if (running) { running = false; await api().spotifyCommand('pause', device); }
+      if (running) { running = false; await api().spotifyCommand('pause', device ?? soloistId?.id ?? ''); }
       return;
     }
     if (mirrored === uri && running) return;
-    if (mirrored === uri) { running = true; await api().spotifyCommand('resume', device); return; }
+    if (mirrored === uri) { running = true; await api().spotifyCommand('resume', device!); return; }
     mirrored = uri; running = true;
-    await api().spotifyPlay([uri], device, Math.round(p.time * 1000));
+    await api().spotifyPlay([uri], device!, Math.round(p.time * 1000));
   } catch { running = false; mirrored = null; /* the next change tries again */ }
 }
 
@@ -50,6 +63,9 @@ function schedule() {
   // a new song waits a few seconds so skipping through a list does not hammer Spotify
   timer = setTimeout(() => void apply(), p.playing ? MIRROR_DELAY_MS : 0);
 }
+
+/** Something else may have paused or moved Soloist (disconnecting devices): forget what the mirror believes and let it start again. */
+export function resyncMirror(): void { running = false; mirrored = null; schedule(); }
 
 /** Called once at start-up. */
 export function startSpotifyMirror(): void {
