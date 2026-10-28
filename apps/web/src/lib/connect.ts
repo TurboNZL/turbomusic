@@ -8,6 +8,7 @@ export { positionNow };
 import { api, useStore } from './store.ts';
 import { spotifyEngine } from './spotifyPlayer.ts';
 import { stopBeam } from './beam.ts';
+import { resyncMirror } from './spotifyMirror.ts';
 import { getLibrary } from './derive.ts';
 import { HeaderEventSource, type EventSourceLike } from './sse.ts';
 
@@ -124,6 +125,7 @@ export async function localOnly() {
   await spotifyEngine.release(true);
   if (st.settings.spotifyDeviceId) st.updateSettings({ spotifyDeviceId: '', spotifyDeviceName: '' });
   if (snap?.trackId && getLibrary().trackById.get(snap.trackId)?.file) p.restore(snap, { play: snap.playing });
+  resyncMirror(); // the silent mirror is controlled only by its switch in Settings
   publish();
 }
 

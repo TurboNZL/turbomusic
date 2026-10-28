@@ -14,7 +14,7 @@ import { ArtistLinks } from '../components/ArtistLinks.tsx';
 import { Link, useParams } from 'react-router-dom';
 import { useMenu } from '../components/Menu.tsx';
 import { usePlaylistMenuItems } from '../components/entityMenus.tsx';
-import { isAlbumList, playlistAlbums, playlistCount, playlistTrackIds } from '../lib/playlists.ts';
+import { isAlbumList, isQuickPlaylist, playlistAlbums, playlistCount, playlistTrackIds, quickPlaylists } from '../lib/playlists.ts';
 import { KeepOffline } from '../components/KeepOffline.tsx';
 import { cn, plural } from '../lib/cn.ts';
 import { PlaylistNote, withoutKey } from '../components/PlaylistNote.tsx';
@@ -39,14 +39,18 @@ export function PlaylistsPage() {
   const appendRest = usePlayer((s) => s.appendRest);
   const hasCurrent = usePlayer((s) => !!s.queue.currentId);
   const deferredFind = useDeferredValue(find); // typing stays smooth: the lists below follow a moment later
+  // two automatic playlists (thumbs up / thumbs down) come first; they are read-only
+  const quick = useMemo(() => quickPlaylists(lib), [lib]);
+  const all = useMemo(() => [...quick, ...lib.playlists], [quick, lib.playlists]);
   // playlists match by name, description, or a track or artist inside them
   const listed = useMemo(() => {
     const f = deferredFind.trim().toLowerCase();
-    if (!f) return lib.playlists;
-    return lib.playlists.filter((p) => `${p.name} ${p.description ?? ''}`.toLowerCase().includes(f)
+    if (!f) return all;
+    return all.filter((p) => `${p.name} ${p.description ?? ''}`.toLowerCase().includes(f)
       || playlistTrackIds(lib, p).some((id) => { const t = lib.trackById.get(id); return !!t && `${t.title} ${t.artistName}`.toLowerCase().includes(f); }));
-  }, [lib, deferredFind]);
-  const open = lib.playlists.find((p) => p.id === openId);
+  }, [lib, all, deferredFind]);
+  const open = all.find((p) => p.id === openId);
+  const readOnly = isQuickPlaylist(open?.id);
   const albumMode = !!open && isAlbumList(open);
   // derived once per playlist, not on every keystroke in the boxes below
   const albums = useMemo(() => (open && albumMode ? playlistAlbums(lib, open) : []), [lib, open, albumMode]);
@@ -74,7 +78,7 @@ export function PlaylistsPage() {
     <div className="space-y-5">
       {!open && <><div className="flex items-center gap-3"><h1 className="mr-auto text-2xl font-bold">Playlists</h1>
         <button className="btn btn-accent" onClick={() => edit({ kind: 'new-playlist', id: '' })}><Plus size={16} />New playlist</button></div>
-      {lib.playlists.length > 0 && <label className="relative block max-w-md"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+      {all.length > 0 && <label className="relative block max-w-md"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input className="input !pl-9" type="search" aria-label="Search playlists" placeholder="Search playlists, or a track or artist in them…" value={find} onChange={(e) => setFind(e.target.value)} /></label>}
       {find.trim() && !listed.length && <p className="text-sm text-muted">No playlist matches.</p>}
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--grid-min), 9rem), 1fr))' }}>{listed.slice(0, cards.shown).map((p) => { const c = playlistCount(lib, p); return (
@@ -101,8 +105,8 @@ export function PlaylistsPage() {
                   <button className="btn" disabled={!playable.length} title="Keep playing the current track, then continue with this playlist instead of what was coming next" onClick={() => replaceRest(ordered(), { type: 'playlist', id: open.id })}><ListStart size={16} />Then: replace</button>
                   <button className="btn btn-ghost" disabled={!playable.length} title="Add this playlist to the end of what is coming next" onClick={() => appendRest(ordered())}><ListEnd size={16} />Add to Then</button>
                 </>}
-                <Link className="btn btn-ghost" to={statsPath('playlist', open.id)}><BarChart3 size={15} />Stats</Link>
-                <button className="btn btn-ghost" onClick={() => edit({ kind: 'playlist', id: open.id })}><Pencil size={15} />Edit</button>
+                {!readOnly && <Link className="btn btn-ghost" to={statsPath('playlist', open.id)}><BarChart3 size={15} />Stats</Link>}
+                {!readOnly && <button className="btn btn-ghost" onClick={() => edit({ kind: 'playlist', id: open.id })}><Pencil size={15} />Edit</button>}
                 <KeepOffline hashes={offlineHashes} />
               </div>
             </div>
@@ -110,11 +114,11 @@ export function PlaylistsPage() {
           <div className="flex flex-wrap items-start gap-3">
           <label className="relative block w-full max-w-xs"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input className="input !pl-9" type="search" aria-label="Search this playlist" placeholder={albumMode ? 'Search this playlist…' : 'Search this playlist: title, artist, album…'} value={within} onChange={(e) => setWithin(e.target.value)} /></label>
-          <div className="relative w-full max-w-md"><input className="input" placeholder={albumMode ? 'Add an album…' : 'Add a track…'} value={adding} onChange={(e) => setAdding(e.target.value)} />
+          {!readOnly && <div className="relative w-full max-w-md"><input className="input" placeholder={albumMode ? 'Add an album…' : 'Add a track…'} value={adding} onChange={(e) => setAdding(e.target.value)} />
             {matches.length > 0 && <div className="card absolute z-10 mt-1 w-full overflow-hidden shadow-xl">{matches.map((t) => (
               <button key={t.id} className="block w-full px-3 py-2 text-left text-sm hover:bg-raised" onClick={() => { patch('playlists', open.id, { trackIds: [...open.trackIds, t.id] }); setAdding(''); }}>{t.title} <span className="text-muted">· {t.artistName}</span></button>))}</div>}
             {albumMatches.length > 0 && <div className="card absolute z-10 mt-1 w-full overflow-hidden shadow-xl">{albumMatches.map((a) => (
-              <button key={a.id} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-raised" onClick={() => { patch('playlists', open.id, { albumIds: [...ids, a.id] }); setAdding(''); }}><Cover hash={a.cover} seed={a.title} className="h-8 w-8 shrink-0" /><span className="min-w-0 truncate">{a.title} <span className="text-muted">· {a.artistName}</span></span></button>))}</div>}</div>
+              <button key={a.id} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-raised" onClick={() => { patch('playlists', open.id, { albumIds: [...ids, a.id] }); setAdding(''); }}><Cover hash={a.cover} seed={a.title} className="h-8 w-8 shrink-0" /><span className="min-w-0 truncate">{a.title} <span className="text-muted">· {a.artistName}</span></span></button>))}</div>}</div>}
           </div>
           {filtering && <p className="text-xs text-muted">{albumMode ? `${shownAlbums.length} of ${albums.length} albums` : `${shownTracks.length} of ${tracks.length} tracks`} match. Clear the box to reorder.</p>}
           {albumMode
@@ -123,23 +127,23 @@ export function PlaylistsPage() {
                   <div key={a.id} className="flex items-center gap-3 px-3 py-2">
                     <Link to={a.to} className="flex min-w-0 flex-1 items-center gap-3"><Cover hash={a.cover} seed={a.title} className="h-12 w-12 shrink-0" />
                       <span className="min-w-0"><span className="block truncate text-sm font-medium">{a.title}</span><span className="block truncate text-xs text-muted"><ArtistLinks leads={a.leads} /> · {plural(a.trackIds.length, 'track')}</span></span></Link>
-                    <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', filtering && 'hidden')} aria-label={`Move ${a.title} up`} disabled={i === 0} onClick={() => patch('playlists', open.id, { albumIds: moveTrack(albums.map((x) => x.id), i, i - 1) })}><ArrowUp size={15} /></button>
-                    <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', filtering && 'hidden')} aria-label={`Move ${a.title} down`} disabled={i === albums.length - 1} onClick={() => patch('playlists', open.id, { albumIds: moveTrack(albums.map((x) => x.id), i, i + 1) })}><ArrowDown size={15} /></button>
+                    <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${a.title} up`} disabled={i === 0} onClick={() => patch('playlists', open.id, { albumIds: moveTrack(albums.map((x) => x.id), i, i - 1) })}><ArrowUp size={15} /></button>
+                    <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${a.title} down`} disabled={i === albums.length - 1} onClick={() => patch('playlists', open.id, { albumIds: moveTrack(albums.map((x) => x.id), i, i + 1) })}><ArrowDown size={15} /></button>
                     <button className="p-1 text-muted hover:text-bad" aria-label={`Remove ${a.title} from the playlist`} onClick={() => patch('playlists', open.id, { albumIds: removeTrack(ids, a.id) })}><X size={15} /></button>
                   </div>))}
                 {!shownAlbums.length && <div className="px-3 py-4 text-sm text-muted">{filtering ? 'No album matches.' : 'No albums yet. Search above, or use “Add to an album playlist…” in an album’s menu.'}</div>}
               </div>
-            : <div className="card overflow-hidden"><TrackTable tracks={shownTracks.slice(0, rows.shown)} queue={tracks} source="playlist" sourceId={open.id} numbered={!filtering} covers below={(t) => <PlaylistNote playlistId={open.id} trackId={t.id} notes={open.trackNotes} />} extra={(t, i) => (
+            : <div className="card overflow-hidden"><TrackTable tracks={shownTracks.slice(0, rows.shown)} queue={tracks} source="playlist" sourceId={open.id} numbered={!filtering} covers below={readOnly ? undefined : (t) => <PlaylistNote playlistId={open.id} trackId={t.id} notes={open.trackNotes} />} extra={(t, i) => (
             <div className="flex">
-              <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', filtering && 'hidden')} aria-label={`Move ${t.title} up`} disabled={i === 0} onClick={() => patch('playlists', open.id, { trackIds: moveTrack(tracks.map((x) => x.id), i, i - 1) })}><ArrowUp size={15} /></button>
-              <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', filtering && 'hidden')} aria-label={`Move ${t.title} down`} disabled={i === tracks.length - 1} onClick={() => patch('playlists', open.id, { trackIds: moveTrack(tracks.map((x) => x.id), i, i + 1) })}><ArrowDown size={15} /></button>
-              <button className="p-1 text-muted hover:text-bad" aria-label={`Remove ${t.title} from the playlist`} onClick={() => patch('playlists', open.id, { trackIds: removeTrack(open.trackIds, t.id), trackNotes: withoutKey(open.trackNotes, t.id) })}><X size={15} /></button>
+              <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${t.title} up`} disabled={i === 0} onClick={() => patch('playlists', open.id, { trackIds: moveTrack(tracks.map((x) => x.id), i, i - 1) })}><ArrowUp size={15} /></button>
+              <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${t.title} down`} disabled={i === tracks.length - 1} onClick={() => patch('playlists', open.id, { trackIds: moveTrack(tracks.map((x) => x.id), i, i + 1) })}><ArrowDown size={15} /></button>
+              <button className={cn('p-1 text-muted hover:text-bad', readOnly && 'hidden')} aria-label={`Remove ${t.title} from the playlist`} onClick={() => patch('playlists', open.id, { trackIds: removeTrack(open.trackIds, t.id), trackNotes: withoutKey(open.trackNotes, t.id) })}><X size={15} /></button>
             </div>)} /></div>}
           {!albumMode && rows.left > 0 && <div ref={rows.sentinel} className="text-center"><button className="btn" onClick={rows.more}>Show more ({rows.left} left)</button></div>}
           {albumMode && albumRows.left > 0 && <div ref={albumRows.sentinel} className="text-center"><button className="btn" onClick={albumRows.more}>Show more ({albumRows.left} left)</button></div>}
         </section>
       )}
-      {!lib.playlists.length && <div className="flex items-center gap-2 text-sm text-muted"><Link2 size={14} />No playlists yet.</div>}
+      {!lib.playlists.length && !open && <div className="flex items-center gap-2 text-sm text-muted"><Link2 size={14} />No playlists of your own yet.</div>}
       {menu.element}
     </div>
   );

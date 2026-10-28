@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { leaveRemoved } from '../lib/leave.ts';
-import { playlistTrackIds } from '../lib/playlists.ts';
+import { isQuickPlaylist, playlistTrackIds } from '../lib/playlists.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search } from 'lucide-react';
@@ -123,9 +123,11 @@ export function usePlaylistMenuItems() {
         { label: 'Then: replace what is coming next', icon: <ListStart size={15} />, run: () => replaceRest(playable, source), disabled: !playable.length },
         { label: 'Add to the end of what is coming next', icon: <ListEnd size={15} />, run: () => appendRest(playable), disabled: !playable.length },
       ] : []),
-      { separator: true },
-      { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },
-      { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) },
+      ...(isQuickPlaylist(playlist.id) ? [] : [
+        { separator: true } as MenuItem,
+        { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },
+        { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) },
+      ]),
     ];
   };
 }

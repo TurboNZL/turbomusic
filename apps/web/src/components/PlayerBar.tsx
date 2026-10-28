@@ -17,6 +17,8 @@ import { MiniQueue } from './MiniQueue.tsx';
 import { DevicesPopover } from './Devices.tsx';
 import { usePlaybackView } from '../lib/connect.ts';
 import { CoverPreview } from './CoverPreview.tsx';
+import { useMenu } from './Menu.tsx';
+import { useTrackMenuItems } from './TrackMenu.tsx';
 
 /** The filled part of a range, for the styles that draw their own track. */
 const pct = (v: number, max: number) => ({ '--p': `${max > 0 ? Math.min(100, (v / max) * 100) : 0}%` }) as React.CSSProperties;
@@ -31,6 +33,8 @@ export function PlayerBar() {
   const spotifyDevice = useStore((st) => st.settings.spotifyDeviceName);
   const v = usePlaybackView();
   const edit = useEditor((s) => s.open);
+  const menu = useMenu();
+  const itemsFor = useTrackMenuItems();
   const current = v.trackId ? lib.trackById.get(v.trackId) : undefined;
   const last = useRef<Track | undefined>(undefined);
   if (current) last.current = current;
@@ -51,7 +55,7 @@ export function PlayerBar() {
     <div className="bt-player bt-shell" data-leaving={leaving || undefined}>
       {p.error && <div className="bg-bad/15 px-4 py-1 text-center text-xs text-bad">{p.error}</div>}
       <div className="bt-pbar flex items-center gap-3 px-3 py-2 md:gap-6 md:px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3 md:w-1/3 md:flex-none">
+        <div className="flex min-w-0 flex-1 items-center gap-3 md:w-1/3 md:flex-none" onContextMenu={track ? menu.onContextMenu(itemsFor(track, () => { if (!v.playing) v.toggle(); }), `Actions for ${track.title}`, 'playing') : undefined}>
           {track && <>
             <button ref={setCoverBtn} type="button" data-popover-trigger aria-expanded={coverOpen} aria-label="Show a larger cover" title="Larger cover" className="bt-cover-btn shrink-0 rounded-theme" onClick={toggleCover}>
               <Cover hash={track.cover} seed={track.albumTitle ?? track.title} className="h-12 w-12" />
@@ -93,6 +97,7 @@ export function PlayerBar() {
       <CoverPreview anchor={coverBtn} track={track} />
       <MiniQueue anchor={queueBtn} />
       <DevicesPopover anchor={devBtn} />
+      {menu.element}
     </div>
   );
 }

@@ -1,0 +1,252 @@
+# Builds the Android APK, the desktop installers and the server bundle for every branch that is pushed, and publishes a release when
+# main changes. The installed apps update themselves from the release (Electron: electron-updater reads latest*.yml; Android: AppUpdater
+# takes the newest release with an .apk). Nothing to tag by hand.
+#
+# - A push to any other branch builds everything and keeps the files as workflow artifacts (nothing is published). Every such branch has a
+#   pull request (auto-pr.yml). It is the push that builds, not the pull_request event: a pull request opened by auto-pr.yml uses the
+#   workflow token, and GitHub does not start workflows for events caused by that token.
+# - A push to main publishes a release. When the commit came from a merged pull request whose build is still there, has the identical
+#   source tree and was stamped with the version that is next now, those files are published as they are and nothing is built again
+#   (scripts/ci/reuse-build.mjs; docs: the engine's modules/prebuilt-release). Anything else builds again. Run workflow on main
+#   builds and releases the current main on demand.
+# - Versions are year.month.counter (2026.10.44; the counter restarts each month). The version is inside the binaries and in
+#   latest*.yml, which is why a reused build is only published under the version it was stamped with.
+# - Documentation-only changes build and release nothing.
+name: Build
+on:
+  push:
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+# One build per branch (a newer push replaces the older one); releases one at a time, never cancelled half way (two runs would pick the
+# same next version).
+concurrency:
+  group: build-${{ github.ref == 'refs/heads/main' && 'release' || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+permissions:
+  contents: read
+  actions: read
+env:
+  # branch builds are kept a month (a pull request may wait that long); on main the files are only the hand-over to the release job
+  KEEP_DAYS: ${{ github.ref == 'refs/heads/main' && 1 || 30 }}
+jobs:
+  version:
+    name: Pick version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      reuse: ${{ steps.reuse.outputs.run }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: pick
+        run: |
+          prefix="$(date -u +%Y.%-m)."
+          last=$(git tag -l "v${prefix}*" | sed "s/^v${prefix}//" | sort -n | tail -1)
+          version="${prefix}$(( ${last:--1} + 1 ))"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version $version"
+      - id: reuse
+        name: Can the build a pull request already made be published as it is?
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            node scripts/ci/reuse-build.mjs --sha "$GITHUB_SHA" --version "${{ steps.pick.outputs.version }}" --workflow build.yml --event push >> "$GITHUB_OUTPUT"
+          else
+            echo "run=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Record what this build is
+        if: github.ref != 'refs/heads/main'
+        run: |
+          mkdir meta
+          printf '{"version":"%s","sha":"%s","tree":"%s"}' "${{ steps.pick.outputs.version }}" "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" > meta/meta.json
+      - uses: actions/upload-artifact@v4
+        if: github.ref != 'refs/heads/main'
+        with:
+          name: build-meta
+          path: meta/meta.json
+          retention-days: 30
+
+  desktop:
+    needs: version
+    if: needs.version.outputs.reuse == ''
+    name: Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, name: Linux, id: linux }
+          - { os: windows-latest, name: Windows, id: windows }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --ignore-scripts --filter @turbomusic/web --filter @turbomusic/core --filter @turbomusic/server --filter @turbomusic/electron
+      - name: Stamp the version
+        shell: bash
+        run: cd apps/electron && npm pkg set version="${{ needs.version.outputs.version }}"
+      - name: Build the full edition
+        run: pnpm --filter @turbomusic/electron run dist --publish never
+      - name: Build the app-only edition (its own update feed, channel app)
+        run: pnpm --filter @turbomusic/electron run dist:app --publish never
+      - name: Build the headless server edition (Linux .deb as a systemd service, and .AppImage)
+        if: runner.os == 'Linux'
+        run: pnpm --filter @turbomusic/electron run dist:server:linux --publish never
+      - name: Collect the files that belong on the release
+        shell: bash
+        run: |
+          mkdir out
+          for d in release release/app release/server-linux; do
+            [ -d "apps/electron/$d" ] || continue
+            find "apps/electron/$d" -maxdepth 1 -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.blockmap' -o -name '*.yml' \) ! -name 'builder-*' -exec cp {} out/ \;
+          done
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-desktop-${{ matrix.id }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
+
+  windows-server:
+    needs: version
+    if: needs.version.outputs.reuse == ''
+    name: Windows server (tray app)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --ignore-scripts --filter @turbomusic/web --filter @turbomusic/core --filter @turbomusic/server --filter @turbomusic/electron
+      - name: Stamp the version
+        shell: bash
+        run: cd apps/electron && npm pkg set version="${{ needs.version.outputs.version }}"
+      - name: Build the Windows server installer (its own update feed, server.yml)
+        run: pnpm --filter @turbomusic/electron run dist:server --publish never
+      - name: Collect the files that belong on the release
+        shell: bash
+        run: |
+          mkdir out
+          find apps/electron/release/server -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' -o -name '*.yml' \) ! -name 'builder-*' -exec cp {} out/ \;
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-windows-server
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
+
+  android:
+    needs: version
+    if: needs.version.outputs.reuse == ''
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - run: pnpm install --ignore-scripts --filter @turbomusic/web --filter @turbomusic/core
+      - run: pnpm --filter @turbomusic/web build
+      - name: Build the APK
+        run: |
+          VERSION='${{ needs.version.outputs.version }}'
+          gradle -p apps/android :app:assembleRelease -PappVersion="$VERSION"
+          mkdir out
+          cp apps/android/app/build/outputs/apk/release/app-release.apk "out/turbomusic-$VERSION-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-android
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
+
+  # the server for the Android app's server module (it runs in Termux on the phone) and for the self-contained server install
+  # (scripts/install-server.sh and the app's "Update server" both read it)
+  server-bundle:
+    needs: version
+    if: needs.version.outputs.reuse == ''
+    name: Server bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --ignore-scripts --filter @turbomusic/web --filter @turbomusic/core --filter @turbomusic/server --filter @turbomusic/electron
+      - run: pnpm --filter @turbomusic/web build
+      - name: Bundle the headless server and the web client
+        run: |
+          node apps/electron/scripts/build.mjs
+          mkdir -p bundle/web out
+          cp apps/electron/dist/headless.mjs bundle/
+          cp -r apps/web/dist/. bundle/web/
+          VERSION='${{ needs.version.outputs.version }}'
+          tar -czf "out/turbomusic-server-$VERSION-node.tar.gz" -C bundle .
+          cp "out/turbomusic-server-$VERSION-node.tar.gz" "out/turbomusic-server-$VERSION-termux.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-server-bundle
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
+
+  release:
+    name: Publish release
+    needs: [version, desktop, windows-server, android, server-bundle]
+    # Runs when the builds succeeded, or were skipped because a pull request's files are reused. Only for main.
+    if: ${{ !cancelled() && !failure() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Get the files (built now)
+        if: needs.version.outputs.reuse == ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          merge-multiple: true
+          path: files
+      - name: Get the files (built by the pull request)
+        if: needs.version.outputs.reuse != ''
+        run: |
+          mkdir files
+          gh run download "${{ needs.version.outputs.reuse }}" --repo "$GITHUB_REPOSITORY" -D files-all
+          find files-all -type f ! -name meta.json -exec mv {} files/ \;
+      - name: Check what will be published
+        run: |
+          ls -lh files
+          VERSION='${{ needs.version.outputs.version }}'
+          # an incomplete release would leave the installed apps without an update feed, so refuse rather than publish part of one
+          for f in "turbomusic-$VERSION-android.apk" latest.yml latest-linux.yml app.yml app-linux.yml server.yml server-linux.yml "turbomusic-server-$VERSION-node.tar.gz"; do
+            [ -f "files/$f" ] || { echo "missing: $f"; exit 1; }
+          done
+          grep -q "version: $VERSION" files/latest.yml || { echo "files/latest.yml is not version $VERSION"; exit 1; }
+      - name: Create the release (this also creates the tag)
+        run: |
+          VERSION='${{ needs.version.outputs.version }}'
+          if [ -n '${{ needs.version.outputs.reuse }}' ]; then HOW="Published from the build its pull request already made (run ${{ needs.version.outputs.reuse }})."; else HOW="Built from this commit."; fi
+          gh release create "v$VERSION" files/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes \
+            --notes "Commit ${GITHUB_SHA::7}. $HOW"
