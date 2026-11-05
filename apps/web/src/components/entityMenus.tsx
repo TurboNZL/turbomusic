@@ -79,6 +79,7 @@ export function useAlbumMenuItems() {
     { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) },
     { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => edit({ kind: 'import-into-album', id: album.id }) },
     ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
+    { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
     ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
     (album as { noYoutube?: boolean }).noYoutube
       ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
@@ -101,6 +102,7 @@ export function useArtistMenuItems() {
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
+      { label: 'Merge with another artist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `artist:${artistId}` }) },
     ];
   };
 }

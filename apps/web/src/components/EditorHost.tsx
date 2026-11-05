@@ -2,6 +2,7 @@ import { planMergeReleases, releaseDateQuery, siblingDate } from '../lib/release
 import { DateLookup } from './DateLookup.tsx';
 import { FindDatesDialog } from './FindDatesDialog.tsx';
 import { MergeTracksDialog } from './MergeTracksDialog.tsx';
+import { MergeWithDialog, type MergeKind } from './MergeWith.tsx';
 import { SpotifyLinks } from './SpotifyLinks.tsx';
 import { X } from 'lucide-react';
 import { makePrimary } from '../lib/autofill.ts';
@@ -538,6 +539,7 @@ export function EditorFor({ target, close }: { target: EditTarget; close: () => 
   if (target.kind === 'import') return <ImportDialog key={`import-${target.id}`} singleFirst={target.id === 'single'} onClose={close} />;
   if (target.kind === 'import-into-album') return <ImportIntoAlbumDialog key={key} albumId={target.id} initialUrl={target.url} onClose={close} />;
   if (target.kind === 'import-spotify') return <SpotifyImportDialog key="import-spotify" onClose={close} />;
+  if (target.kind === 'merge-with') { const [k, ...rest] = target.id.split(':'); return <MergeWithDialog key={key} kind={k as MergeKind} id={rest.join(':')} onClose={close} />; }
   if (target.kind === 'merge-album') return <MergeAlbumDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'match-links') return <MatchLinksDialog key={`match-links-${target.id}`} albumId={target.id} onClose={close} />;
   if (target.kind === 'note') return <NoteDialog key={key} noteId={target.id} onClose={close} />;

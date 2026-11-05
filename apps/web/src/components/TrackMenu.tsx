@@ -1,5 +1,5 @@
 import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, Info, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Minus, Disc3, StickyNote, User } from 'lucide-react';
+import { BarChart3, Info, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Minus, Disc3, GitMerge, StickyNote, User } from 'lucide-react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import type { Track } from '../lib/derive.ts';
 import type { EditTarget } from '../lib/editor.ts';
@@ -32,6 +32,7 @@ export function useTrackMenuItems() {
       { label: 'Info', icon: <Info size={15} />, run: open({ kind: 'track-details', id: t.id }) },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('track', t.id) },
       { label: 'Edit…', icon: <Pencil size={15} />, run: open({ kind: 'track', id: t.id }) },
+      { label: 'Merge with another track…', icon: <GitMerge size={15} />, run: open({ kind: 'merge-with', id: `track:${t.id}` }) },
     ];
   };
 }

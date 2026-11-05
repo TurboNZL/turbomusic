@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { statsPath } from '../lib/entityStats.ts';
-import { ArrowLeft, BarChart3, Search, ArrowDown, ArrowUp, Link2, ListEnd, ListStart, Pencil, Play, Plus, Shuffle, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Search, ArrowDown, ArrowUp, Link2, ListEnd, ListStart, Pencil, Play, Plus, Shuffle, Sparkles, X } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { moveTrack, removeTrack } from '../lib/defaults.ts';
 import { useLibrary } from '../lib/derive.ts';
@@ -20,6 +20,11 @@ import { cn, plural } from '../lib/cn.ts';
 import { PlaylistNote, withoutKey } from '../components/PlaylistNote.tsx';
 import { TrackTable } from '../components/TrackTable.tsx';
 import { useChunks } from '../lib/useChunks.ts';
+
+/** Marks the playlists TurboMusic fills in by itself (thumbs up / down), so they are not mistaken for ones you made. */
+export function AutoBadge({ className }: { className?: string }) {
+  return <span title="Made automatically from your thumbs. You cannot edit it." className={cn('inline-flex w-fit items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur', className)}><Sparkles size={11} />Auto</span>;
+}
 
 export function PlaylistsPage() {
   const lib = useLibrary();
@@ -83,9 +88,10 @@ export function PlaylistsPage() {
       {find.trim() && !listed.length && <p className="text-sm text-muted">No playlist matches.</p>}
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--grid-min), 9rem), 1fr))' }}>{listed.slice(0, cards.shown).map((p) => { const c = playlistCount(lib, p); return (
         <Link key={p.id} to={`/playlists/${p.id}`} className="bt-tile group block text-left" onContextMenu={menu.onContextMenu(menuItems(p), `Actions for ${p.name}`, p.id)}>
-          <PlaylistCover playlist={p} className="transition-transform group-hover:scale-[1.02]" />
+          <div className="relative"><PlaylistCover playlist={p} className="transition-transform group-hover:scale-[1.02]" />
+            {isQuickPlaylist(p.id) && <AutoBadge className="absolute left-2 top-2" />}</div>
           <div className="bt-cap-t mt-2 truncate text-sm font-medium">{p.name}</div>
-          <div className="bt-cap text-xs text-muted">{isAlbumList(p) ? 'Albums · ' : ''}{plural(c.n, c.noun)}</div>
+          <div className="bt-cap text-xs text-muted">{isQuickPlaylist(p.id) ? 'Automatic · ' : isAlbumList(p) ? 'Albums · ' : ''}{plural(c.n, c.noun)}</div>
         </Link>); })}</div>
       {cards.left > 0 && <div ref={cards.sentinel} className="text-center"><button className="btn" onClick={cards.more}>Show more ({cards.left} left)</button></div>}</>}
       {openId && !open && <div className="space-y-3"><Link to="/playlists" className="btn btn-ghost"><ArrowLeft size={15} />Playlists</Link><p className="text-sm text-muted">This playlist was not found (it may have been deleted, or the library is still loading).</p></div>}
@@ -95,7 +101,8 @@ export function PlaylistsPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end" onContextMenu={menu.onContextMenu(menuItems(open), `Actions for ${open.name}`, open.id)}>
             <PlaylistCover playlist={open} className="w-32 shrink-0 sm:w-40" />
             <div className="min-w-0 space-y-2">
-              <div className="text-xs uppercase tracking-wider text-muted">{albumMode ? `Album playlist · ${plural(albums.length, 'album')} · ${plural(tracks.length, 'track')}` : `Playlist · ${plural(tracks.length, 'track')}`}</div>
+              {readOnly && <AutoBadge />}
+              <div className="text-xs uppercase tracking-wider text-muted">{readOnly ? 'Automatic playlist · ' : ''}{albumMode ? `Album playlist · ${plural(albums.length, 'album')} · ${plural(tracks.length, 'track')}` : `Playlist · ${plural(tracks.length, 'track')}`}</div>
               <h2 className="text-2xl font-bold leading-tight">{open.name}</h2>
               {open.description && <p className="max-w-xl whitespace-pre-wrap text-sm text-muted">{open.description}</p>}
               <div className="flex flex-wrap gap-2 pt-1">

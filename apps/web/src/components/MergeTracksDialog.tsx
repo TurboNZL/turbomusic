@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { GitMerge } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { leaveRemoved } from '../lib/leave.ts';
+import { statsPath } from '../lib/entityStats.ts';
 import type { TrackData } from '@turbomusic/core';
 import { useLibraryLive } from '../lib/derive.ts';
 import { useStore } from '../lib/store.ts';
@@ -12,6 +15,7 @@ import { Modal } from './forms.tsx';
 /** Merge tracks that are really one song (the single and the album version): pick the one to keep, see what happens, confirm. */
 export function MergeTracksDialog({ ids, onClose }: { ids: string[]; onClose: () => void }) {
   const lib = useLibraryLive();
+  const nav = useNavigate();
   const tracks = ids.flatMap((id) => lib.trackById.get(id) ?? []);
   const [keepId, setKeepId] = useState(() => (tracks.length ? suggestKeeper(tracks).id : ''));
   const raw = (id: string) => useStore.getState().rows.tracks.get(id)?.data as Partial<TrackData> | undefined;
@@ -24,7 +28,7 @@ export function MergeTracksDialog({ ids, onClose }: { ids: string[]; onClose: ()
     patch('tracks', plan.keepId, plan.keep);
     for (const p of plan.patches) patch(p.table, p.id, p.patch);
     for (const d of plan.deletes) remove(d.table, d.id);
-    for (const id of plan.removeIds) remove('tracks', id);
+    for (const id of plan.removeIds) { remove('tracks', id); leaveRemoved(nav, 'track', id, { to: statsPath('track', plan.keepId), fallback: '/tracks' }); }
     const keep = lib.trackById.get(plan.keepId)!;
     logJournal('edit', `Merged ${plan.removeIds.length + 1} copies of ${keep.title}`, keep.artistName);
     onClose();
