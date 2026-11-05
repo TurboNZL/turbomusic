@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { timingSafeEqual } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { pushSchema, sha256Hex, type PullResponse } from '@turbomusic/core';
+import { existsSync, statSync } from 'node:fs';
+import { pushSchema, RECORD_TABLES, sha256Hex, type PullResponse } from '@turbomusic/core';
 import type { Config } from './config.ts';
 import { Store } from './db.ts';
 import { Acquirer } from './acquire.ts';
@@ -24,6 +24,9 @@ import { assessHealth, collectHealth } from './health.ts';
 import { StorageError, StorageMover, describeStorage, isKind } from './storage.ts';
 import { BackupError, databaseSnapshot, filesArchive, importFiles, readDatabaseRecords, readStream, saveUpload } from './backup.ts';
 import { Readable } from 'node:stream';
+import { Mirror, MirrorError } from './mirror.ts';
+import { README, libraryJson, loadInput, planLayout, playlistFiles, tracksCsv } from './libraryExport.ts';
+import { tarChunks, tarLength, type TarEntry } from './tar.ts';
 import { rmSync } from 'node:fs';
 import { diskUsage, filePath, parseRange, saveVerified, streamFile, UploadError } from './files.ts';
 
@@ -48,6 +51,7 @@ export function createApp(
   mover = new StorageMover(config.dataDir),
   soloist = new Soloist(config.dataDir, { ffmpegDir: config.ffmpegDir }),
   lyricsFinder = new LyricsFinder(),
+  mirror = new Mirror(config.dataDir, store),
 ) {
   const app = new Hono();
 
@@ -147,7 +151,9 @@ export function createApp(
   app.post('/api/sync/push', async (c) => {
     const parsed = pushSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: 'invalid body', issues: parsed.error.issues.slice(0, 5) }, 400);
-    return c.json(store.push(parsed.data.records));
+    const pushed = store.push(parsed.data.records);
+    mirror.touch();
+    return c.json(pushed);
   });
 
   // Re-download audio for tracks that have a source URL but no file (e.g. after losing the old uploads folder).
@@ -247,7 +253,7 @@ export function createApp(
     const b = (await c.req.json().catch(() => ({}))) as { clientId?: unknown; redirectUri?: unknown };
     try { spotify.configure(String(b.clientId ?? ''), typeof b.redirectUri === 'string' && b.redirectUri ? b.redirectUri : undefined); return c.json(spotify.status()); } catch (e) { return spotifyFail(e); }
   });
-  app.get('/api/spotify/auth-url', (c) => { try { return c.json({ url: spotify.authUrl({ streaming: c.req.query('streaming') === '1' }) }); } catch (e) { return spotifyFail(e); } });
+  app.get('/api/spotify/auth-url', (c) => { try { return c.json({ url: spotify.authUrl({ streaming: c.req.query('streaming') === '1', write: c.req.query('write') === '1' }) }); } catch (e) { return spotifyFail(e); } });
   app.post('/api/spotify/exchange', async (c) => {
     const b = (await c.req.json().catch(() => ({}))) as { url?: unknown };
     try { await spotify.exchange(String(b.url ?? '')); return c.json(spotify.status()); } catch (e) { return spotifyFail(e); }
@@ -290,6 +296,25 @@ export function createApp(
     const id = c.req.param('id');
     if (!/^[A-Za-z0-9]{22}$/.test(id)) return c.json({ error: 'bad playlist id' }, 400);
     try { return c.json(await spotify.playlist(id)); } catch (e) { return spotifyFail(e); }
+  });
+  // synced playlists: make one on the account, or make one hold exactly these tracks (needs the "change my playlists" permission)
+  const trackUris = (v: unknown) => (Array.isArray(v) ? v : []).filter((u): u is string => typeof u === 'string' && /^spotify:track:[A-Za-z0-9]{22}$/.test(u)).slice(0, 5000);
+  app.post('/api/spotify/playlists', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { name?: unknown; description?: unknown; uris?: unknown };
+    const name = typeof b.name === 'string' ? b.name.trim().slice(0, 100) : '';
+    if (!name) return c.json({ error: 'name missing' }, 400);
+    try {
+      const made = await spotify.createPlaylist(name, typeof b.description === 'string' ? b.description.slice(0, 300) : '');
+      const uris = trackUris(b.uris);
+      if (uris.length) await spotify.setPlaylistTracks(made.id, uris);
+      return c.json(made);
+    } catch (e) { return spotifyFail(e); }
+  });
+  app.put('/api/spotify/playlist/:id/tracks', async (c) => {
+    const id = c.req.param('id');
+    if (!/^[A-Za-z0-9]{22}$/.test(id)) return c.json({ error: 'bad playlist id' }, 400);
+    const b = (await c.req.json().catch(() => ({}))) as { uris?: unknown };
+    try { await spotify.setPlaylistTracks(id, trackUris(b.uris)); return c.json({ ok: true }); } catch (e) { return spotifyFail(e); }
   });
   app.post('/api/spotify/resolve', async (c) => {
     const b = (await c.req.json().catch(() => ({}))) as { url?: unknown };
@@ -351,6 +376,47 @@ export function createApp(
     if (!c.req.raw.body) return c.json({ error: 'empty body' }, 400);
     try { return c.json(await importFiles(config.dataDir, store, Readable.fromWeb(c.req.raw.body as never))); }
     catch (e) { if (e instanceof BackupError) return c.json({ error: e.message }, e.status as 400 | 413); throw e; }
+  });
+
+  // The library as people can read it: a mirror of links (Artist/Album/Title) and exports for taking it elsewhere (libraryExport.ts)
+  app.get('/api/admin/mirror', (c) => c.json(mirror.status()));
+  app.post('/api/admin/mirror', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { enabled?: unknown; mode?: unknown; dir?: unknown; now?: unknown };
+    try {
+      mirror.configure({ ...(typeof b.enabled === 'boolean' ? { enabled: b.enabled } : {}), ...(typeof b.mode === 'string' ? { mode: b.mode as never } : {}), ...(typeof b.dir === 'string' || b.dir === null ? { dir: b.dir as string | null } : {}) });
+      if (mirror.settings().enabled || b.now === true) mirror.run();
+      return c.json(mirror.status());
+    } catch (e) { if (e instanceof MirrorError) return c.json({ error: e.message }, 400); return c.json({ error: (e as Error).message, status: mirror.status() }, 500); }
+  });
+  app.get('/api/export/library', (c) => {
+    const input = loadInput(store);
+    const items = planLayout(input);
+    const withAudio = c.req.query('audio') !== '0';
+    const text = (name: string, body: string): TarEntry => ({ name, size: Buffer.byteLength(body), data: Buffer.from(body) });
+    const entries: TarEntry[] = [text('README.txt', README), text('tracks.csv', tracksCsv(store, input, items)), text('library.json', libraryJson(store, RECORD_TABLES as never)), ...playlistFiles(input, items).map((p) => text(`Playlists/${p.name}`, p.text))];
+    if (withAudio) {
+      for (const it of items) { const p = filePath(config.dataDir, it.hash); if (existsSync(p)) entries.push({ name: `Music/${it.path}`, size: statSync(p).size, path: p }); }
+      // one cover.jpg beside each album's songs
+      const done = new Set<string>();
+      for (const it of items) {
+        if (!it.album) continue;
+        const dir = it.path.slice(0, it.path.lastIndexOf('/'));
+        if (done.has(dir)) continue;
+        done.add(dir);
+        const album = input.albums.find((a) => a.data.title === it.album);
+        const rel = input.releases.find((r) => r.id === album?.data.defaultReleaseId) ?? input.releases.find((r) => r.data.albumId === album?.id && r.data.cover);
+        const hash = (album?.data.coverPicked ? album.data.cover : undefined) ?? rel?.data.cover ?? album?.data.cover;
+        const p = hash ? filePath(config.dataDir, hash) : '';
+        if (p && existsSync(p)) entries.push({ name: `Music/${dir}/cover.jpg`, size: statSync(p).size, path: p });
+      }
+    }
+    return new Response(Readable.toWeb(Readable.from(tarChunks(entries))) as unknown as ReadableStream, { headers: {
+      'Content-Type': 'application/x-tar', 'Content-Length': String(tarLength(entries)), 'Content-Disposition': `attachment; filename="turbomusic-library-${withAudio ? 'with-audio-' : ''}${stamp()}.tar"` } });
+  });
+  app.get('/api/export/data', (c) => {
+    const csv = c.req.query('format') === 'csv';
+    const body = csv ? (() => { const input = loadInput(store); return tracksCsv(store, input, planLayout(input)); })() : libraryJson(store, RECORD_TABLES as never);
+    return new Response(body, { headers: { 'Content-Type': csv ? 'text/csv; charset=utf-8' : 'application/json', 'Content-Disposition': `attachment; filename="turbomusic-${csv ? 'tracks' : 'library'}-${stamp()}.${csv ? 'csv' : 'json'}"` } });
   });
 
   app.get('/api/files', (c) => c.json(store.listFiles()));

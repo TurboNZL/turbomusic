@@ -8,6 +8,7 @@ import type { SpotifyImportTrack, SpotifyList } from '../lib/api.ts';
 import { useLibraryLive } from '../lib/derive.ts';
 import { logJournal } from '../lib/journal.ts';
 import { api, useStore } from '../lib/store.ts';
+import { createFromPlan } from '../lib/spotifyCreate.ts';
 import { parseAccountData, parseTextList, planImport, type ImportPlan } from '../lib/spotifyImport.ts';
 import { readZip } from '../lib/zipRead.ts';
 import { cn } from '../lib/cn.ts';
@@ -86,42 +87,8 @@ export function SpotifyImportDialog({ onClose }: { onClose: () => void }) {
     if (!plan || !list) return;
     setBusy('Importing…'); setError(null);
     try {
-      const artistIds = new Map<string, string>();
-      for (const a of lib.artists) for (const n of [a.name, ...(a.aliases ?? [])]) if (!artistIds.has(norm(n))) artistIds.set(norm(n), a.id);
-      const artist = (n: string) => { const k = norm(n); let id = artistIds.get(k); if (!id) { id = put('artists', { name: n.trim(), image: null } satisfies ArtistData); artistIds.set(k, id); } return id; };
-      const trackIdOf = new Map<string, string>();
-      for (const t of plan.tracks) if (t.existingTrackId) {
-        trackIdOf.set(t.src.uri, t.existingTrackId);
-        // reused by title and artist: this Spotify track may be another release of the same song (the single, then the album), so keep its link too
-        const have = lib.trackById.get(t.existingTrackId);
-        const more = have && withLink(have, `https://open.spotify.com/track/${t.src.id}`);
-        if (more) patch('tracks', t.existingTrackId, more);
-      }
-      let albumsMade = 0, tracksMade = 0, coverFails = 0;
-      const newAlbumIds: { id: string; releaseId: string | null; coverFrom: string | null }[] = [];
-      if (makeAlbums) {
-        for (const a of plan.albums) {
-          if (skipped.has(a.key)) continue;
-          const lead = artist(a.artist);
-          const credits = leadCredit(lead);
-          const albumId = a.existingAlbumId ?? put('albums', newAlbumData({ title: a.title, credits, genres: [], cover: null, covers: [], coverPicked: false, needsSource: true } as never));
-          if (!a.existingAlbumId) albumsMade++;
-          const ids: string[] = [];
-          for (const [i, pt] of a.tracks.entries()) {
-            const feats = pt.src.artists.filter((n) => norm(n) !== norm(a.artist)).map((n) => ({ artistId: artist(n), role: ['Featured artist'] }));
-            const id = put('tracks', newTrackData({ title: pt.src.title, credits: [...credits, ...feats], youtubeMusicUrl: null, spotifyUrl: `https://open.spotify.com/track/${pt.src.id}`, albums: [{ albumId, order: i }] }));
-            trackIdOf.set(pt.src.uri, id); ids.push(id); tracksMade++;
-          }
-          if (!a.existingAlbumId) {
-            const releaseId = put('releases', { albumId, title: a.title, cover: null, releaseDate: a.releaseDate, trackIds: ids });
-            patch('albums', albumId, { trackOrder: ids, defaultReleaseId: releaseId });
-            newAlbumIds.push({ id: albumId, releaseId, coverFrom: a.albumUri ?? a.tracks[0]?.src.uri ?? null });
-          } else {
-            const cur = lib.albumById.get(albumId);
-            if (cur) patch('albums', albumId, { trackOrder: [...cur.trackIds, ...ids] });
-          }
-        }
-      }
+      let coverFails = 0;
+      const { trackIdOf, albumsMade, tracksMade, newAlbumIds } = createFromPlan(lib, plan, { put, patch }, { makeAlbums, skipped });
       let playlistId: string | null = null;
       if (makePlaylist) {
         const ids = plan.tracks.map((t) => trackIdOf.get(t.src.uri)).filter((x): x is string => !!x);

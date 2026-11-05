@@ -107,6 +107,8 @@ export interface SpotifyAuthState {
 const SCOPES = 'playlist-read-private playlist-read-collaborative user-library-read user-read-playback-state user-modify-playback-state user-read-currently-playing';
 /** only asked for when the in-app player is wanted (Web Playback SDK): a plain sign-in keeps the permissions it always had */
 const STREAMING_SCOPES = 'streaming user-read-email user-read-private';
+/** only asked for when playlists are to be changed on Spotify (synced playlists): a plain sign-in stays read-only */
+const WRITE_SCOPES = 'playlist-modify-public playlist-modify-private';
 export const DEFAULT_REDIRECT = 'http://127.0.0.1:47813/api/spotify/callback';
 const b64url = (b: Buffer) => b.toString('base64url');
 
@@ -122,7 +124,7 @@ export class SpotifyAccount {
   private load(): SpotifyAuthState { try { return JSON.parse(readFileSync(this.file, 'utf8')) as SpotifyAuthState; } catch { return {}; } }
   private save(s: SpotifyAuthState) { mkdirSync(dirname(this.file), { recursive: true }); writeFileSync(this.file, JSON.stringify(s, null, 2), { mode: 0o600 }); }
 
-  status() { const s = this.load(); return { clientId: this.envClient || s.clientId || '', redirectUri: s.redirectUri || DEFAULT_REDIRECT, signedIn: !!s.token, streaming: !!(s.token?.scope ?? '').split(' ').includes('streaming'), configured: !!(this.envClient || s.clientId) }; }
+  status() { const s = this.load(); return { clientId: this.envClient || s.clientId || '', redirectUri: s.redirectUri || DEFAULT_REDIRECT, signedIn: !!s.token, streaming: !!(s.token?.scope ?? '').split(' ').includes('streaming'), canWrite: (s.token?.scope ?? '').split(' ').includes('playlist-modify-private'), configured: !!(this.envClient || s.clientId) }; }
   configure(clientId: string, redirectUri?: string) {
     if (!/^[0-9a-f]{32}$/i.test(clientId.trim())) throw new SpotifyError(400, 'A Spotify client id is 32 letters and digits (from your app on developer.spotify.com/dashboard)');
     const s = this.load(); s.clientId = clientId.trim(); if (redirectUri) s.redirectUri = redirectUri.trim(); this.save(s);
@@ -130,12 +132,12 @@ export class SpotifyAccount {
   signOut() { const s = this.load(); delete s.token; delete s.pending; this.save(s); }
 
   /** Step 1: the page the user opens to allow TurboMusic to read their playlists. */
-  authUrl(opts: { streaming?: boolean } = {}): string {
+  authUrl(opts: { streaming?: boolean; write?: boolean } = {}): string {
     const s = this.load(); const clientId = this.envClient || s.clientId;
     if (!clientId) throw new SpotifyError(400, 'Enter your Spotify client id first');
     const verifier = b64url(randomBytes(48)), state = b64url(randomBytes(12));
     s.pending = { verifier, state }; this.save(s);
-    const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: s.redirectUri || DEFAULT_REDIRECT, scope: opts.streaming ? `${SCOPES} ${STREAMING_SCOPES}` : SCOPES, state, code_challenge_method: 'S256', code_challenge: b64url(createHash('sha256').update(verifier).digest()) });
+    const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: s.redirectUri || DEFAULT_REDIRECT, scope: [SCOPES, ...(opts.streaming ? [STREAMING_SCOPES] : []), ...(opts.write ? [WRITE_SCOPES] : [])].join(' '), state, code_challenge_method: 'S256', code_challenge: b64url(createHash('sha256').update(verifier).digest()) });
     return `https://accounts.spotify.com/authorize?${q}`;
   }
   /** Step 2: Spotify sent the browser to `redirectUri?code=…&state=…`; give that address (or just the code) here. Works even if the page itself did not load. */
@@ -280,6 +282,35 @@ export class SpotifyAccount {
   }
 
   /** Find tracks by text (Development Mode returns few results per query). */
+  /** A call that changes a playlist; answers its JSON (or {}). Explains a refusal in terms of the permission, which is the usual cause. */
+  private async write<T>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let res: Response;
+      try { res = await this.f(`https://api.spotify.com/v1${path}`, { method, headers: { Authorization: `Bearer ${await this.access()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) }); }
+      catch (e) { if (e instanceof SpotifyError) throw e; throw new SpotifyError(502, `Could not reach Spotify (${(e as Error).message})`); }
+      if (res.status === 429) { await new Promise((r) => setTimeout(r, Math.min(5000, (Number(res.headers.get('retry-after')) || 1) * 1000))); continue; }
+      if (res.ok) return ((await res.json().catch(() => ({}))) as T);
+      const msg = ((await res.json().catch(() => null)) as { error?: { message?: string } } | null)?.error?.message;
+      if (res.status === 401) throw new SpotifyError(401, 'The Spotify sign-in is no longer valid; sign in again');
+      if (res.status === 403) throw new SpotifyError(403, `Spotify will not let TurboMusic change that playlist${msg ? ` (${msg})` : ''}. Sign in again with “Allow changing my playlists”, and only playlists you own or collaborate on can be changed.`);
+      if (res.status === 404) throw new SpotifyError(404, `Spotify cannot find that playlist${msg ? ` (${msg})` : ''}`);
+      throw new SpotifyError(502, `Spotify answered ${res.status}${msg ? `: ${msg}` : ''}`);
+    }
+    throw new SpotifyError(429, 'Spotify is rate limiting this app; try again in a minute');
+  }
+
+  /** Make a new, private playlist on the account (POST /me/playlists, which replaced /users/{id}/playlists in Feb 2026). */
+  async createPlaylist(name: string, description = ''): Promise<{ id: string; url: string }> {
+    const j = await this.write<{ id: string; external_urls?: { spotify?: string } }>('POST', '/me/playlists', { name, description, public: false });
+    return { id: j.id, url: j.external_urls?.spotify ?? `https://open.spotify.com/playlist/${j.id}` };
+  }
+
+  /** Make the playlist hold exactly these tracks, in this order (PUT /playlists/{id}/items replaces up to 100, the rest are added after). */
+  async setPlaylistTracks(id: string, uris: string[]): Promise<void> {
+    await this.write('PUT', `/playlists/${id}/items`, { uris: uris.slice(0, 100) });
+    for (let i = 100; i < uris.length; i += 100) await this.write('POST', `/playlists/${id}/items`, { uris: uris.slice(i, i + 100) });
+  }
+
   async search(q: string, limit = 10): Promise<SpotifyTrack[]> {
     const j = await this.get<{ tracks?: { items: { id: string; uri: string; name: string; duration_ms?: number; artists?: { name: string }[]; album?: { name?: string; uri?: string; release_date?: string; images?: { url: string }[]; artists?: { name: string }[] } }[] } }>(`/search?type=track&limit=${Math.min(10, limit)}&q=${encodeURIComponent(q)}`);
     return (j.tracks?.items ?? []).map((t) => ({ uri: t.uri, id: t.id, title: t.name, artists: (t.artists ?? []).map((a) => a.name), album: t.album?.name ?? '', albumUri: t.album?.uri ?? null, albumArtist: t.album?.artists?.[0]?.name ?? null,

@@ -79,6 +79,7 @@ export function useAlbumMenuItems() {
     { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) },
     { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => edit({ kind: 'import-into-album', id: album.id }) },
     ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
+    { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
     ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
     (album as { noYoutube?: boolean }).noYoutube
       ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
@@ -101,6 +102,7 @@ export function useArtistMenuItems() {
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
+      { label: 'Merge with another artist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `artist:${artistId}` }) },
     ];
   };
 }
@@ -127,6 +129,10 @@ export function usePlaylistMenuItems() {
         { separator: true } as MenuItem,
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },
         { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) },
+        ...(playlist.kind === 'albums' ? [] : [
+          { label: 'Merge other playlists into this…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `into:${playlist.id}` }) } as MenuItem,
+          { label: playlist.spotify ? 'Merge into another playlist…' : 'Merge into a synced playlist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `from:${playlist.id}` }) } as MenuItem,
+        ]),
       ]),
     ];
   };

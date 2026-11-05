@@ -145,6 +145,35 @@ describe('player', () => {
     expect(old.status().streaming).toBe(false);
     await expect(old.sdkToken()).rejects.toThrow(/sign in again/);
   });
+  it('asks to change playlists only on request, and creates / fills a playlist through the /items endpoints', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'sp-'));
+    const calls: { method: string; url: string; body: unknown }[] = [];
+    const f = (async (u: string, init?: RequestInit) => {
+      if (String(u).includes('/api/token')) return json({ access_token: 'AT', refresh_token: 'RT', expires_in: 3600, scope: 'playlist-modify-private playlist-modify-public' });
+      calls.push({ method: init?.method ?? 'GET', url: String(u), body: init?.body ? JSON.parse(String(init.body)) : null });
+      return json(String(u).endsWith('/me/playlists') ? { id: 'P'.repeat(22), external_urls: { spotify: 'https://open.spotify.com/playlist/x' } } : { snapshot_id: 'z' });
+    }) as unknown as typeof fetch;
+    const a = new SpotifyAccount(d, { fetchImpl: f, now: () => 1000 }); a.configure(CLIENT);
+    expect(new URL(a.authUrl()).searchParams.get('scope')).not.toContain('playlist-modify');
+    expect(new URL(a.authUrl({ write: true })).searchParams.get('scope')).toContain('playlist-modify-private');
+    await a.exchange(`http://x/?code=C&state=${JSON.parse(readFileSync(join(d, 'spotify.json'), 'utf8')).pending.state}`);
+    expect(a.status().canWrite).toBe(true);
+    const made = await a.createPlaylist('Mine', 'x');
+    expect(made.id).toBe('P'.repeat(22));
+    const uris = Array.from({ length: 230 }, (_, i) => `spotify:track:${String(i).padStart(22, '0')}`);
+    await a.setPlaylistTracks(made.id, uris);
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { name: 'Mine', public: false } });
+    expect(calls.slice(1).map((c) => [c.method, (c.body as { uris: string[] }).uris.length])).toEqual([['PUT', 100], ['POST', 100], ['POST', 30]]);
+    expect(calls[1].url).toContain(`/playlists/${made.id}/items`);
+  });
+  it('explains a 403 on a playlist change in terms of the permission', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'sp-'));
+    const f = (async (u: string) => (String(u).includes('/api/token') ? json({ access_token: 'AT', refresh_token: 'RT', expires_in: 3600, scope: 'x' }) : json({ error: { message: 'Insufficient client scope' } }, 403))) as unknown as typeof fetch;
+    const a = new SpotifyAccount(d, { fetchImpl: f, now: () => 1000 }); a.configure(CLIENT); a.authUrl();
+    await a.exchange(`http://x/?code=C&state=${JSON.parse(readFileSync(join(d, 'spotify.json'), 'utf8')).pending.state}`);
+    expect(a.status().canWrite).toBe(false);
+    await expect(a.setPlaylistTracks('P'.repeat(22), [])).rejects.toThrow(/Allow changing my playlists/);
+  });
   it('does not crash on an old saved sign-in without a scope field', () => {
     const d = mkdtempSync(join(tmpdir(), 'sp-'));
     writeFileSync(join(d, 'spotify.json'), JSON.stringify({ clientId: CLIENT, token: { access: 'A', refresh: 'R', expiresAt: 1 } }));

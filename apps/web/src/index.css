@@ -74,4 +74,7 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 .rc-float { transform-box: fill-box; transform-origin: center; animation: rc-float-a 14s ease-in-out infinite alternate; }
 .rc-float-1 { animation-name: rc-float-b; animation-duration: 18s; }
 .rc-float-2 { animation-name: rc-float-c; animation-duration: 11s; }
+/* the hidden copy that becomes a picture: everything at its final state */
+.rc-static, .rc-static * { animation: none !important; transition: none !important; }
+.rc-static .rc-draw { stroke-dasharray: none; }
 @media (prefers-reduced-motion: reduce) { .rc-bar, .rc-float { animation: none; } .rc-rise, .rc-pop, .rc-slide-fwd, .rc-slide-back, .rc-grow, .rc-draw, .rc-shake { animation: none; } .rc-draw { stroke-dasharray: none; } }

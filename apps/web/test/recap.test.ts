@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeWrapped, defaultWeek, musicPhases, personalityScores, seededShuffle, weekStart, weeklyRecap, weeksWithPlays, wrappedYears, yearOf } from '../src/lib/recap.ts';
+import { daysInMonth, defaultMonth, monthStart, monthlyRecap, monthsWithPlays, nextMonth, computeWrapped, defaultWeek, musicPhases, personalityScores, seededShuffle, weekStart, weeklyRecap, weeksWithPlays, wrappedYears, yearOf } from '../src/lib/recap.ts';
 import type { Listen } from '../src/lib/listens.ts';
 import { longestSession, obsession } from '../src/lib/recap.ts';
 import { MOTIFS, shapes } from '../src/components/AbstractArt.tsx';
@@ -169,5 +169,40 @@ describe('abstract art', () => {
       expect(JSON.stringify(shapes('another', m))).not.toBe(JSON.stringify(a));
       for (const s of a) expect(s.opacity).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('monthly recap', () => {
+  const m = monthStart(at(2026, 9, 10));
+  const all = [
+    L(at(2026, 8, 20), { title: 'Old', artist: 'Z', artistId: 'z' }),
+    L(at(2026, 9, 2), { title: 'A', artist: 'X', artistId: 'x', trackId: 'a' }), L(at(2026, 9, 3), { title: 'A', artist: 'X', artistId: 'x', trackId: 'a' }), L(at(2026, 9, 4), { title: 'A', artist: 'X', artistId: 'x', trackId: 'a' }),
+    L(at(2026, 9, 4, 2), { title: 'B', artist: 'Y', artistId: 'y', trackId: 'b' }), L(at(2026, 9, 20), { title: 'Old', artist: 'Z', artistId: 'z' }),
+    L(at(2026, 9, 21), { title: 'Skipped', ms: 3000 }), L(at(2026, 10, 1)),
+  ];
+  const r = monthlyRecap(none as never, all, m, at(2026, 10, 5));
+  it('knows months, their length and which one just ended', () => {
+    expect(daysInMonth(m)).toBe(30);
+    expect(nextMonth(m)).toBe(monthStart(at(2026, 10, 1)));
+    const months = monthsWithPlays(all);
+    expect(months.map((x) => new Date(x).getMonth() + 1)).toEqual([10, 9, 8]);
+    expect(new Date(defaultMonth(months, at(2026, 10, 5))!).getMonth() + 1).toBe(9);
+    expect(defaultMonth([])).toBeNull();
+  });
+  it('totals the month, counts active days and a streak, and ignores short plays', () => {
+    expect(r.plays).toBe(5);
+    expect(r.byDay).toHaveLength(30);
+    expect(r.activeDays).toBe(4);
+    expect(r.byDay[1]).toBeGreaterThan(0);
+    expect(r.streak.days).toBe(3);
+    expect(r.busiestDay?.day).toBe(4);
+    expect(r.partial).toBe(false);
+    expect(r.lateNight).toBe(1);
+  });
+  it('finds artists heard for the first time this month, and not those known before', () => {
+    expect(r.discoveries.count).toBe(2);
+    expect(r.discoveries.names).toEqual(['X', 'Y']);
+    expect(r.opener?.title).toBe('A');
+    expect(r.prevMs).toBe(200000);
   });
 });

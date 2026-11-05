@@ -141,7 +141,7 @@ export function weeklyRecap(lib: Pick<Library, 'votes' | 'memoryLogs' | 'trackBy
     topGenre: [...genres.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     from: start, to: end, partial: now < end,
     plays: s.plays, ms: s.ms, prevMs: prev.ms, change: prev.ms > 0 ? s.ms / prev.ms - 1 : null,
-    topTracks: s.topTracks, topArtists: s.topArtists.slice(0, 3), album: s.topAlbums[0] ?? null,
+    topTracks: s.topTracks, topArtists: s.topArtists.slice(0, 5), album: s.topAlbums[0] ?? null,
     reactions: reactionsIn(lib, start, end), busiestDay: busiest, activeDays: s.daysActive,
     newArtists: s.byMonth.reduce((n, m) => n + m.newArtists, 0),
     skipRate: s.skipRate, daypart: s.ms > 0 ? daypartOf(best) : null,
@@ -153,6 +153,95 @@ export function weeklyRecap(lib: Pick<Library, 'votes' | 'memoryLogs' | 'trackBy
 export interface Phase { fromMonth: string; toMonth: string; artists: string[]; name: string }
 export interface Race { artists: string[]; months: string[]; /** ranks[a][m] = 1-based rank of artist a after month m (null = not heard yet) */ ranks: (number | null)[][] }
 export type Personality = 'replayer' | 'explorer' | 'loyalist' | 'nightowl' | 'earlybird' | 'timetraveller';
+
+// ------------------------------------------------------------------ the monthly recap
+
+/** First moment (local time) of the month that holds `ts`. */
+export const monthStart = (ts: number) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); d.setDate(1); return d.getTime(); };
+export const nextMonth = (start: number) => { const d = new Date(start); d.setMonth(d.getMonth() + 1); return d.getTime(); };
+export const prevMonth = (start: number) => { const d = new Date(start); d.setMonth(d.getMonth() - 1); return d.getTime(); };
+export const daysInMonth = (start: number) => Math.round((nextMonth(start) - start) / 86_400_000);
+
+/** Months (their first day) that hold at least one counted play, newest first. */
+export function monthsWithPlays(all: Listen[], minMs = RECAP_MIN_MS): number[] {
+  const set = new Set<number>();
+  for (const l of all) if (l.ms >= minMs) set.add(monthStart(l.ts));
+  return [...set].sort((a, b) => b - a);
+}
+/** Which month opens by default: the one that just ended (or the current one while it is the only one with plays). */
+export function defaultMonth(months: number[], now = Date.now()): number | null {
+  if (!months.length) return null;
+  const cur = monthStart(now);
+  return months.find((m) => m < cur) ?? months[0];
+}
+
+export interface MonthlyRecap {
+  from: number; to: number; partial: boolean;
+  plays: number; ms: number; prevMs: number; change: number | null;
+  topTracks: TopRow[]; topArtists: TopRow[]; album: TopRow | null;
+  reactions: Reactions;
+  /** milliseconds listened on each day of the month, day 1 first */
+  byDay: number[];
+  activeDays: number;
+  busiestDay: { day: number; ms: number } | null;
+  streak: { days: number; from: string | null; to: string | null };
+  /** artists heard for the first time this month (never played before in the library or imported history), most played first */
+  discoveries: { count: number; names: string[] };
+  newSongs: number;
+  topGenres: { name: string; plays: number }[];
+  longestSessionMs: number;
+  onRepeat: { label: string; artist: string; plays: number } | null;
+  lateNight: number;
+  completion: number;
+  daypart: WeeklyRecap['daypart'];
+  /** ms listened per weekday, Monday first */
+  weekdays: number[];
+  /** the first song played in the month */
+  opener: { title: string; artist: string } | null;
+  avgPerActiveDayMs: number;
+}
+
+/** One month of listening: the same numbers as the weekly recap over a calendar month, plus a calendar of days, streak and discoveries. */
+export function monthlyRecap(lib: Pick<Library, 'votes' | 'memoryLogs' | 'trackById'>, all: Listen[], start: number, now = Date.now()): MonthlyRecap {
+  const end = nextMonth(start);
+  const s = computeListenStats(all, { from: start, to: end }, { minMs: RECAP_MIN_MS, now, topN: 5 });
+  const prev = computeListenStats(all, { from: prevMonth(start), to: start }, { minMs: RECAP_MIN_MS, now, topN: 1 });
+  const rows = all.filter((l) => l.ms >= RECAP_MIN_MS && l.ts >= start && l.ts < end).sort((a, b) => a.ts - b.ts);
+  const n = daysInMonth(start);
+  const byDay = Array<number>(n).fill(0), weekdays = Array<number>(7).fill(0);
+  const best = s.byHour.reduce((bi, v, i, a) => (v > a[bi] ? i : bi), 0);
+  let lateNight = 0;
+  const genres = new Map<string, number>(), seenTrack = new Set<string>(), seenArtist = new Set<string>(), freshTracks = new Set<string>(), freshArtists = new Map<string, { name: string; plays: number }>();
+  for (const l of all) if (l.ms >= RECAP_MIN_MS && l.ts < start) { seenTrack.add(keyOf(l)); seenArtist.add(l.artistId ?? l.artist.toLowerCase()); }
+  for (const l of rows) {
+    const d = new Date(l.ts);
+    byDay[d.getDate() - 1] += l.ms; weekdays[(d.getDay() + 6) % 7] += l.ms;
+    if (d.getHours() < 5) lateNight++;
+    if (!seenTrack.has(keyOf(l))) freshTracks.add(keyOf(l));
+    const ak = l.artistId ?? l.artist.toLowerCase();
+    if (l.artist && !seenArtist.has(ak)) { const f = freshArtists.get(ak) ?? { name: l.artist, plays: 0 }; f.plays++; freshArtists.set(ak, f); }
+    for (const g of (l.trackId ? lib.trackById.get(l.trackId)?.allGenres ?? [] : [])) genres.set(g, (genres.get(g) ?? 0) + 1);
+  }
+  let busiest: MonthlyRecap['busiestDay'] = null;
+  byDay.forEach((ms, i) => { if (ms > 0 && (!busiest || ms > busiest.ms)) busiest = { day: i + 1, ms }; });
+  const rep = s.topTracks[0];
+  const first = rows[0];
+  const activeDays = byDay.filter((x) => x > 0).length;
+  return {
+    from: start, to: end, partial: now < end,
+    plays: s.plays, ms: s.ms, prevMs: prev.ms, change: prev.ms > 0 ? s.ms / prev.ms - 1 : null,
+    topTracks: s.topTracks, topArtists: s.topArtists.slice(0, 5), album: s.topAlbums[0] ?? null,
+    reactions: reactionsIn(lib, start, end), byDay, activeDays, busiestDay: busiest, streak: s.longestStreak,
+    discoveries: { count: freshArtists.size, names: [...freshArtists.values()].sort((a, b) => b.plays - a.plays).slice(0, 3).map((x) => x.name) },
+    newSongs: freshTracks.size,
+    topGenres: [...genres.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, plays]) => ({ name, plays })),
+    longestSessionMs: longestSession(rows)?.ms ?? 0,
+    onRepeat: rep && rep.plays >= 3 ? { label: rep.label, artist: rep.sub, plays: rep.plays } : null,
+    lateNight, completion: 1 - s.skipRate, daypart: s.ms > 0 ? daypartOf(best) : null, weekdays,
+    opener: first ? { title: first.title, artist: first.artist } : null,
+    avgPerActiveDayMs: activeDays ? s.ms / activeDays : 0,
+  };
+}
 
 export interface Wrapped {
   year: number;

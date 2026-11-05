@@ -18,6 +18,8 @@ import { Section } from '../components/Section.tsx';
 import { TermuxServerCard } from '../components/TermuxServerCard.tsx';
 import { SpotifyCard } from '../components/SpotifyCard.tsx';
 import { BackupCard } from '../components/BackupCard.tsx';
+import { RecapDismissals } from '../components/RecapDismissals.tsx';
+import { LibraryFilesCard } from '../components/LibraryFilesCard.tsx';
 import { GuidesTab } from '../components/GuidesTab.tsx';
 import { ServerUpdateCard } from '../components/ServerUpdate.tsx';
 import { ConnectionTokens, PairDevice, ServerHealthCard } from '../components/ServerHealthCard.tsx';
@@ -110,6 +112,8 @@ export function SettingsPage() {
       <ServerHealthCard />
 
       <Section title="Backup: export and import"><BackupCard /></Section>
+      <Section title="Library as files: browse it, take it with you"><LibraryFilesCard /></Section>
+      <Section title="Recap announcements on Home"><RecapDismissals /></Section>
       </>}
 
       {tab === 'library' && <>
