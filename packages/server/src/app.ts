@@ -247,7 +247,7 @@ export function createApp(
     const b = (await c.req.json().catch(() => ({}))) as { clientId?: unknown; redirectUri?: unknown };
     try { spotify.configure(String(b.clientId ?? ''), typeof b.redirectUri === 'string' && b.redirectUri ? b.redirectUri : undefined); return c.json(spotify.status()); } catch (e) { return spotifyFail(e); }
   });
-  app.get('/api/spotify/auth-url', (c) => { try { return c.json({ url: spotify.authUrl({ streaming: c.req.query('streaming') === '1' }) }); } catch (e) { return spotifyFail(e); } });
+  app.get('/api/spotify/auth-url', (c) => { try { return c.json({ url: spotify.authUrl({ streaming: c.req.query('streaming') === '1', write: c.req.query('write') === '1' }) }); } catch (e) { return spotifyFail(e); } });
   app.post('/api/spotify/exchange', async (c) => {
     const b = (await c.req.json().catch(() => ({}))) as { url?: unknown };
     try { await spotify.exchange(String(b.url ?? '')); return c.json(spotify.status()); } catch (e) { return spotifyFail(e); }
@@ -290,6 +290,25 @@ export function createApp(
     const id = c.req.param('id');
     if (!/^[A-Za-z0-9]{22}$/.test(id)) return c.json({ error: 'bad playlist id' }, 400);
     try { return c.json(await spotify.playlist(id)); } catch (e) { return spotifyFail(e); }
+  });
+  // synced playlists: make one on the account, or make one hold exactly these tracks (needs the "change my playlists" permission)
+  const trackUris = (v: unknown) => (Array.isArray(v) ? v : []).filter((u): u is string => typeof u === 'string' && /^spotify:track:[A-Za-z0-9]{22}$/.test(u)).slice(0, 5000);
+  app.post('/api/spotify/playlists', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { name?: unknown; description?: unknown; uris?: unknown };
+    const name = typeof b.name === 'string' ? b.name.trim().slice(0, 100) : '';
+    if (!name) return c.json({ error: 'name missing' }, 400);
+    try {
+      const made = await spotify.createPlaylist(name, typeof b.description === 'string' ? b.description.slice(0, 300) : '');
+      const uris = trackUris(b.uris);
+      if (uris.length) await spotify.setPlaylistTracks(made.id, uris);
+      return c.json(made);
+    } catch (e) { return spotifyFail(e); }
+  });
+  app.put('/api/spotify/playlist/:id/tracks', async (c) => {
+    const id = c.req.param('id');
+    if (!/^[A-Za-z0-9]{22}$/.test(id)) return c.json({ error: 'bad playlist id' }, 400);
+    const b = (await c.req.json().catch(() => ({}))) as { uris?: unknown };
+    try { await spotify.setPlaylistTracks(id, trackUris(b.uris)); return c.json({ ok: true }); } catch (e) { return spotifyFail(e); }
   });
   app.post('/api/spotify/resolve', async (c) => {
     const b = (await c.req.json().catch(() => ({}))) as { url?: unknown };

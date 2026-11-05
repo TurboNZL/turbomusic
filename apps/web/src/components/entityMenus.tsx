@@ -129,6 +129,10 @@ export function usePlaylistMenuItems() {
         { separator: true } as MenuItem,
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },
         { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) },
+        ...(playlist.kind === 'albums' ? [] : [
+          { label: 'Merge other playlists into this…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `into:${playlist.id}` }) } as MenuItem,
+          { label: playlist.spotify ? 'Merge into another playlist…' : 'Merge into a synced playlist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `from:${playlist.id}` }) } as MenuItem,
+        ]),
       ]),
     ];
   };

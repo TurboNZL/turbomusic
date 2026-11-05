@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { statsPath } from '../lib/entityStats.ts';
-import { ArrowLeft, BarChart3, Search, ArrowDown, ArrowUp, Link2, ListEnd, ListStart, Pencil, Play, Plus, Shuffle, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Search, ArrowDown, ArrowUp, Link2, ListEnd, ListStart, RefreshCw, Pencil, Play, Plus, Shuffle, Sparkles, X } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { moveTrack, removeTrack } from '../lib/defaults.ts';
 import { useLibrary } from '../lib/derive.ts';
@@ -20,6 +20,7 @@ import { cn, plural } from '../lib/cn.ts';
 import { PlaylistNote, withoutKey } from '../components/PlaylistNote.tsx';
 import { TrackTable } from '../components/TrackTable.tsx';
 import { useChunks } from '../lib/useChunks.ts';
+import { SyncBar } from '../components/SyncedPlaylist.tsx';
 
 /** Marks the playlists TurboMusic fills in by itself (thumbs up / down), so they are not mistaken for ones you made. */
 export function AutoBadge({ className }: { className?: string }) {
@@ -82,6 +83,7 @@ export function PlaylistsPage() {
   return (
     <div className="space-y-5">
       {!open && <><div className="flex items-center gap-3"><h1 className="mr-auto text-2xl font-bold">Playlists</h1>
+        <button className="btn" title="Keep a playlist in step with one on your Spotify account" onClick={() => edit({ kind: 'new-synced-playlist', id: '' })}><RefreshCw size={16} />Synced playlist</button>
         <button className="btn btn-accent" onClick={() => edit({ kind: 'new-playlist', id: '' })}><Plus size={16} />New playlist</button></div>
       {all.length > 0 && <label className="relative block max-w-md"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input className="input !pl-9" type="search" aria-label="Search playlists" placeholder="Search playlists, or a track or artist in them…" value={find} onChange={(e) => setFind(e.target.value)} /></label>}
@@ -89,7 +91,8 @@ export function PlaylistsPage() {
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--grid-min), 9rem), 1fr))' }}>{listed.slice(0, cards.shown).map((p) => { const c = playlistCount(lib, p); return (
         <Link key={p.id} to={`/playlists/${p.id}`} className="bt-tile group block text-left" onContextMenu={menu.onContextMenu(menuItems(p), `Actions for ${p.name}`, p.id)}>
           <div className="relative"><PlaylistCover playlist={p} className="transition-transform group-hover:scale-[1.02]" />
-            {isQuickPlaylist(p.id) && <AutoBadge className="absolute left-2 top-2" />}</div>
+            {isQuickPlaylist(p.id) && <AutoBadge className="absolute left-2 top-2" />}
+            {p.spotify && <span title="Synced with a Spotify playlist" className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur"><RefreshCw size={11} />Synced</span>}</div>
           <div className="bt-cap-t mt-2 truncate text-sm font-medium">{p.name}</div>
           <div className="bt-cap text-xs text-muted">{isQuickPlaylist(p.id) ? 'Automatic · ' : isAlbumList(p) ? 'Albums · ' : ''}{plural(c.n, c.noun)}</div>
         </Link>); })}</div>
@@ -118,6 +121,7 @@ export function PlaylistsPage() {
               </div>
             </div>
           </div>
+          {open.spotify && <SyncBar playlistId={open.id} />}
           <div className="flex flex-wrap items-start gap-3">
           <label className="relative block w-full max-w-xs"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input className="input !pl-9" type="search" aria-label="Search this playlist" placeholder={albumMode ? 'Search this playlist…' : 'Search this playlist: title, artist, album…'} value={within} onChange={(e) => setWithin(e.target.value)} /></label>

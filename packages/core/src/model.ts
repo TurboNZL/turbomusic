@@ -106,6 +106,16 @@ export interface PlaylistData {
   trackIds: string[];
   /** "Playlist note": why a track is in this playlist, or anything else about it there (track id -> text) */
   trackNotes?: Record<string, string>;
+  /** set when the playlist is kept in step with a Spotify playlist of the owner's account */
+  spotify?: SpotifyLinkData;
+}
+/** The tie between a playlist and its Spotify twin. `base` is what both held at the last sync (track URIs), which tells a removal from a track the other side never had. */
+export interface SpotifyLinkData {
+  id: string;
+  /** which way changes travel: both ways, or only one */
+  mode?: 'both' | 'from-spotify' | 'to-spotify';
+  syncedAt: number;
+  base: string[];
 }
 export interface GroupMemberData {
   entityType: 'artist' | 'album' | 'track' | 'release' | 'era' | 'playlist';
