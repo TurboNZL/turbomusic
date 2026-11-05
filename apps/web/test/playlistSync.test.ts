@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SyncRecord } from '@turbomusic/core';
 import { buildLibrary } from '../src/lib/library.ts';
-import { planSync } from '../src/lib/playlistSync.ts';
+import { planSync, splitSynced } from '../src/lib/playlistSync.ts';
 import type { SpotifyImportTrack } from '../src/lib/api.ts';
 
 const rec = (table: string, id: string, data: object): SyncRecord => ({ table: table as never, id, updatedAt: 1, deviceId: 'd', deleted: false, data: data as never });
@@ -58,5 +58,17 @@ describe('planSync', () => {
   it('is quiet when nothing changed', () => {
     const p = planSync(lib, { trackIds: ['t1', 't2'], spotify: link(1, 2) }, [sp(1), sp(2)]);
     expect(p.changesLocal).toBe(false); expect(p.changesRemote).toBe(false);
+  });
+});
+
+describe('splitSynced', () => {
+  it('puts songs with no Spotify link apart', () => {
+    const r = splitSynced(lib, { trackIds: ['t1', 'tx', 't2'], spotify: link(1, 2) });
+    expect(r).toEqual({ onSpotify: ['t1', 't2'], localOnly: ['tx'] });
+  });
+  it('when changes only come from Spotify, a linked song Spotify never had is local only', () => {
+    const r = splitSynced(lib, { trackIds: ['t1', 't3'], spotify: { ...link(1), mode: 'from-spotify' } });
+    expect(r).toEqual({ onSpotify: ['t1'], localOnly: ['t3'] });
+    expect(splitSynced(lib, { trackIds: ['t1', 't3'], spotify: link(1) }).localOnly).toEqual([]);
   });
 });

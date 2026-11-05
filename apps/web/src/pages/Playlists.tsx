@@ -21,6 +21,7 @@ import { PlaylistNote, withoutKey } from '../components/PlaylistNote.tsx';
 import { TrackTable } from '../components/TrackTable.tsx';
 import { useChunks } from '../lib/useChunks.ts';
 import { SyncBar } from '../components/SyncedPlaylist.tsx';
+import { splitSynced } from '../lib/playlistSync.ts';
 
 /** Marks the playlists TurboMusic fills in by itself (thumbs up / down), so they are not mistaken for ones you made. */
 export function AutoBadge({ className }: { className?: string }) {
@@ -72,9 +73,27 @@ export function PlaylistsPage() {
   const shownTracks = useMemo(() => (filtering ? tracks.filter((t) => hit(`${t.title} ${t.artistName} ${t.albumTitle ?? ''}`)) : tracks), [tracks, deferredWithin]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownAlbums = useMemo(() => (filtering ? albums.filter((a) => hit(`${a.title} ${a.leads.map((l) => l.name).join(' ')}`)) : albums), [albums, deferredWithin]); // eslint-disable-line react-hooks/exhaustive-deps
   // long lists are drawn a piece at a time (rows are heavy: rating, menu, note), so opening a big playlist does not freeze the page
-  const rows = useChunks(shownTracks.length, 40, `${openId}|${deferredWithin}`);
+  // a synced playlist shows what is on the Spotify side first and what cannot be there in a section of its own below
+  const syncSplit = useMemo(() => (open?.spotify ? splitSynced(lib, open) : null), [lib, open]);
+  const localSet = useMemo(() => new Set(syncSplit?.localOnly ?? []), [syncSplit]);
+  const spotifyTracks = useMemo(() => shownTracks.filter((t) => !localSet.has(t.id)), [shownTracks, localSet]);
+  const localTracks = useMemo(() => shownTracks.filter((t) => localSet.has(t.id)), [shownTracks, localSet]);
+  const spotifyIds = useMemo(() => tracks.filter((t) => !localSet.has(t.id)).map((t) => t.id), [tracks, localSet]);
+  const rows = useChunks(spotifyTracks.length, 40, `${openId}|${deferredWithin}`);
   const albumRows = useChunks(shownAlbums.length, 30, `${openId}|${deferredWithin}`);
   const cards = useChunks(listed.length, 48, deferredFind);
+  /** the move/remove buttons of a row; moving swaps with the neighbour inside the same section, so the other section is left alone */
+  const extraFor = (sectionIds: string[]) => (t: { id: string; title: string }, i: number) => {
+    if (!open) return null;
+    const full = tracks.map((x) => x.id);
+    const move = (to: number) => patch('playlists', open.id, { trackIds: moveTrack(full, full.indexOf(t.id), full.indexOf(sectionIds[to])) });
+    return (
+      <div className="flex">
+        <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${t.title} up`} disabled={i === 0} onClick={() => move(i - 1)}><ArrowUp size={15} /></button>
+        <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${t.title} down`} disabled={i === sectionIds.length - 1} onClick={() => move(i + 1)}><ArrowDown size={15} /></button>
+        <button className={cn('p-1 text-muted hover:text-bad', readOnly && 'hidden')} aria-label={`Remove ${t.title} from the playlist`} onClick={() => patch('playlists', open.id, { trackIds: removeTrack(open.trackIds, t.id), trackNotes: withoutKey(open.trackNotes, t.id) })}><X size={15} /></button>
+      </div>);
+  };
   const needle = adding.toLowerCase();
   const matches = adding.length > 1 && !albumMode ? lib.tracks.filter((t) => `${t.title} ${t.artistName}`.toLowerCase().includes(needle)).slice(0, 6) : [];
   const albumMatches = adding.length > 1 && albumMode ? lib.albums.filter((a) => !(open!.albumIds ?? []).includes(a.id) && `${a.title} ${a.artistName}`.toLowerCase().includes(needle)).slice(0, 6) : [];
@@ -144,12 +163,14 @@ export function PlaylistsPage() {
                   </div>))}
                 {!shownAlbums.length && <div className="px-3 py-4 text-sm text-muted">{filtering ? 'No album matches.' : 'No albums yet. Search above, or use “Add to an album playlist…” in an album’s menu.'}</div>}
               </div>
-            : <div className="card overflow-hidden"><TrackTable tracks={shownTracks.slice(0, rows.shown)} queue={tracks} source="playlist" sourceId={open.id} numbered={!filtering} covers below={readOnly ? undefined : (t) => <PlaylistNote playlistId={open.id} trackId={t.id} notes={open.trackNotes} />} extra={(t, i) => (
-            <div className="flex">
-              <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${t.title} up`} disabled={i === 0} onClick={() => patch('playlists', open.id, { trackIds: moveTrack(tracks.map((x) => x.id), i, i - 1) })}><ArrowUp size={15} /></button>
-              <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${t.title} down`} disabled={i === tracks.length - 1} onClick={() => patch('playlists', open.id, { trackIds: moveTrack(tracks.map((x) => x.id), i, i + 1) })}><ArrowDown size={15} /></button>
-              <button className={cn('p-1 text-muted hover:text-bad', readOnly && 'hidden')} aria-label={`Remove ${t.title} from the playlist`} onClick={() => patch('playlists', open.id, { trackIds: removeTrack(open.trackIds, t.id), trackNotes: withoutKey(open.trackNotes, t.id) })}><X size={15} /></button>
-            </div>)} /></div>}
+            : <>
+              <div className="card overflow-hidden"><TrackTable tracks={spotifyTracks.slice(0, rows.shown)} queue={tracks} source="playlist" sourceId={open.id} numbered={!filtering} covers below={readOnly ? undefined : (t) => <PlaylistNote playlistId={open.id} trackId={t.id} notes={open.trackNotes} />} extra={extraFor(spotifyIds)} /></div>
+              {syncSplit && localTracks.length > 0 && (
+                <section className="space-y-2" aria-label="Only in TurboMusic">
+                  <div><h3 className="font-semibold">Only in TurboMusic</h3><p className="text-xs text-muted">{syncSplit.localOnly.length === 1 ? 'This song is' : 'These songs are'} in the playlist here but not on the Spotify side{open.spotify?.mode === 'from-spotify' ? ' (changes only come from Spotify)' : ', usually because there is no Spotify link for them yet (open the song and add one, and the next sync sends it)'}. Sync never removes {syncSplit.localOnly.length === 1 ? 'it' : 'them'}.</p></div>
+                  <div className="card overflow-hidden"><TrackTable tracks={localTracks} queue={tracks} source="playlist" sourceId={open.id} covers below={readOnly ? undefined : (t) => <PlaylistNote playlistId={open.id} trackId={t.id} notes={open.trackNotes} />} extra={extraFor(syncSplit.localOnly)} /></div>
+                </section>)}
+            </>}
           {!albumMode && rows.left > 0 && <div ref={rows.sentinel} className="text-center"><button className="btn" onClick={rows.more}>Show more ({rows.left} left)</button></div>}
           {albumMode && albumRows.left > 0 && <div ref={albumRows.sentinel} className="text-center"><button className="btn" onClick={albumRows.more}>Show more ({albumRows.left} left)</button></div>}
         </section>

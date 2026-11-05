@@ -207,7 +207,7 @@ function buildSlide(id: SlideId, { w, lib, edition, onAnswered }: Ctx): ReactNod
       const tiles: [string, ReactNode, string][] = [];
       if (w.newSongs > 0) tiles.push(['New to you', <CountUp key="n" value={w.newSongs} ms={1000} />, 'songs you had never played before']);
       if (w.topFiveShare > 0) tiles.push(['Your inner circle', <><CountUp key="t" value={Math.round(w.topFiveShare * 100)} ms={1000} />%</>, 'of plays were your top 5 artists']);
-      tiles.push(['Skipped', <><CountUp key="s" value={Math.round(w.skipRate * 100)} ms={1000} />%</>, 'of plays you cut short']);
+      if (Math.round(w.skipRate * 100) > 0) tiles.push(['Skipped', <><CountUp key="s" value={Math.round(w.skipRate * 100)} ms={1000} />%</>, 'of plays you cut short']);
       if (w.albums > 0) tiles.push(['That is about', <CountUp key="a" value={w.albums} ms={1100} />, 'full albums of 40 minutes']);
       if (w.busiestSeason) tiles.push(['Your season', <span key="se" className="capitalize">{w.busiestSeason}</span>, 'was the loudest']);
       if (w.lateNight > 0) tiles.push(['After midnight', <CountUp key="l" value={w.lateNight} ms={1000} />, 'plays between 12 and 5 a.m.']);
@@ -228,7 +228,7 @@ function buildSlide(id: SlideId, { w, lib, edition, onAnswered }: Ctx): ReactNod
       const rx = w.reactions;
       if (rx.thumbsUp + rx.thumbsDown + rx.votes + rx.memories === 0) return null;
       return <Split left={<><Title>How you reacted</Title>{w.newArtists > 0 && <p className="rc-rise text-[24px] text-white/85" style={rise(3)}>And you met {w.newArtists} artist{w.newArtists === 1 ? '' : 's'} for the first time.</p>}</>}
-        right={<div className="grid grid-cols-2 gap-4">{([['thumbs up', rx.thumbsUp], ['thumbs down', rx.thumbsDown], ['head-to-head votes', rx.votes], ['memories made', rx.memories]] as const).map(([l, n], k) => <Card key={l} i={k}><div className="text-[72px] font-black leading-tight tabular-nums"><CountUp value={n} ms={900} /></div><div className="text-[21px] text-white/75">{l}</div></Card>)}</div>} />;
+        right={<div className="grid grid-cols-2 gap-4">{([['thumbs up', rx.thumbsUp], ['thumbs down', rx.thumbsDown], ['head-to-head votes', rx.votes], ['memories made', rx.memories]] as const).filter(([, n]) => n > 0).map(([l, n], k) => <Card key={l} i={k}><div className="text-[72px] font-black leading-tight tabular-nums"><CountUp value={n} ms={900} /></div><div className="text-[21px] text-white/75">{l}</div></Card>)}</div>} />;
     }
     case 'personality': {
       if (!w.personality) return null;

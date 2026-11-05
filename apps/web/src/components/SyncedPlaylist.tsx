@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ExternalLink, GitMerge, ListMusic, Loader2, RefreshCw, Unlink } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
 import { api, useStore } from '../lib/store.ts';
@@ -7,7 +7,6 @@ import { createOnSpotify, linkToSpotify, mergePlaylists, syncPlaylist, unlinkFro
 import type { SyncMode } from '../lib/playlistSync.ts';
 import { cn, plural } from '../lib/cn.ts';
 import { Field, Modal } from './forms.tsx';
-import { SpotifyAccountPanel } from './SpotifyAccountPanel.tsx';
 
 const MODES: { id: SyncMode; label: string; hint: string }[] = [
   { id: 'both', label: 'Both ways', hint: 'Additions and removals on either side reach the other.' },
@@ -45,10 +44,14 @@ export function SyncedPlaylistDialog({ onClose }: { onClose: () => void }) {
   const [merge, setMerge] = useState<string[]>([]);
   const [deleteMerged, setDeleteMerged] = useState(false);
   const [canWrite, setCanWrite] = useState(false);
+  const [conn, setConn] = useState<'loading' | 'no' | 'ok'>('loading');
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<{ id: string; text: string } | null>(null);
   const trackLists = lib.playlists.filter((p) => p.kind !== 'albums' && !p.spotify);
   const effective: SyncMode = canWrite ? mode : 'from-spotify';
+  useEffect(() => {
+    api().spotifyStatus().then((st) => { setCanWrite(!!st.canWrite); setConn(st.signedIn ? 'ok' : 'no'); if (st.signedIn) void load(); }).catch((e: Error) => { setErr(e.message); setConn('no'); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const load = () => api().spotifyPlaylists().then((r) => setMine(r.playlists)).catch((e: Error) => setErr(e.message));
 
   const guard = async (what: string, f: () => Promise<void>) => { setBusy(what); setErr(null); try { await f(); } catch (e) { setErr((e as Error).message); } finally { setBusy(null); } };
@@ -81,8 +84,10 @@ export function SyncedPlaylistDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Synced playlist" onClose={onClose} wide footer={footer}>
       {done ? <div className="rounded-theme bg-good/10 p-4 text-sm" role="status"><div className="font-medium text-good">Done.</div><div>{done.text}</div></div> : (
-        <SpotifyAccountPanel onStatus={(s) => { setCanWrite(!!s.canWrite); if (s.signedIn && !mine) void load(); }}>
-          {() => (<>
+        conn === 'loading' ? <div className="text-sm text-muted">Checking your Spotify connection…</div>
+        : conn === 'no' ? <div className="space-y-2 rounded-theme bg-raised p-4 text-sm"><p>TurboMusic is not connected to Spotify yet. Connect it once under <b>Settings › Spotify</b> and it is available here.</p><Link to="/settings?tab=spotify" onClick={onClose} className="btn btn-accent w-fit">Open Spotify settings</Link></div>
+        : (<>
+          {(() => (<>
             <div role="tablist" className="flex flex-wrap gap-1 border-b border-line pb-px">
               {([['from', 'Use a Spotify playlist'], ['to', 'Make one on Spotify']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cn('-mb-px border-b-2 px-3 py-2 text-sm font-medium', tab === id ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-fg')}>{label}</button>)}
             </div>
@@ -99,13 +104,13 @@ export function SyncedPlaylistDialog({ onClose }: { onClose: () => void }) {
             </>) : (<>
               <p className="text-sm text-muted">Turn a playlist you made here into a Spotify playlist (private). Songs with no Spotify link stay only here.</p>
               <Field label="Playlist"><select className="input" value={localId} onChange={(e) => setLocalId(e.target.value)}><option value="">Choose…</option>{trackLists.map((p) => <option key={p.id} value={p.id}>{p.name} ({plural(p.trackIds.length, 'track')})</option>)}</select></Field>
-              {!canWrite && <p className="text-sm text-warn">Changing Spotify playlists needs the “Allow changing my playlists” permission (above).</p>}
+              {!canWrite && <p className="text-sm text-warn">Changing Spotify playlists needs the “Allow changing my playlists” permission: <Link to="/settings?tab=spotify" onClick={onClose} className="underline">Settings › Spotify</Link>.</p>}
             </>)}
             <Field label="Direction" hint={MODES.find((m) => m.id === effective)?.hint}>
               <select className="input" value={effective} disabled={!canWrite} onChange={(e) => setMode(e.target.value as SyncMode)}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Field>
-            {!canWrite && tab === 'from' && <p className="text-xs text-muted">Without the permission above, changes can only come from Spotify to here.</p>}
-          </>)}
-        </SpotifyAccountPanel>)}
+            {!canWrite && tab === 'from' && <p className="text-xs text-muted">Without that permission (<Link to="/settings?tab=spotify" onClick={onClose} className="underline">Settings › Spotify</Link>), changes can only come from Spotify to here.</p>}
+          </>))()}
+        </>))}
       {busy && <div className="text-sm text-muted" role="status">{busy}</div>}
       {err && <div className="rounded-theme bg-bad/15 p-3 text-sm text-bad">{err}</div>}
     </Modal>

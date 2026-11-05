@@ -143,6 +143,11 @@ export class Api {
   }
   /** direct download links (the browser saves them to disk without holding them in memory) */
   exportUrl(what: 'database' | 'files') { return this.url(`/api/export/${what}?token=${encodeURIComponent(this.s.token)}`); }
+  /** the readable library: `?audio=0` leaves the songs out; `data` is the JSON or CSV */
+  libraryExportUrl(audio: boolean) { return this.url(`/api/export/library?${audio ? '' : 'audio=0&'}token=${encodeURIComponent(this.s.token)}`); }
+  dataExportUrl(format: 'json' | 'csv') { return this.url(`/api/export/data?format=${format}&token=${encodeURIComponent(this.s.token)}`); }
+  mirrorStatus() { return this.req<MirrorInfo>('/api/admin/mirror'); }
+  mirrorSet(body: { enabled?: boolean; mode?: string; dir?: string | null; now?: boolean }) { return this.req<MirrorInfo>('/api/admin/mirror', { method: 'POST', body: JSON.stringify(body) }); }
   importDatabase(file: Blob, mode: 'merge' | 'replace') {
     return this.req<{ mode: string; read?: number; applied?: number; written?: number; removed?: number }>(`/api/import/database?mode=${mode}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream' } });
   }
@@ -161,6 +166,7 @@ export class Api {
   fileUrl(hash: string) { return this.url(`/api/files/${hash}?token=${encodeURIComponent(this.s.token)}`); }
 }
 
+export interface MirrorInfo { enabled: boolean; mode: 'symlink' | 'hardlink' | 'copy'; dir: string | null; defaultDir: string; effectiveDir: string; last: { linked: number; removed: number; skipped: number; at: number } | null; error: string | null; running: boolean }
 export interface SpotifyImportTrack { uri: string; id: string; title: string; artists: string[]; album: string; albumUri: string | null; albumArtist: string | null; durationMs: number | null; cover: string | null; releaseDate: string | null; trackNumber: number | null; isrc: string | null }
 export interface SpotifyList { kind: 'playlist' | 'album' | 'track'; name: string; description: string | null; cover: string | null; owner: string | null; tracks: SpotifyImportTrack[]; source: 'embed' | 'api' | 'oembed' | 'file'; note?: string }
 export interface MatchAlbumReq { id: string; title: string; artist: string; trackCount?: number | null }

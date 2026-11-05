@@ -84,3 +84,22 @@ export const sendable = (lib: Library, trackIds: string[]) => trackIds.filter((i
 export const urisFor = (lib: Library, trackIds: string[]) => uniq(trackIds.flatMap((id) => { const s = allSpotifyIds(lib.trackById.get(id)); return s.length ? [uriOf(s[0])] : []; }));
 
 export { spotifyTrackId };
+
+/**
+ * A synced playlist's songs in two lists: those that are (or will be) on the Spotify side, and those that cannot be, which the page shows
+ * apart below. A song cannot be on Spotify when it has no Spotify link; and when changes only come FROM Spotify, a song that Spotify's playlist
+ * did not have at the last sync stays here only.
+ */
+export function splitSynced(lib: Library, playlist: Pick<PlaylistData, 'trackIds' | 'spotify'>): { onSpotify: string[]; localOnly: string[] } {
+  const mode = playlist.spotify?.mode ?? 'both';
+  const base = new Set((playlist.spotify?.base ?? []).map((u) => spotifyTrackId(u)).filter((x): x is string => !!x));
+  const onSpotify: string[] = [], localOnly: string[] = [];
+  for (const id of playlist.trackIds) {
+    const t = lib.trackById.get(id);
+    if (!t) continue;
+    const ids = allSpotifyIds(t);
+    const there = ids.length > 0 && (mode !== 'from-spotify' || ids.some((i) => base.has(i)));
+    (there ? onSpotify : localOnly).push(id);
+  }
+  return { onSpotify, localOnly };
+}

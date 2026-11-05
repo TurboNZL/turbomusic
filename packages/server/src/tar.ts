@@ -20,11 +20,16 @@ function octal(n: number, len: number): string {
 }
 
 export function tarHeader(name: string, size: number, mtime = Math.floor(Date.now() / 1000)): Buffer {
-  const nameBytes = Buffer.from(name);
-  if (nameBytes.length > 100) throw new Error(`tar name too long: ${name}`);
+  // ustar keeps 100 bytes of name and 155 of "prefix" (the folders): a long path is split at a '/'
+  let nameBytes = Buffer.from(name), prefixBytes = Buffer.alloc(0);
+  if (nameBytes.length > 100) {
+    const cut = [...name.matchAll(/\//g)].map((m) => m.index!).reverse().find((i) => Buffer.byteLength(name.slice(i + 1)) <= 100 && Buffer.byteLength(name.slice(0, i)) <= 155);
+    if (cut === undefined) throw new Error(`tar name too long: ${name}`);
+    prefixBytes = Buffer.from(name.slice(0, cut)); nameBytes = Buffer.from(name.slice(cut + 1));
+  }
   if (size > 0o77777777777) throw new Error('tar entry over 8 GiB');
   const h = Buffer.alloc(BLOCK);
-  nameBytes.copy(h, 0);
+  nameBytes.copy(h, 0); prefixBytes.copy(h, 345);
   h.write(octal(0o644, 8), 100); h.write(octal(0, 8), 108); h.write(octal(0, 8), 116);
   h.write(octal(size, 12), 124); h.write(octal(mtime, 12), 136);
   h.write('        ', 148); // checksum counts these as spaces
