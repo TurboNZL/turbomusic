@@ -1,7 +1,7 @@
-import { shapes, W as ART_W, H as ART_H, type Motif } from '../components/AbstractArt.tsx';
+import { shapes, type Motif } from '../components/AbstractArt.tsx';
 
 /**
- * A share picture for a recap, drawn on a canvas (no libraries, no pictures fetched: a gradient, the numbers and the lists), 1080 x 1350.
+ * A share picture for a recap, drawn on a canvas (no libraries, no pictures fetched: a gradient, the numbers and the lists), 1080 x 1920 (9:16). This is only the fallback: the normal picture is a photograph of the card itself (exportImage.ts).
  * `drawShareCard` returns a PNG; `saveOrShare` hands it to the system share sheet when the browser can share files, else downloads it.
  */
 export interface ShareCardSpec {
@@ -16,7 +16,7 @@ export interface ShareCardSpec {
   art?: { seed: string; motif: Motif };
 }
 
-const W = 1080, H = 1350, FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const W = 1080, H = 1920, FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 function fit(ctx: CanvasRenderingContext2D, text: string, max: number) {
   if (ctx.measureText(text).width <= max) return text;
@@ -31,15 +31,14 @@ export async function drawShareCard(spec: ShareCardSpec): Promise<Blob> {
   const ctx = c.getContext('2d');
   if (!ctx) throw new Error('This browser cannot draw the picture.');
   const [a, b] = spec.colors ?? ['#7c3aed', '#1e1b4b'];
-  const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
+  const g = ctx.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, a); g.addColorStop(1, b);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   if (spec.art) {
     // the page's own SVG shapes (400 x 600, "slice" fit), drawn with Path2D
-    const k = Math.max(W / ART_W, H / ART_H);
-    ctx.save(); ctx.translate((W - ART_W * k) / 2, (H - ART_H * k) / 2); ctx.scale(k, k);
+    ctx.save();
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#fff';
-    for (const sh of shapes(spec.art.seed, spec.art.motif)) {
+    for (const sh of shapes(spec.art.seed, spec.art.motif, { w: W, h: H })) {
       ctx.globalAlpha = sh.opacity; ctx.lineWidth = sh.width;
       const path = new Path2D(sh.kind === 'path' ? sh.d : `M${sh.cx - sh.r} ${sh.cy}a${sh.r} ${sh.r} 0 1 0 ${sh.r * 2} 0a${sh.r} ${sh.r} 0 1 0 ${-sh.r * 2} 0Z`);
       if (sh.fill) ctx.fill(path); else ctx.stroke(path);
@@ -47,26 +46,23 @@ export async function drawShareCard(spec: ShareCardSpec): Promise<Blob> {
     ctx.restore(); ctx.globalAlpha = 1;
   } else {
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    ctx.beginPath(); ctx.arc(W - 120, 150, 330, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(80, H - 60, 260, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(W - 120, 200, 380, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(60, H - 80, 320, 0, Math.PI * 2); ctx.fill();
   }
 
   ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
-  ctx.font = `600 34px ${FONT}`; ctx.globalAlpha = 0.8; ctx.fillText(spec.kicker.toUpperCase(), 72, 110); ctx.globalAlpha = 1;
-  ctx.font = `800 70px ${FONT}`; ctx.fillText(fit(ctx, spec.title, W - 144), 72, 190);
-  ctx.font = `900 150px ${FONT}`; ctx.fillText(fit(ctx, spec.big.value, W - 144), 72, 360);
-  ctx.font = `500 38px ${FONT}`; ctx.globalAlpha = 0.85; ctx.fillText(spec.big.label, 72, 418); ctx.globalAlpha = 1;
-
-  const cols = spec.sections.length > 2 ? 2 : spec.sections.length || 1, colW = (W - 144 - (cols - 1) * 48) / cols;
-  const rowsY0 = 500;
-  spec.sections.forEach((s, i) => {
-    const col = i % cols, row = Math.floor(i / cols);
-    const x = 72 + col * (colW + 48), y = rowsY0 + row * 360;
-    ctx.font = `700 30px ${FONT}`; ctx.globalAlpha = 0.75; ctx.fillText(s.heading.toUpperCase(), x, y); ctx.globalAlpha = 1;
-    ctx.font = `600 36px ${FONT}`;
-    s.rows.slice(0, 5).forEach((r, k) => ctx.fillText(fit(ctx, `${k + 1}  ${r}`, colW), x, y + 56 + k * 52));
+  const LEFT = 90, LW = W - 180;
+  ctx.font = `600 34px ${FONT}`; ctx.globalAlpha = 0.8; ctx.fillText(spec.kicker.toUpperCase(), LEFT, 200); ctx.globalAlpha = 1;
+  ctx.font = `800 70px ${FONT}`; ctx.fillText(fit(ctx, spec.title, LW), LEFT, 285);
+  ctx.font = `900 190px ${FONT}`; ctx.fillText(fit(ctx, spec.big.value, LW), LEFT, 520);
+  ctx.font = `500 38px ${FONT}`; ctx.globalAlpha = 0.85; ctx.fillText(fit(ctx, spec.big.label, LW), LEFT, 586); ctx.globalAlpha = 1;
+  spec.sections.slice(0, 4).forEach((sec, i) => {
+    const y = 720 + i * 285;
+    ctx.font = `700 28px ${FONT}`; ctx.globalAlpha = 0.75; ctx.fillText(sec.heading.toUpperCase(), LEFT, y); ctx.globalAlpha = 1;
+    ctx.font = `600 34px ${FONT}`;
+    sec.rows.slice(0, 4).forEach((r, k) => ctx.fillText(fit(ctx, `${k + 1}  ${r}`, LW), LEFT, y + 52 + k * 47));
   });
-  ctx.font = `500 30px ${FONT}`; ctx.globalAlpha = 0.7; ctx.fillText(spec.footer, 72, H - 64); ctx.globalAlpha = 1;
+  ctx.font = `500 30px ${FONT}`; ctx.globalAlpha = 0.7; ctx.fillText(spec.footer, LEFT, H - 80); ctx.globalAlpha = 1;
   return new Promise((res, rej) => c.toBlob((bl) => (bl ? res(bl) : rej(new Error('Could not make the picture.'))), 'image/png'));
 }
 

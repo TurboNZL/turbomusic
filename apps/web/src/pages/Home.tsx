@@ -19,6 +19,7 @@ import { EloQuestions } from '../components/EloQuestions.tsx';
 import { useMenu } from '../components/Menu.tsx';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 import { useTrackMenuItems } from '../components/TrackMenu.tsx';
+import { RecapPrompt } from '../components/RecapPrompt.tsx';
 
 const ago = (ts: number) => { const m = Math.max(1, Math.round((Date.now() - ts) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 
@@ -96,6 +97,7 @@ export function HomePage() {
   return (
     <div className="space-y-8">
       {menu.element}
+      <RecapPrompt lib={lib} />
       <section className="card relative overflow-hidden p-5 sm:p-6">
         <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-accent/20 blur-3xl" aria-hidden />
         <div className="relative flex flex-wrap items-center gap-5" onContextMenu={last ? menu.onContextMenu(trackItems(last.t, resume), `Actions for ${last.t.title}`, 'resume') : undefined}>

@@ -141,7 +141,7 @@ export function weeklyRecap(lib: Pick<Library, 'votes' | 'memoryLogs' | 'trackBy
     topGenre: [...genres.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     from: start, to: end, partial: now < end,
     plays: s.plays, ms: s.ms, prevMs: prev.ms, change: prev.ms > 0 ? s.ms / prev.ms - 1 : null,
-    topTracks: s.topTracks, topArtists: s.topArtists.slice(0, 3), album: s.topAlbums[0] ?? null,
+    topTracks: s.topTracks, topArtists: s.topArtists.slice(0, 5), album: s.topAlbums[0] ?? null,
     reactions: reactionsIn(lib, start, end), busiestDay: busiest, activeDays: s.daysActive,
     newArtists: s.byMonth.reduce((n, m) => n + m.newArtists, 0),
     skipRate: s.skipRate, daypart: s.ms > 0 ? daypartOf(best) : null,

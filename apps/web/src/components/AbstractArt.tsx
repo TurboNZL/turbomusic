@@ -32,53 +32,55 @@ function blobPath(r: () => number, cx: number, cy: number, radius: number, n = 7
   return `${d}Z`;
 }
 
-export function shapes(seed: string, motif: Motif): Shape[] {
+export function shapes(seed: string, motif: Motif, size: { w: number; h: number } = { w: W, h: H }): Shape[] {
   const r = rng(`${seed}:${motif}`), out: Shape[] = [];
   const between = (a: number, b: number) => a + r() * (b - a);
+  // the shapes are drawn for a 400 x 600 page; a wider page stretches positions and keeps shapes round (sizes follow the geometric mean)
+  const sx = size.w / W, sy = size.h / H, k = Math.sqrt(sx * sy), WW = size.w, HH = size.h;
   if (motif === 'rings') {
     for (let c = 0; c < 2; c++) {
-      const cx = between(60, 340), cy = between(80, 520), step = between(26, 40);
+      const cx = between(60, 340) * sx, cy = between(80, 520) * sy, step = between(26, 40) * k;
       for (let i = 1; i <= 6; i++) out.push({ kind: 'circle', cx, cy, r: i * step, width: between(1, 3), opacity: 0.22 - i * 0.02 + 0.02, drift: c });
     }
   } else if (motif === 'blobs') {
-    for (let i = 0; i < 4; i++) out.push({ kind: 'path', d: blobPath(r, between(40, 360), between(60, 540), between(70, 150)), fill: true, width: 0, opacity: between(0.07, 0.16), drift: i });
-    out.push({ kind: 'path', d: blobPath(r, between(120, 280), between(200, 400), between(90, 120)), width: 2, opacity: 0.25, drift: 4 });
+    for (let i = 0; i < 4; i++) out.push({ kind: 'path', d: blobPath(r, between(40, 360) * sx, between(60, 540) * sy, between(70, 150) * k), fill: true, width: 0, opacity: between(0.07, 0.16), drift: i });
+    out.push({ kind: 'path', d: blobPath(r, between(120, 280) * sx, between(200, 400) * sy, between(90, 120) * k), width: 2, opacity: 0.25, drift: 4 });
   } else if (motif === 'waves') {
     const rows = 7;
     for (let i = 0; i < rows; i++) {
-      const y = (i + 0.5) * (H / rows), amp = between(14, 42), len = between(120, 220), phase = r() * len;
+      const y = (i + 0.5) * (HH / rows), amp = between(14, 42) * k, len = between(120, 220) * k, phase = r() * len;
       let d = `M-20 ${y}`;
-      for (let x = -20; x <= W + 20; x += 10) d += `L${x} ${(y + Math.sin(((x + phase) / len) * Math.PI * 2) * amp).toFixed(1)}`;
+      for (let x = -20; x <= WW + 20; x += 10) d += `L${x} ${(y + Math.sin(((x + phase) / len) * Math.PI * 2) * amp).toFixed(1)}`;
       out.push({ kind: 'path', d, width: between(1.5, 4), opacity: between(0.12, 0.3), drift: i });
     }
   } else if (motif === 'dots') {
-    const cx = between(100, 300), cy = between(150, 450), reach = between(160, 260), gap = 26;
-    for (let y = 10; y < H; y += gap) for (let x = 10; x < W; x += gap) {
+    const cx = between(100, 300) * sx, cy = between(150, 450) * sy, reach = between(160, 260) * k, gap = 26 * k;
+    for (let y = 10; y < HH; y += gap) for (let x = 10; x < WW; x += gap) {
       const d = Math.hypot(x - cx, y - cy);
       if (d > reach) continue;
-      out.push({ kind: 'circle', cx: x, cy: y, r: Math.max(0.8, 5.5 * (1 - d / reach)), fill: true, width: 0, opacity: 0.12 + 0.25 * (1 - d / reach), drift: 0 });
+      out.push({ kind: 'circle', cx: x, cy: y, r: Math.max(0.8, 5.5 * k * (1 - d / reach)), fill: true, width: 0, opacity: 0.12 + 0.25 * (1 - d / reach), drift: 0 });
     }
   } else if (motif === 'stripes') {
-    const n = 7, gap = between(46, 66), w0 = between(8, 30);
+    const n = Math.ceil(7 * sx), gap = between(46, 66) * sx, w0 = between(8, 30) * sx;
     for (let i = -2; i < n; i++) {
       const x = i * gap + 20, w = w0 * (0.5 + r());
-      out.push({ kind: 'path', d: `M${x} -20L${x + w} -20L${x + w + 360} ${H + 20}L${x + 360} ${H + 20}Z`, fill: true, width: 0, opacity: between(0.05, 0.16), drift: i & 1 });
+      out.push({ kind: 'path', d: `M${x} -20L${x + w} -20L${x + w + 360 * k} ${HH + 20}L${x + 360 * k} ${HH + 20}Z`, fill: true, width: 0, opacity: between(0.05, 0.16), drift: i & 1 });
     }
   } else {
-    const corners: [number, number][] = [[0, 0], [W, 0], [0, H], [W, H]];
-    for (let k = 0; k < 2; k++) {
+    const corners: [number, number][] = [[0, 0], [WW, 0], [0, HH], [WW, HH]];
+    for (let c = 0; c < 2; c++) {
       const [cx, cy] = corners[Math.floor(r() * 4)];
-      for (let i = 1; i <= 6; i++) out.push({ kind: 'circle', cx, cy, r: i * between(42, 58), fill: i % 2 === 0, width: i % 2 === 0 ? 0 : 3, opacity: i % 2 === 0 ? 0.07 : 0.22, drift: k });
+      for (let i = 1; i <= 6; i++) out.push({ kind: 'circle', cx, cy, r: i * between(42, 58) * k, fill: i % 2 === 0, width: i % 2 === 0 ? 0 : 3, opacity: i % 2 === 0 ? 0.07 : 0.22, drift: c });
     }
   }
   return out;
 }
 
 /** Fills its (relatively positioned) parent behind the content. */
-export function AbstractArt({ seed, motif, className = '' }: { seed: string; motif: Motif; className?: string }) {
-  const list = useMemo(() => shapes(seed, motif), [seed, motif]);
+export function AbstractArt({ seed, motif, className = '', size = { w: W, h: H } }: { seed: string; motif: Motif; className?: string; size?: { w: number; h: number } }) {
+  const list = useMemo(() => shapes(seed, motif, size), [seed, motif, size.w, size.h]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <svg aria-hidden viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}>
+    <svg aria-hidden viewBox={`0 0 ${size.w} ${size.h}`} preserveAspectRatio="xMidYMid slice" className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}>
       {list.map((s, i) => {
         const common = { className: `rc-float rc-float-${s.drift % 3}`, opacity: s.opacity, fill: s.fill ? '#fff' : 'none', stroke: s.fill ? 'none' : '#fff', strokeWidth: s.width };
         return s.kind === 'circle' ? <circle key={i} {...common} cx={s.cx} cy={s.cy} r={s.r} /> : <path key={i} {...common} d={s.d} />;
