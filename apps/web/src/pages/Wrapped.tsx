@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Gift, Pause, Play } from 'lucide-react';
 import { useLibraryLive, type Library } from '../lib/derive.ts';
@@ -290,13 +290,26 @@ function Story({ w, edition }: { w: Wrapped; edition: Edition }) {
 
   const bg = edition.palette[idx % edition.palette.length];
   const art = { seed: `${w.year}-${cur.id}`, motif: edition.motifs?.[cur.id] ?? MOTIF[cur.id] ?? 'blobs' };
+  // Tap the left part for the slide before, the right part for the next, hold to pause, swipe sideways to move: the way stories work on a phone.
+  // The quiz keeps only a thin strip at each side so its answers can be tapped.
+  const edge = cur.id === 'quiz' ? 'w-[9%]' : 'w-[32%]';
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const down = (e: ReactPointerEvent) => { swipe.current = { x: e.clientX, y: e.clientY }; setHeld(true); };
+  const up = (e: ReactPointerEvent, step: number) => {
+    setHeld(false);
+    const s0 = swipe.current; swipe.current = null;
+    const dx = s0 ? e.clientX - s0.x : 0, dy = s0 ? e.clientY - s0.y : 0;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) go(idx + (dx < 0 ? 1 : -1)); // a swipe left goes forward
+    else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) go(idx + step);
+  };
   const overlay = (
-    <div onPointerDown={() => setHeld(true)} onPointerUp={() => setHeld(false)} onPointerLeave={() => setHeld(false)} onPointerCancel={() => setHeld(false)} className="absolute inset-0 z-10">
+    <div className="pointer-events-none absolute inset-0 z-10">
       <div className="absolute inset-x-3 top-2.5 flex gap-1" aria-hidden>
         {slides.map((s, k) => <div key={s.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25"><div className="h-full bg-white" style={{ width: k < idx ? '100%' : k === idx ? `${Math.min(1, t) * 100}%` : '0%' }} /></div>)}
       </div>
-      <button className="absolute inset-y-8 left-0 w-[7%]" aria-label="Previous" onClick={(e) => { e.stopPropagation(); go(idx - 1); }} />
-      <button className="absolute inset-y-8 right-0 w-[7%]" aria-label="Next" onClick={(e) => { e.stopPropagation(); go(idx + 1); }} />
+      {([['left', -1, 'Previous'], ['right', 1, 'Next']] as const).map(([side, step, label]) => (
+        <button key={side} aria-label={label} className={`pointer-events-auto absolute inset-y-10 ${side}-0 ${edge} cursor-pointer`} style={{ touchAction: 'pan-y' }}
+          onPointerDown={down} onPointerUp={(e) => up(e, step)} onPointerCancel={() => { setHeld(false); swipe.current = null; }} onPointerLeave={() => setHeld(false)} />))}
     </div>);
   return (
     <div className="space-y-3">

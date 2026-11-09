@@ -1,14 +1,14 @@
 import { PlayLog } from './playLog.ts';
 import { create } from 'zustand';
-import { advance, crossfadeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
+import { advance, crossfadeFor, crossfadeShapeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
 import { moveTrack } from './defaults.ts';
 import { audioSource, cancelPrefetch, imageSource, localAudio, prefetchAudio, streamUrl } from './files.ts';
 import { nativeAudio, nativeAudioAvailable, type NativeEvent, type NativeItem } from './nativeAudio.ts';
-import { BEAM_ID, beamActive, beamFailed, setBeamVolume } from './beam.ts';
+import { BEAM_ID, beamActive, beamFailed, beamNativeEvent, setBeamVolume } from './beam.ts';
 import { getLibrary } from './derive.ts';
 import { useStore } from './store.ts';
 import { addEqElement, resumeEq, setEq } from './eq.ts';
-import { clampShift, fadeDelayMs, fadeGains, fadeLength, shouldPrepare } from './crossfadeMath.ts';
+import { clampShift, fadeDelayMs, fadeGains, fadeLength, MIN_FADE_SEC, shouldPrepare } from './crossfadeMath.ts';
 import { eqConfig } from './eqConfig.ts';
 import { isFlat } from './eqPresets.ts';
 import { refreshSpotifyStatus, spotifyCan, spotifyEngine, spotifyUriOf } from './spotifyPlayer.ts';
@@ -156,13 +156,18 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (p.local) URL.revokeObjectURL(p.url);
   }
   /** What will play after the current track and how long the change should fade; null = a plain change. */
-  function crossfadePlan(): { nextId: string; wanted: number; shift: number } | null {
+  function crossfadePlan(): { nextId: string; wanted: number; shift: number; fadeOut: boolean; fadeIn: boolean } | null {
     const q = get().queue;
     if (!q.currentId || native || spotifyEngine.active() || nativeAudioAvailable()) return null;
     const next = advance(q, rules(), get().source.type).currentId;
     if (!next || next === q.currentId || !lib().trackById.get(next)?.file) return null; // no next track, or one only Spotify / nothing can play: the normal path decides
-    const wanted = crossfadeFor(rules(), q.currentId, next, useStore.getState().settings.crossfade, get().source.type);
-    return wanted > 0 ? { nextId: next, wanted, shift: crossfadeShiftFor(rules(), q.currentId, next, get().source.type) } : null;
+    const src = get().source.type;
+    let wanted = crossfadeFor(rules(), q.currentId, next, useStore.getState().settings.crossfade, src);
+    const shift = crossfadeShiftFor(rules(), q.currentId, next, src);
+    let { fadeOut, fadeIn } = crossfadeShapeFor(rules(), q.currentId, next, src);
+    // a cut moved earlier: the end of the first song is clipped off and the second starts at once, both sides hard
+    if (!(wanted > 0) && shift > 0) { wanted = MIN_FADE_SEC; fadeOut = false; fadeIn = false; }
+    return wanted > 0 ? { nextId: next, wanted, shift, fadeOut, fadeIn } : null;
   }
   async function prepare(id: string) {
     dropPrep();
@@ -177,7 +182,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       prep = { id, el: b, url, local };
     } catch { prepFailed = id; }
   }
-  async function startFade(nextId: string, wanted: number, shift: number) {
+  async function startFade(nextId: string, wanted: number, shift: number, fadeOut = true, fadeIn = true) {
     const out = audio, p = prep;
     if (!out || !p || p.id !== nextId || fading || fade || !Number.isFinite(out.duration)) return;
     const len = fadeLength(wanted, out.duration, out.duration - out.currentTime - clampShift(shift, out.duration)); // the fade has to fit before the shifted end
@@ -185,7 +190,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     fading = true;
     const loads = loadSeq;
     try {
-      p.el.volume = 0;
+      p.el.volume = fadeIn ? 0 : get().volume;
       await p.el.play();
     } catch { prepFailed = nextId; dropPrep(); fading = false; return; } // the browser would not start it (autoplay rules): a plain change instead
     fading = false;
@@ -205,7 +210,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const t0 = performance.now(), inc = p.el;
     const timer = setInterval(() => {
       const progress = (performance.now() - t0) / (len * 1000), g = fadeGains(progress), v = get().volume;
-      out.volume = Math.min(1, Math.max(0, g.out * v)); inc.volume = Math.min(1, Math.max(0, g.in * v));
+      out.volume = Math.min(1, Math.max(0, (fadeOut ? g.out : 1) * v)); inc.volume = Math.min(1, Math.max(0, (fadeIn ? g.in : 1) * v));
       if (progress >= 1) endFade();
     }, 40);
     fade = { out, outUrl, timer };
@@ -223,13 +228,13 @@ export const usePlayer = create<PlayerState>((set, get) => {
     // a timer lands the start on the exact moment instead of the next report (up to a quarter of a second late)
     const delay = fadeDelayMs(plan.wanted, remaining, shift, a.playbackRate || 1);
     if (delay === null) return;
-    if (delay <= 20) { clearFadeTimer(); void startFade(plan.nextId, plan.wanted, shift); return; }
+    if (delay <= 20) { clearFadeTimer(); void startFade(plan.nextId, plan.wanted, shift, plan.fadeOut, plan.fadeIn); return; }
     clearFadeTimer(); fadeTimerFor = a;
-    const nextId = plan.nextId, wanted = plan.wanted;
+    const nextId = plan.nextId, wanted = plan.wanted, fadeOut = plan.fadeOut, fadeIn = plan.fadeIn;
     fadeTimer = setTimeout(() => { // re-checked now: a seek or pause since scheduling moves the moment
       fadeTimer = undefined;
       const d = fadeDelayMs(wanted, a.duration - a.currentTime, shift, a.playbackRate || 1);
-      if (audio === a && !a.paused && !fade && !fading && d !== null && d <= 80) void startFade(nextId, wanted, shift);
+      if (audio === a && !a.paused && !fade && !fading && d !== null && d <= 80) void startFade(nextId, wanted, shift, fadeOut, fadeIn);
     }, delay);
   }
   let fadeTimer: ReturnType<typeof setTimeout> | undefined, fadeTimerFor: HTMLAudioElement | null = null;
@@ -410,7 +415,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
   function onNative(e: NativeEvent) {
     // the live stream of the server's Soloist (lib/beam.ts) shares the app's player: its events are not about the queue
-    if ('id' in e && e.id === BEAM_ID) { if (e.t === 'error') beamFailed(e.message); return; }
+    if ('id' in e && e.id === BEAM_ID) { if (e.t === 'error') beamFailed(e.message); else beamNativeEvent(e); return; }
     if (e.t === 'state') {
       if (!native) {
         // a page that was recreated while the app kept playing: show what is playing

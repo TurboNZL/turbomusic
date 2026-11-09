@@ -140,6 +140,7 @@ export function SettingsPage() {
       {desktop() && <Section title="Desktop app">
         {!desktop()!.serverModule
           ? <><p className="text-sm text-muted">The server module is not installed: this app has no library of its own. Enter your server's address and token under Server to see your music; until then it works as a local copy in this window. Install the module to run a server on this computer (a library folder, YouTube downloads, other devices connecting to it).</p>
+            {desktop()!.findLocalServer && <LocalServerLine />}
             {desktop()!.setServerModule && <div><button className="btn btn-accent" onClick={() => void desktop()!.setServerModule!(true)}>Install the server module…</button></div>}</>
           : <>
             <p className="text-sm text-muted">This app runs its own server and keeps your library in a folder. Put it on a big drive: audio you keep offline lives there too. To use your home server instead, fill in its address and token under Server.</p>
@@ -175,6 +176,34 @@ export function SettingsPage() {
             <button className="btn" disabled={!audioBytes} onClick={() => void removeAudio(Object.keys(audioCache))}>Clear offline audio</button></span></div>
       </Section>
       </>}
+    </div>
+  );
+}
+
+
+/** The app edition and a TurboMusic Server installed on the same computer work as one program: the app finds the server and connects to it. */
+function LocalServerLine() {
+  const { settings, updateSettings } = useStore();
+  const [found, setFound] = useState<{ url: string; token: string } | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const look = async (ask = false) => {
+    setBusy(true);
+    try {
+      const f = await desktop()!.findLocalServer!(ask);
+      setFound(f);
+      if (f?.token && !settings.serverUrl) updateSettings({ serverUrl: f.url, token: f.token, serverAuto: true });
+    } finally { setBusy(false); }
+  };
+  useEffect(() => { void look(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="rounded-theme border border-line p-3 text-sm">
+      <div className="font-medium">TurboMusic Server on this computer</div>
+      {found === undefined && <p className="text-muted">Looking…</p>}
+      {found === null && <p className="text-muted">None found. If you install TurboMusic Server on this computer, this app connects to it by itself (no address or token to type); uninstall either one and the other keeps working on its own.</p>}
+      {found && found.token && <p className="text-muted">Found at {found.url} and connected{settings.serverAuto ? ' automatically' : ''}.{settings.serverUrl && settings.serverUrl !== found.url ? ' (You chose another server under Server, so that one is used.)' : ''}</p>}
+      {found && !found.token && <div className="space-y-2"><p className="text-muted">Found at {found.url}, but its access token is private to the server service. Allow reading it once (a system password prompt appears), or paste the token under Server.</p>
+        <button className="btn btn-accent" disabled={busy} onClick={() => void look(true)}>{busy ? 'Waiting…' : 'Connect (asks for permission once)'}</button></div>}
+      <button className="btn btn-ghost mt-2" disabled={busy} onClick={() => void look()}>Look again</button>
     </div>
   );
 }

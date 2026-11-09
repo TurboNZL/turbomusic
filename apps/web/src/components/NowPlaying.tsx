@@ -59,7 +59,10 @@ export function NowPlaying() {
   const pickLyricsRef = useRef<() => void>(() => undefined);
   const pickLyrics = () => pickLyricsRef.current();
   pickLyricsRef.current = () => { if (saver) { setSaver(false); setShowLyrics(true); } else setShowLyrics((x) => !x); };
-  const wake = () => { setIdle(false); window.clearTimeout(idleTimer.current); idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
+  // On a touch screen the controls stay until the screensaver is on (there is no pointer to bring them back, and a tap on invisible buttons used to do nothing).
+  const touch = useRef(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
+  const saverRef = useRef(saver); saverRef.current = saver;
+  const wake = () => { setIdle(false); window.clearTimeout(idleTimer.current); if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
   useEffect(() => {
     if (!open) return;
     wake();
@@ -74,7 +77,9 @@ export function NowPlaying() {
     // keep the screen on while it is a screensaver (not supported everywhere)
     let lock: { release(): Promise<void> } | null = null;
     (navigator as unknown as { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined);
-    return () => { window.removeEventListener('keydown', key); document.removeEventListener('fullscreenchange', fs); window.clearTimeout(idleTimer.current); void lock?.release(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; window.removeEventListener('keydown', key); document.removeEventListener('fullscreenchange', fs); window.clearTimeout(idleTimer.current); void lock?.release(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); };
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the sung line stays in the middle of the lyrics
@@ -88,17 +93,18 @@ export function NowPlaying() {
   const plain = useMemo(() => (lyrics.state === 'ready' && !lines ? lyrics.plain : null), [lyrics, lines]);
   if (!open || !track) return null;
   const hidden = idle;
+  const canFull = !!document.documentElement.requestFullscreen; // not on iPhones; the view already fills the screen there
 
   return (
-    <div className={cn('bt-now fixed inset-x-0 top-0 z-[90] flex h-[100dvh] flex-col overflow-hidden bg-black text-white', hidden && 'cursor-none')} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={wake} onTouchStart={wake} onClick={() => saver && setSaver(false)}>
+    <div className={cn('bt-now fixed inset-x-0 top-0 z-[90] flex h-[100dvh] flex-col overflow-hidden bg-black text-white', hidden && 'cursor-none')} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={wake} onTouchStart={wake} onClick={() => { if (saver) setSaver(false); else if (idle) wake(); }}>
       {cover && <div className="absolute inset-0 scale-125 bg-cover bg-center opacity-60 blur-3xl" style={{ backgroundImage: `url(${cover})` }} aria-hidden />}
       <div className="absolute inset-0 bg-black/40" aria-hidden />
-      <header className={cn('relative z-10 flex items-center gap-2 p-3 transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
+      <header className={cn('relative z-10 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
         <button className="btn !border-0 !bg-white/10 !text-white" onClick={() => setNow(false)} aria-label="Close"><X size={18} /></button>
         <div className="ml-auto flex gap-2">
           <button className={cn('btn !border-0 !text-white', showLyrics && !saver ? '!bg-white/25' : '!bg-white/10')} aria-pressed={showLyrics} title="Lyrics (L)" onClick={pickLyrics}><Mic2 size={16} /><span className="max-sm:hidden">Lyrics</span></button>
           <button className={cn('btn !border-0 !text-white', saver ? '!bg-white/25' : '!bg-white/10')} aria-pressed={saver} title="Screensaver (S)" onClick={() => setSaver((x) => !x)}><Moon size={16} /><span className="max-sm:hidden">Screensaver</span></button>
-          <button className="btn !border-0 !bg-white/10 !text-white" title="Full screen" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
+          {canFull && <button className="btn !border-0 !bg-white/10 !text-white" title="Full screen" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
         </div>
       </header>
       <main className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:gap-3 max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center')}>

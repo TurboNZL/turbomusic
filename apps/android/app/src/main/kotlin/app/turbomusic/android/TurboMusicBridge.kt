@@ -58,6 +58,59 @@ class TurboMusicBridge(private val context: Context, private val view: View) {
         Handler(Looper.getMainLooper()).post { AudioFx.current?.apply() }
     }
 
+    /**
+     * Saves a PNG the page made (base64) to the phone's Pictures/TurboMusic folder (Android 10 and up, no permission needed). On older
+     * Android, or if that fails, opens the share sheet instead. Returns "saved", "shared" or "error: <reason>". The WebView cannot
+     * download a blob: link itself, which is why a web "Save picture" button did nothing in the app.
+     */
+    @JavascriptInterface fun saveImage(name: String, base64: String): String = try {
+        val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        val safe = name.replace(Regex("[^A-Za-z0-9._-]"), "_").ifEmpty { "turbomusic" }
+        if (android.os.Build.VERSION.SDK_INT >= 29 && saveToPictures(safe, bytes)) "saved" else { shareBytes(safe, bytes); "shared" }
+    } catch (e: Exception) { "error: ${e.message}" }
+
+    /** Opens the share sheet with the picture. */
+    @JavascriptInterface fun shareImage(name: String, base64: String): String = try {
+        shareBytes(name.replace(Regex("[^A-Za-z0-9._-]"), "_").ifEmpty { "turbomusic" }, android.util.Base64.decode(base64, android.util.Base64.DEFAULT)); "shared"
+    } catch (e: Exception) { "error: ${e.message}" }
+
+    private fun saveToPictures(name: String, bytes: ByteArray): Boolean {
+        val resolver = context.contentResolver
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "$name.png")
+            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/TurboMusic")
+            put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+        return try {
+            resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("no output stream")
+            values.clear(); values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            true
+        } catch (e: Exception) { resolver.delete(uri, null, null); false }
+    }
+
+    private fun shareBytes(name: String, bytes: ByteArray) {
+        val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
+        val file = java.io.File(dir, "$name.png").apply { writeBytes(bytes) }
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = android.content.Intent.createChooser(send, name).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        view.post { context.startActivity(chooser) }
+    }
+
+    /** Fetches what a Rank preview needs (see [PreviewFetch]); the answer comes back as the page event `turbomusic-preview`. */
+    @JavascriptInterface fun fetchPreview(id: String, url: String, sliceBytes: Double) {
+        PreviewFetch.start(prefs, id, url, sliceBytes.toLong()) { json ->
+            view.post { (view as? android.webkit.WebView)?.evaluateJavascript("window.dispatchEvent(new CustomEvent('turbomusic-preview',{detail:$json}))", null) }
+        }
+    }
+
     /** Haptic feedback with the phone's own engine; follows the system "touch feedback" setting. */
     @JavascriptInterface fun haptic(kind: String) {
         val type = when (kind) {

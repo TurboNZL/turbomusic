@@ -2,6 +2,7 @@ import { findDuplicates } from './duplicates.ts';
 import { hasLead } from './defaults.ts';
 import type { Library } from './library.ts';
 import { qualityOf } from './audioCheck.ts';
+import { genreKey } from './genreOps.ts';
 
 export type HealthKind = 'album-source' | 'track' | 'album' | 'artist' | 'genre' | 'role' | 'release' | 'noteCategory';
 export interface HealthItem { kind: HealthKind; id: string; label: string; /** the album a track is on (for "this album has no YouTube Music link") */ albumId?: string | null; detail?: string; /** items that belong together (duplicates of one song) share a group */ group?: string; /** why a group was listed (duplicates) */ note?: string }
@@ -29,6 +30,12 @@ export interface HealthCheck {
   unmarkNoYoutube?: boolean;
   /** items can have their dead-link mark cleared */
   clearDead?: boolean;
+  /** how the items are drawn (HealthViews.tsx): picture tiles, removable chips, or a meter per row; unset = the plain list */
+  view?: 'tiles' | 'chips' | 'meter';
+  /** a tool that looks the missing pictures / genres up online */
+  findImages?: boolean; findGenres?: boolean;
+  /** a tool that merges overlapping genre tags */
+  mergeGenres?: boolean;
 }
 
 /** Groups of tracks the user said are NOT duplicates are kept in the profile's settings as sorted id lists. */
@@ -74,7 +81,7 @@ export function computeHealth(lib: Library): HealthCheck[] {
   return [
     { id: 'needs-source', title: 'Albums waiting for a YouTube album link', why: 'These came from a Spotify import and only hold the songs you picked. Paste a YouTube Music link of the whole album: it fills in the real tracklist, the cover and the audio, and keeps the songs you already have.', albumLinks: true,
       items: waiting.map((a) => ({ kind: 'album-source' as const, id: a.id, label: `${a.title} · ${a.artistName}`, detail: `${a.trackIds.length} track${a.trackIds.length === 1 ? '' : 's'}` })) },
-    { id: 'fake-quality', title: 'Audio that is not what it claims', why: 'The file claims a high bit rate but its sound stops where a lower one would (re-encoded from a worse source), or its stored bit rate is not what the file measures. Run “Check audio quality” above first.',
+    { id: 'fake-quality', view: 'meter', title: 'Audio that is not what it claims', why: 'The file claims a high bit rate but its sound stops where a lower one would (re-encoded from a worse source), or its stored bit rate is not what the file measures. Run “Check audio quality” above first.',
       items: fakes.map((x) => t(x, qualityOf(x) === 'transcode' ? `claims ${x.audioCheck?.kbps} kbps, content like ${x.audioCheck?.looksLike} (cuts off at ${((x.audioCheck?.cutoffHz ?? 0) / 1000).toFixed(1)} kHz)` : `stored ${x.bitrate}, measures ${x.audioCheck?.kbps} kbps`)) },
     { id: 'no-lead', title: 'No lead artist credit', why: 'The artist comes from the credits: the first credit with the role “Lead artist”. Old records only have it stored separately.',
       addLead: { label: 'Add lead credit from artist' },
@@ -100,31 +107,45 @@ export function computeHealth(lib: Library): HealthCheck[] {
       items: lib.releases.filter((r) => !r.releaseDate).map((r) => ({ kind: 'release' as const, id: r.id, label: `${r.title} · ${lib.albumById.get(r.albumId)?.title ?? 'unknown album'}` })) },
     { id: 'single-no-date', quick: 'single-date', title: 'Singles without a date', why: 'A single carries its own release date (an album track takes it from its album). Open the single and fill in the date.',
       items: lib.singles.filter((x) => !x.releaseDate).map((x) => t(x, 'single')) },
-    { id: 'album-no-genre', quick: 'album-genre', title: 'Albums without a genre', why: 'Tracks that follow the album take their genres from it.',
+    { id: 'album-no-genre', quick: 'album-genre', findGenres: true, title: 'Albums without a genre', why: 'Tracks that follow the album take their genres from it.',
       items: lib.albums.filter((a) => !a.genres.length).map((a) => ({ kind: 'album' as const, id: a.id, label: `${a.title} · ${a.artistName}` })) },
     { id: 'no-genre', quick: 'track-genre', title: 'Tracks without a genre', why: 'They will not show up in genre filters or the genre stats.',
       items: lib.tracks.filter((x) => !x.allGenres.length).map((x) => t(x)) },
-    { id: 'low-quality', title: 'Low bitrate tracks (under 192 kbps)', why: 'Worth replacing when a better source exists.',
+    { id: 'low-quality', view: 'meter', title: 'Low bitrate tracks (under 192 kbps)', why: 'Worth replacing when a better source exists.',
       items: lowQuality.map((x) => t(x, x.bitrate ?? undefined)) },
     { id: 'duplicates', title: 'Possible duplicate tracks', why: 'The same song more than once: a single and the same song on its album, a second artist credit, an accent or "&" spelt differently, a (Remastered) tag, the same Spotify or YouTube song, the same audio file, or a title one typo apart. Each group says why it was listed. “Merge” folds them into one track: it keeps every Spotify link, the votes, plays and memories, and everything that used the others uses the survivor.', mergeGroups: true, notDuplicates: true,
       items: dupeGroups.flatMap((g) => g.ids.flatMap((id) => lib.trackById.get(id) ?? []).map((x) => ({ ...t(x, `${x.albumTitle ?? 'single'} · ${x.comparisons} comparisons${x.file ? ', has audio' : ''}`), group: g.key, note: g.reasons.join(' · ') }))) },
-    { id: 'album-no-cover', title: 'Albums without a cover', why: 'Open the album and choose an image.',
+    { id: 'album-no-cover', view: 'tiles', title: 'Albums without a cover', why: 'Open the album and choose an image.',
       items: lib.albums.filter((a) => !a.cover).map((a) => ({ kind: 'album' as const, id: a.id, label: `${a.title} · ${a.artistName}` })) },
-    { id: 'album-empty', title: 'Albums with no tracks', why: 'Probably left over from deleting tracks.',
+    { id: 'album-empty', view: 'tiles', title: 'Albums with no tracks', why: 'Probably left over from deleting tracks.',
       items: lib.albums.filter((a) => !a.trackIds.length).map((a) => ({ kind: 'album' as const, id: a.id, label: `${a.title} · ${a.artistName}` })) },
-    { id: 'artist-no-image', title: 'Artists without an image', why: 'Artist images were lost with the old uploads folder; add them again.',
+    { id: 'artist-no-image', view: 'tiles', findImages: true, title: 'Artists without an image', why: 'Artist images were lost with the old uploads folder; add them again.',
       items: lib.artists.filter((a) => !a.image).map((a) => ({ kind: 'artist' as const, id: a.id, label: a.name })) },
-    { id: 'artist-unused', title: 'Artists that are not used anywhere', why: 'Not credited on any track or album, not in a bio or note.',
+    { id: 'artist-unused', view: 'chips', title: 'Artists that are not used anywhere', why: 'Not credited on any track or album, not in a bio or note.',
       fix: { label: 'Delete these artists', table: 'artists' },
       items: lib.artists.filter((a) => !usedArtists.has(a.id)).map((a) => ({ kind: 'artist' as const, id: a.id, label: a.name })) },
-    { id: 'genre-unused', title: 'Genres that no track or album uses', why: 'Safe to remove; they only clutter the suggestions.',
+    { id: 'genre-similar', view: 'chips', mergeGenres: true, title: 'Overlapping genre tags', why: 'Tags that are spelt differently (“Hip Hop” and “Hip-Hop”) or that contain each other (“Hip-Hop/Rap”). Merge them so filters and stats count them together.',
+      items: similarGenres(lib.genres.map((g) => g.name)).map((n) => ({ kind: 'genre' as const, id: n, label: n })) },
+    { id: 'genre-unused', view: 'chips', title: 'Genres that no track or album uses', why: 'Safe to remove; they only clutter the suggestions.',
       fix: { label: 'Delete these genres', table: 'genres' },
       items: lib.genres.filter((g) => !usedGenres.has(g.name.toLowerCase())).map((g) => ({ kind: 'genre' as const, id: g.id, label: g.name })) },
-    { id: 'role-unused', title: 'Credit roles that nothing uses', why: 'Checked against every track and album credit, so roles in use are never listed.',
+    { id: 'role-unused', view: 'chips', title: 'Credit roles that nothing uses', why: 'Checked against every track and album credit, so roles in use are never listed.',
       fix: { label: 'Delete these roles', table: 'roleCategories' },
       items: lib.roles.filter((r) => !usedRoles.has(r.name.toLowerCase())).map((r) => ({ kind: 'role' as const, id: r.id, label: r.name })) },
-    { id: 'note-category-unused', title: 'Note categories with no notes', why: 'Categories you made that no note uses any more. Safe to remove.',
+    { id: 'note-category-unused', view: 'chips', title: 'Note categories with no notes', why: 'Categories you made that no note uses any more. Safe to remove.',
       fix: { label: 'Delete these categories', table: 'noteCategories' },
       items: lib.noteCategories.filter((c) => !lib.groups.some((g) => g.categoryId === c.id)).map((c) => ({ kind: 'noteCategory' as const, id: c.id, label: c.name })) },
   ];
+}
+
+
+/** Genre names that look like another genre of the library: the same words ignoring case and punctuation, or a name that holds another as a whole word / slash part. */
+export function similarGenres(names: string[]): string[] {
+  const keys = names.map((n) => ({ n, k: genreKey(n), c: genreKey(n).replace(/ /g, '') }));
+  const out = new Set<string>();
+  for (const a of keys) for (const b of keys) {
+    if (a === b || !a.c || !b.c) continue;
+    if (a.c === b.c || (a.c.length > b.c.length && ` ${a.k} `.includes(` ${b.k} `)) || (a.n.includes('/') && a.n.split('/').some((p) => genreKey(p).replace(/ /g, '') === b.c))) { out.add(a.n); out.add(b.n); }
+  }
+  return [...out].sort((x, y) => x.localeCompare(y));
 }

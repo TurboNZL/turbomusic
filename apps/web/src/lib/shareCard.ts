@@ -66,16 +66,58 @@ export async function drawShareCard(spec: ShareCardSpec): Promise<Blob> {
   return new Promise((res, rej) => c.toBlob((bl) => (bl ? res(bl) : rej(new Error('Could not make the picture.'))), 'image/png'));
 }
 
-/** Shares the picture through the system sheet when files can be shared, else saves it. Returns what happened. */
-export async function saveOrShare(blob: Blob, name: string): Promise<'shared' | 'saved'> {
+/** What the Android app offers for pictures (a WebView cannot download a blob: link by itself). */
+interface AndroidImages { saveImage?(name: string, base64: string): string; shareImage?(name: string, base64: string): string }
+const androidImages = () => (window as unknown as { TurboMusicAndroid?: AndroidImages }).TurboMusicAndroid;
+
+async function toBase64(blob: Blob): Promise<string> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+export type SaveResult = 'shared' | 'saved' | 'manual';
+
+/**
+ * Gets the picture to the person. In the Android app: the app saves it to Pictures/TurboMusic (or opens the share sheet). In a browser:
+ * the system share sheet when it can share files, else a download. Share sheets only open straight after a tap, and making the picture takes
+ * a few seconds, so when the browser refuses (iPhones, mostly) this returns 'manual' and the caller shows the picture with its own Save and
+ * Share buttons, which are a fresh tap.
+ */
+export async function saveOrShare(blob: Blob, name: string, opts: { fresh?: boolean } = {}): Promise<SaveResult> {
+  const bridge = androidImages();
+  if (bridge?.saveImage) {
+    const r = bridge.saveImage(name, await toBase64(blob));
+    if (r === 'saved' || r === 'shared') return r;
+    throw new Error(r);
+  }
   const file = new File([blob], `${name}.png`, { type: 'image/png' });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] })) {
-    try { await nav.share({ files: [file], title: name }); return 'shared'; } catch (e) { if ((e as Error).name === 'AbortError') return 'shared'; }
+    try { await nav.share({ files: [file], title: name }); return 'shared'; }
+    catch (e) {
+      if ((e as Error).name === 'AbortError') return 'shared';
+      if (!opts.fresh) return 'manual'; // the tap has expired: ask for another
+    }
   }
+  const touchOnly = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches;
+  if (touchOnly && !opts.fresh) return 'manual'; // phones often ignore a silent download; show the picture instead
+  downloadBlob(blob, name);
+  return 'saved';
+}
+
+export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `${name}.png`; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-  return 'saved';
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/** The share sheet, from a fresh tap. */
+export async function shareBlob(blob: Blob, name: string): Promise<boolean> {
+  const file = new File([blob], `${name}.png`, { type: 'image/png' });
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (!nav.canShare?.({ files: [file] })) return false;
+  try { await nav.share({ files: [file], title: name }); return true; } catch (e) { return (e as Error).name === 'AbortError'; }
 }

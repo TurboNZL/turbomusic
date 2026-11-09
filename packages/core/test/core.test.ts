@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newId, applyVote, replayVotes, balancedRatings, startTrack, advance, shuffleWithRules, wins, crossfadeFor, crossfadeShiftFor } from '../src';
+import { newId, applyVote, replayVotes, balancedRatings, startTrack, advance, shuffleWithRules, wins, crossfadeFor, crossfadeShiftFor, crossfadeShapeFor } from '../src';
 
 describe('ids', () => {
   it('are unique and time-sortable', () => {
@@ -62,6 +62,16 @@ describe('crossfade rules', () => {
     expect(crossfadeFor([{ ...base, crossfadeSec: 99 }], 'a', 'b', 0)).toBe(12);
     expect(crossfadeFor([], 'a', 'b', -3)).toBe(0);
     expect(crossfadeFor([], 'a', 'b', Number.NaN)).toBe(0);
+  });
+});
+
+describe('crossfade shape', () => {
+  const base = { trackAId: 'a', trackBId: 'b', playFirstOnShuffle: true, applyToAlbumSource: false };
+  it('fades both sides unless the rule for that pair turns one off', () => {
+    expect(crossfadeShapeFor([base], 'a', 'b')).toEqual({ fadeOut: true, fadeIn: true });
+    expect(crossfadeShapeFor([{ ...base, crossfadeIn: false }], 'a', 'b')).toEqual({ fadeOut: true, fadeIn: false });
+    expect(crossfadeShapeFor([{ ...base, crossfadeOut: false }], 'a', 'b')).toEqual({ fadeOut: false, fadeIn: true });
+    expect(crossfadeShapeFor([{ ...base, crossfadeIn: false }], 'a', 'c')).toEqual({ fadeOut: true, fadeIn: true });
   });
 });
 

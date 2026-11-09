@@ -6,6 +6,9 @@ import { loadConfig } from '../../../packages/server/src/config.ts';
 import { startServer } from '../../../packages/server/src/start.ts';
 import { startStaticServer } from '../../../packages/server/src/staticServer.ts';
 import { readFileSync, rmSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { execFile } from 'node:child_process';
+import { findLocalServer, readJsonFile, readText, realProbe, tokenFiles, type LocalServer } from './localServer.ts';
 import { BUILT_IN_DISCORD_CLIENT_ID, findWebDir, loadDesktopConfig, loadDiscordConfig, loadUpdateToken, saveUpdateToken, saveDesktopConfig, saveDiscordConfig } from './desktopConfig.ts';
 import { DiscordPresence, findSockets, type Presence } from './discord.ts';
 import { Updates } from './updater.ts';
@@ -30,6 +33,25 @@ const edition: 'full' | 'app' = (() => {
 // the product name changed to TurboMusic; an installed app keeps its old settings folder until the person moves it (userDataBoot.ts)
 bootUserData(edition);
 let win: BrowserWindow | null = null;
+/** the app edition's other half: a server edition installed on this computer (localServer.ts). Null when there is none, or this app runs its own. */
+let localServer: LocalServer | null = null;
+async function detectLocalServer(): Promise<void> {
+  const desk = loadDesktopConfig(app.getPath('userData'));
+  const cands = tokenFiles(process.platform, homedir(), app.getPath('appData'), readText('/etc/turbomusic/server.env'), readJsonFile);
+  const found = await findLocalServer(cands, realProbe);
+  if (found && !found.token && desk.localToken) found.token = desk.localToken;
+  localServer = found;
+}
+/** A Linux service keeps its token private: ask for administrator rights once to read it, then remember it. */
+async function readLocalToken(): Promise<boolean> {
+  if (!localServer || localServer.token || process.platform !== 'linux') return false;
+  const file = localServer.tokenFile;
+  const token = await new Promise<string>((resolve) => execFile('pkexec', ['/bin/cat', file], { timeout: 120_000 }, (err, out) => resolve(err ? '' : String(out).trim())));
+  if (!token) return false;
+  saveDesktopConfig(app.getPath('userData'), { localToken: token });
+  localServer.token = token;
+  return true;
+}
 const discord = new DiscordPresence();
 const updates = new Updates(app.isPackaged, (state) => win?.webContents.send('turbomusic:update', state));
 
@@ -80,7 +102,7 @@ async function boot(): Promise<void> {
   if (!webDir) throw new Error('The web client has not been built. Run `pnpm --filter @turbomusic/web build` first.');
   // the app edition's port is one above the full edition's, so both can be installed (and the window's storage stays put when the module is added or removed)
   const port = process.env.TURBOMUSIC_DESKTOP_PORT || edition === 'full' ? desk.port : desk.port + 1;
-  if (!serverModuleOn(desk.serverModule)) { const s = await startStaticServer(webDir, port); server = { port: s.port, close: s.close, config: { dataDir: '', token: '' } }; return; }
+  if (!serverModuleOn(desk.serverModule)) { await detectLocalServer(); const s = await startStaticServer(webDir, port); server = { port: s.port, close: s.close, config: { dataDir: '', token: '' } }; return; }
   const config = loadConfig({ ...process.env, TURBOMUSIC_DATA_DIR: desk.dataDir, TURBOMUSIC_HOST: '127.0.0.1', TURBOMUSIC_PORT: String(port), TURBOMUSIC_WEB_DIR: webDir });
   try { server = await startServer(config); }
   catch (e) {
@@ -128,7 +150,7 @@ function chooseFolder(): Promise<string | null> {
 }
 
 ipcMain.on('turbomusic:info', (e) => {
-  e.returnValue = { customFrame: loadDesktopConfig(userData()).customFrame, token: server?.config.token ?? '', version: app.getVersion(), dataDir: server?.config.dataDir ?? '', edition, serverModule: serverModuleOn(loadDesktopConfig(userData()).serverModule), platform: process.platform, desktopEnv: process.env.XDG_CURRENT_DESKTOP ?? '', port: server?.port ?? 0 };
+  e.returnValue = { customFrame: loadDesktopConfig(userData()).customFrame, token: server?.config.token ?? '', version: app.getVersion(), dataDir: server?.config.dataDir ?? '', edition, serverModule: serverModuleOn(loadDesktopConfig(userData()).serverModule), localServer: localServer ? { url: localServer.url, token: localServer.token } : null, platform: process.platform, desktopEnv: process.env.XDG_CURRENT_DESKTOP ?? '', port: server?.port ?? 0 };
 });
 // the Cloudflare Access service token rides on every request to the library server (see accessHeaders.ts), so audio and covers stream directly
 let accessRule: AccessRule | null = null;
@@ -170,6 +192,12 @@ ipcMain.handle('turbomusic:migrate-run', async () => {
   return true;
 });
 /** Install or remove the server module (this app's own library server). Removing keeps the library files unless the user says to delete them; both restart the app. */
+ipcMain.handle('turbomusic:local-server', async (_e, askAdmin: unknown) => {
+  if (serverModuleOn(loadDesktopConfig(userData()).serverModule)) return null;
+  await detectLocalServer();
+  if (askAdmin === true) await readLocalToken();
+  return localServer ? { url: localServer.url, token: localServer.token } : null;
+});
 ipcMain.handle('turbomusic:server-module', async (_e, on: unknown) => {
   const desk = loadDesktopConfig(userData());
   if (on === true) {

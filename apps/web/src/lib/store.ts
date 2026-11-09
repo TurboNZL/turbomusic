@@ -199,6 +199,7 @@ export const useStore = create<State>((set, get) => {
 
     updateSettings(patch) {
       const settings = { ...get().settings, ...patch };
+      if (('serverUrl' in patch || 'token' in patch) && !('serverAuto' in patch)) settings.serverAuto = false; // the person chose: stop managing it
       saveSettings(settings);
       applyAppearance(settings);
       set({ settings });

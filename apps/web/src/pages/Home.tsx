@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { Link } from 'react-router-dom';
-import { HeartPulse, Play, Shuffle, Sparkles, Swords, Trash2 } from 'lucide-react';
+import { HeartPulse, Play, Shuffle, Sparkles, Swords } from 'lucide-react';
 import { useMemo } from 'react';
 import { usePlayer } from '../lib/player.ts';
 import { buildListens } from '../lib/listens.ts';
@@ -11,15 +11,14 @@ import { Bars, fmtHours } from '../components/charts.tsx';
 import { healthScore } from '../components/HealthHero.tsx';
 import { Cover } from '../components/Cover.tsx';
 import type { Library } from '../lib/derive.ts';
-import { logJournal } from '../lib/journal.ts';
 import { useLibraryLive } from '../lib/derive.ts';
-import { useStore } from '../lib/store.ts';
 import { cn } from '../lib/cn.ts';
 import { EloQuestions } from '../components/EloQuestions.tsx';
 import { useMenu } from '../components/Menu.tsx';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 import { useTrackMenuItems } from '../components/TrackMenu.tsx';
 import { RecapPrompt } from '../components/RecapPrompt.tsx';
+import { Journal } from '../components/Journal.tsx';
 
 const ago = (ts: number) => { const m = Math.max(1, Math.round((Date.now() - ts) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 
@@ -38,17 +37,11 @@ function Shelf({ title, to, children }: { title: string; to?: string; children: 
 
 export function HomePage() {
   const lib = useLibraryLive();
-  const remove = useStore((s) => s.remove);
   const play = usePlayer((s) => s.play);
   const menu = useMenu();
   const albumItems = useAlbumMenuItems();
   const trackItems = useTrackMenuItems();
   const albumMenu = (a: Library['albums'][number]) => menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id);
-  const [title, setTitle] = useState('');
-  const [text, setText] = useState('');
-  const [shown, setShown] = useState(15);
-  const [jq, setJq] = useState('');
-  const [jtype, setJtype] = useState('all');
   const listens = useMemo(() => buildListens(lib), [lib]);
 
   const rated = lib.tracks.filter((t) => t.effectiveRating > 0.001);
@@ -56,10 +49,6 @@ export function HomePage() {
   // "complete" = enough votes to trust the rating, or a manual rating
   const done = lib.tracks.filter((t) => t.comparisons >= 3 || (t.initialRating ?? 0) > 0).length;
   const pct = lib.tracks.length ? Math.round((done / lib.tracks.length) * 100) : 0;
-  const allEntries = [...lib.timeline].sort((a, b) => b.timestamp - a.timestamp);
-  const jTypes = [...new Set(allEntries.map((e) => e.type))];
-  const needle = jq.trim().toLowerCase();
-  const entries = allEntries.filter((e) => (jtype === 'all' || e.type === jtype) && (!needle || `${e.title} ${e.description ?? ''}`.toLowerCase().includes(needle)));
 
   // pick up where you left off: the last thing played here that can be played again, with the rest of its album after it
   const last = useMemo(() => {
@@ -144,26 +133,7 @@ export function HomePage() {
       </section>}
       {recentAlbums.length > 0 && <Shelf title="Recently played" to="/albums"><div className="flex gap-3 overflow-x-auto pb-2">{recentAlbums.map((a) => <AlbumTile key={a.id} album={a} onMenu={albumMenu} />)}</div></Shelf>}
       {newest.length > 0 && <Shelf title="Latest additions" to="/albums"><div className="flex gap-3 overflow-x-auto pb-2">{newest.map((a) => <AlbumTile key={a.id} album={a} onMenu={albumMenu} />)}</div></Shelf>}
-      <h2 className="text-lg font-semibold">Curation journal</h2>
-      <section className="space-y-3">
-        <form className="card space-y-2 p-4" onSubmit={(e) => { e.preventDefault(); if (!title.trim()) return; logJournal('entry', title.trim(), text.trim()); setTitle(''); setText(''); }}>
-          <input className="input" placeholder="Write a journal entry title…" value={title} onChange={(e) => setTitle(e.target.value)} />
-          {title && <><textarea className="input" rows={2} placeholder="Details (optional)" value={text} onChange={(e) => setText(e.target.value)} /><button className="btn btn-accent">Add entry</button></>}
-        </form>
-        {allEntries.length > 0 && <div className="flex flex-wrap items-center gap-2">
-          <input className="input !w-64 max-w-full" placeholder="Filter the journal…" aria-label="Filter the journal" value={jq} onChange={(e) => { setJq(e.target.value); setShown(15); }} />
-          <select className="input !w-auto" aria-label="Entry type" value={jtype} onChange={(e) => { setJtype(e.target.value); setShown(15); }}><option value="all">All kinds</option>{jTypes.map((t) => <option key={t} value={t}>{t}</option>)}</select>
-          {(jq || jtype !== 'all') && <span className="text-xs text-muted">{entries.length} of {allEntries.length}</span>}</div>}
-        {!entries.length && <p className="text-sm text-muted">{allEntries.length ? 'No entries match.' : 'Nothing here yet. Adding albums and writing entries will fill the timeline.'}</p>}
-        <div className="space-y-2">{entries.slice(0, shown).map((e) => (
-          <div key={e.id} className="card group flex gap-3 p-4">
-            <div className={cn('w-1 shrink-0 rounded-full', e.type === 'entry' ? 'bg-accent' : 'bg-muted')} />
-            <div className="min-w-0 flex-1"><div className="flex items-center gap-3 text-xs text-muted"><span>{new Date(e.timestamp).toLocaleString()}</span><span className="uppercase tracking-wider">{e.type}</span>
-              <button className="ml-auto opacity-0 hover:text-bad group-hover:opacity-100" aria-label="Delete entry" onClick={() => confirm('Delete this entry?') && remove('timeline', e.id)}><Trash2 size={13} /></button></div>
-              <div className="mt-0.5 text-sm font-semibold">{e.title}</div>{e.description && <p className="mt-0.5 whitespace-pre-wrap text-sm text-muted">{e.description}</p>}</div>
-          </div>))}</div>
-        {shown < entries.length && <button className="btn" onClick={() => setShown(shown + 15)}>Show more</button>}
-      </section>
+      <Journal lib={lib} />
     </div>
   );
 }

@@ -87,6 +87,8 @@ export class Api {
   health() { return fetch(this.url('/api/health'), { headers: this.access }).then((r) => (r.ok ? r.json() : Promise.reject(new ApiError(r.status, 'No server')))); }
   status() { return this.req<ServerStatus>('/api/status'); }
   releaseDates(albums: { id: string; album: string; artist: string }[]) { return this.req<{ results: { id: string; answer: DateAnswerRes | null }[] }>('/api/dates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ albums }) }); }
+  artistImages(artists: { id: string; name: string; aliases?: string[] }[]) { return this.req<{ results: { id: string; hash: string | null; source: string | null; matched: string | null }[] }>('/api/artist-images', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artists }) }); }
+  albumGenres(albums: { id: string; album: string; artist: string }[]) { return this.req<{ results: { id: string; genres: { name: string; source: 'itunes' | 'musicbrainz' }[] }[] }>('/api/album-genres', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ albums }) }); }
   soloist() { return this.req<SoloistInfo>('/api/soloist'); }
   soloistConfig(c: { deviceName?: string; apiKey?: string; autoStart?: boolean; outputDevice?: string; beam?: boolean }) { return this.req<SoloistInfo>('/api/soloist/config', { method: 'POST', body: JSON.stringify(c) }); }
   soloistInstall() { return this.req<SoloistInfo>('/api/soloist/install', { method: 'POST' }); }
