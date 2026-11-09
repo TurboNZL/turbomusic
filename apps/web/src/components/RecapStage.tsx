@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Moon, Sun, Sunrise, Sunset, Swords, ThumbsDown, ThumbsUp, TrendingDown, TrendingUp } from 'lucide-react';
 import type { Library } from '../lib/derive.ts';
@@ -115,7 +115,34 @@ function Days({ byDay, labels, best, base }: { byDay: number[]; labels: string[]
   );
 }
 
-const Mark = () => <div className="mt-auto pt-3 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-white/45">TurboMusic</div>;
+/**
+ * The card's content column. If what a week or month has to show is taller than the card (many songs, long names, every fact present) the
+ * whole column is scaled down to fit instead of spilling over the edge of the card and the saved picture.
+ */
+function Fit({ children }: { children: ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null), inner = useRef<HTMLDivElement>(null);
+  const [k, setK] = useState(1);
+  useLayoutEffect(() => {
+    const o = outer.current, i = inner.current;
+    if (!o || !i) return;
+    const fit = () => {
+      const room = o.clientHeight, natural = i.offsetHeight; // offsetHeight ignores the scale transform
+      if (room > 0 && natural > 0) setK(Math.min(1, Math.floor((room / natural) * 1000) / 1000));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(i);
+    void document.fonts?.ready.then(fit);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={outer} className="absolute inset-x-[52px] top-[48px] overflow-hidden" style={{ bottom: 64 }}>
+      <div ref={inner} className="flex flex-col gap-4" style={{ width: `${100 / k}%`, transform: `scale(${k})`, transformOrigin: 'top left' }}>{children}</div>
+    </div>
+  );
+}
+
+const Mark = () => <div className="absolute inset-x-0 bottom-[26px] text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-white/45">TurboMusic</div>;
 
 /** One week as a single 9:16 card. Things at zero are left off. */
 export function WeekStage({ r, lib }: { r: WeeklyRecap; lib: Library }) {
@@ -129,7 +156,7 @@ export function WeekStage({ r, lib }: { r: WeeklyRecap; lib: Library }) {
   ] as const;
   return (
     <StageFrame bg={WEEK_BG} art={weekArt(r.from)}>
-      <div className="absolute inset-x-[52px] top-[48px] flex flex-col gap-4" style={{ bottom: 40 }}>
+      <Fit>
         <header>
           <div className="flex items-center justify-between text-[14px] font-bold uppercase tracking-[0.2em] text-white/70"><span>{r.partial ? 'So far this week' : 'Your week in music'}</span>{DP && <span className="inline-flex items-center gap-1.5 normal-case tracking-normal"><DP.Icon size={15} />{DP.text} week</span>}</div>
           <div className="mt-1 text-[26px] font-bold leading-tight">{weekLabelOf(r.from, r.to - 1)}</div>
@@ -147,8 +174,8 @@ export function WeekStage({ r, lib }: { r: WeeklyRecap; lib: Library }) {
         </div>
         <Reacted r={r.reactions} base={19} />
         <Facts facts={facts} base={22} />
-        <Mark />
-      </div>
+      </Fit>
+      <Mark />
     </StageFrame>
   );
 }
@@ -168,7 +195,7 @@ export function MonthStage({ r, lib }: { r: MonthlyRecap; lib: Library }) {
   ] as const;
   return (
     <StageFrame bg={MONTH_BG} art={monthArt(r.from)}>
-      <div className="absolute inset-x-[52px] top-[48px] flex flex-col gap-4" style={{ bottom: 40 }}>
+      <Fit>
         <header>
           <div className="flex items-center justify-between text-[14px] font-bold uppercase tracking-[0.2em] text-white/70"><span>{r.partial ? 'So far this month' : 'Your month in music'}</span>{DP && <span className="inline-flex items-center gap-1.5 normal-case tracking-normal"><DP.Icon size={15} />{DP.text} month</span>}</div>
           <div className="mt-1 text-[28px] font-bold leading-tight">{monthLabelOf(r.from)}</div>
@@ -198,8 +225,8 @@ export function MonthStage({ r, lib }: { r: MonthlyRecap; lib: Library }) {
         </div>
         <Reacted r={r.reactions} base={20} />
         <Facts facts={facts} base={24} />
-        <Mark />
-      </div>
+      </Fit>
+      <Mark />
     </StageFrame>
   );
 }

@@ -152,7 +152,7 @@ export interface NoteData {
 }
 export interface GenreData { name: string }
 export interface RoleCategoryData { name: string; isRemovable: boolean }
-export interface TimelineData { type: string; title: string; description: string; entityId: string | null; timestamp: number }
+export interface TimelineData { type: string; title: string; description: string; entityId: string | null; timestamp: number; /** how the entry felt (journal mood id) */ mood?: string | null; /** shown at the top of the journal */ pinned?: boolean }
 export interface VoteData {
   trackAId: string; trackBId: string;
   winnerId: string | null; isEqual: boolean;

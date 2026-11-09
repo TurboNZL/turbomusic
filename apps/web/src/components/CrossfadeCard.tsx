@@ -93,7 +93,7 @@ export function CrossfadeAligner({ fadeSec, shiftSec, onShift }: { fadeSec: numb
  * A playback rule's own crossfade for its pair of tracks, on the same slider as the device setting. Untouched it follows the device
  * setting; "Use device setting" goes back to that. The far left is a cut (no fade), which also beats a device crossfade.
  */
-export function CrossfadePick({ value, onChange, shift, onShift, className }: { value: number | null | undefined; onChange: (v: number | null) => void; shift?: number | null; onShift?: (v: number) => void; className?: string }) {
+export function CrossfadePick({ value, onChange, shift, onShift, shape, onShape, className }: { value: number | null | undefined; onChange: (v: number | null) => void; shift?: number | null; onShift?: (v: number) => void; shape?: { out?: boolean | null; in?: boolean | null }; onShape?: (patch: { crossfadeOut?: boolean; crossfadeIn?: boolean }) => void; className?: string }) {
   const device = useStore((s) => s.settings.crossfade);
   const own = typeof value === 'number';
   const shown = own ? value : device;
@@ -104,7 +104,15 @@ export function CrossfadePick({ value, onChange, shift, onShift, className }: { 
         <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted">{own ? (value > 0 ? fadeLabel(value) : 'cut') : `device: ${fadeLabel(device)}`}</span>
         <button type="button" className="btn btn-ghost !px-2 !py-0.5 text-xs" disabled={!own} onClick={() => onChange(null)} title="Follow the crossfade set for this device">Use device setting</button>
       </span>
-      {onShift && shown > 0 && <CrossfadeAligner fadeSec={shown} shiftSec={shift ?? 0} onShift={onShift} />}
+      {onShape && shown > 0 && (
+        <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={shape?.out !== false} onChange={(e) => onShape({ crossfadeOut: e.target.checked })} />Fade the first song out</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={shape?.in !== false} onChange={(e) => onShape({ crossfadeIn: e.target.checked })} />Fade the second song in</label>
+        </span>)}
+      {onShift && <>
+        {shown <= 0 && (shift ?? 0) > 0 && <p className="text-xs text-muted">No fade: the last {Math.round((shift ?? 0) * 100) / 100} s of the first song are clipped off and the second starts at once (a hard cut on both sides).</p>}
+        <CrossfadeAligner fadeSec={Math.max(shown, 0.05)} shiftSec={shift ?? 0} onShift={onShift} />
+      </>}
     </div>
   );
 }

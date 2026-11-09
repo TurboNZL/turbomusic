@@ -25,6 +25,37 @@ export function sliceWindow(total: number, bytes = SLICE_BYTES): { start: number
 
 const isMp3 = (type: string | null) => /mpeg|mp3/i.test(type ?? '');
 
+interface PreviewBridge { fetchPreview?(id: string, url: string, sliceBytes: number): void }
+const previewBridge = () => (typeof window === 'undefined' ? undefined : (window as unknown as { TurboMusicAndroid?: PreviewBridge }).TurboMusicAndroid);
+let nextId = 0;
+
+/**
+ * The app's own phone-side fetch (PreviewFetch.kt): the WebView cannot be relied on to answer a Range request with a seekable 206, so the
+ * app asks the server itself. `whole` = the entire (small) file, otherwise the middle of an MP3. Null when this app has no such method
+ * (an older build) or the fetch failed; the caller then tries the page's own fetch.
+ */
+export function nativeSlice(hash: string, timeoutMs = 25_000): Promise<{ blob: Blob; whole: boolean } | null> {
+  const b = previewBridge();
+  if (!b?.fetchPreview) return Promise.resolve(null);
+  const id = `p${++nextId}`;
+  return new Promise((resolve) => {
+    const done = (v: { blob: Blob; whole: boolean } | null) => { window.removeEventListener('turbomusic-preview', on); clearTimeout(t); resolve(v); };
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; ok: boolean; whole?: boolean; type?: string; b64?: string }>).detail;
+      if (d.id !== id) return;
+      if (!d.ok || !d.b64) return done(null);
+      try {
+        const bin = atob(d.b64), bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        done({ blob: new Blob([bytes], { type: d.type || 'audio/mpeg' }), whole: !!d.whole });
+      } catch { done(null); }
+    };
+    const t = setTimeout(() => done(null), timeoutMs);
+    window.addEventListener('turbomusic-preview', on);
+    try { b.fetchPreview!(id, api().fileUrl(hash), SLICE_BYTES); } catch { done(null); }
+  });
+}
+
 /** The middle of an MP3 on the server as a blob, or null when anything about it is unusual (another format, no Range support, an error). */
 export async function middleSlice(hash: string): Promise<Blob | null> {
   try {

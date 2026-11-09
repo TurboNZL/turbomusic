@@ -9,6 +9,8 @@ export interface DeviceSettings {
   /** '' = same origin (dev proxy, or the server serving this app) */
   serverUrl: string;
   token: string;
+  /** serverUrl/token were filled in by the desktop app because a server edition is installed on this computer; they go away again if that server does */
+  serverAuto?: boolean;
   /** a Cloudflare Access service token (CF-Access-Client-Id / -Secret) for a server behind Cloudflare Access; blank when none */
   cfAccessId: string;
   cfAccessSecret: string;
@@ -66,6 +68,9 @@ export interface TurboMusicDesktop {
   /** this app runs its own library server (the server module is installed) */
   serverModule?: boolean;
   setServerModule?(on: boolean): Promise<boolean>;
+  /** a server edition installed on this computer (the app edition connects to it by itself); token '' = it is there but its token is private */
+  localServer?: { url: string; token: string } | null;
+  findLocalServer?(askAdmin?: boolean): Promise<{ url: string; token: string } | null>;
   /** the window's title bar is drawn by the page (a setting of the app, applied at start) */
   customFrame?: boolean;
   windowControl?(action: 'minimize' | 'maximize' | 'close'): void;
@@ -118,6 +123,10 @@ export function loadSettings(): DeviceSettings {
   if (s.theme === 'dyad') s.theme = 'zinc';
   // a fresh desktop app is already connected to its own server: no address or token to type
   if (!s.token && desktop()?.token) s.token = desktop()!.token;
+  // the app edition and a server edition on the same computer act as one program; removing either half undoes this on the next start
+  const local = desktop()?.edition === 'app' ? desktop()?.localServer : null;
+  if (local && !s.serverUrl && local.token) { s.serverUrl = local.url; s.token = local.token; s.serverAuto = true; }
+  else if (s.serverAuto && !local?.token) { s.serverUrl = ''; s.token = ''; s.serverAuto = false; }
   saveSettings(s);
   return s;
 }

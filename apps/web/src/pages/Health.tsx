@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { CalendarCheck, CheckCircle2, ChevronDown, ClipboardPaste, Eraser, GitMerge, ImageDown, Search, X } from 'lucide-react';
+import { CalendarCheck, CheckCircle2, ChevronDown, ClipboardPaste, Eraser, GitMerge, ImageDown, Search, Tags, UserRound, X } from 'lucide-react';
 import { HealthHero } from '../components/HealthHero.tsx';
 import { AudioQualityCard, MissingAudioCard } from '../components/AudioTools.tsx';
 import { AlbumSuggestions } from '../components/AlbumSuggestions.tsx';
 import { QuickFix } from '../components/HealthQuick.tsx';
+import { HealthChips, HealthMeters, HealthTiles } from '../components/HealthViews.tsx';
+import { CatalogueCard } from '../components/CatalogueCard.tsx';
 import { BulkLinks } from '../components/BulkLinks.tsx';
 import type { LinkKind } from '../lib/bulkLinks.ts';
 import { fetchCoverFromLinks } from '../lib/cover.ts';
@@ -77,6 +79,7 @@ export function HealthPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <HealthHero lib={lib} problems={problems.length} total={checks.length} />
+      <CatalogueCard />
       <div className="grid gap-4 md:grid-cols-2"><MissingAudioCard /><AudioQualityCard /></div>
       <AlbumSuggestions />
       {checks.map((c) => (
@@ -94,10 +97,17 @@ export function HealthPage() {
                 <span className="text-xs text-muted">{!configured ? 'Needs a server (Settings).' : covers ? `${covers.done}/${covers.total} done${covers.failed ? `, ${covers.failed} failed` : ''}${covers.running ? '…' : ''}` : 'Uses each album\'s first track link. Check the results; replace any that look wrong.'}</span></div>}
               {(c.bulk || c.matchLinks) && <div className="flex flex-wrap gap-2 px-4 pb-2">{c.matchLinks && <button className="btn btn-accent" onClick={() => edit({ kind: 'match-links', id: '' })}><Search size={15} />Find YouTube Music albums</button>}{c.bulk && <button className="btn" onClick={() => setBulk(c.bulk!)}><ClipboardPaste size={15} />Paste links by album</button>}</div>}
               {c.clearDead && <div className="px-4 pb-2"><button className="btn" onClick={() => confirm(`Forget the dead-link mark on ${c.items.length} tracks?`) && c.items.forEach((i) => patch('tracks', i.id, { youtubeDead: null }))}><Eraser size={15} />Forget these marks</button></div>}
+              {(c.findImages || c.findGenres || c.mergeGenres) && <div className="flex flex-wrap gap-2 px-4 pb-2">
+                {c.findImages && <button className="btn btn-accent" onClick={() => edit({ kind: 'find-artist-images', id: '' })}><UserRound size={15} />Find pictures online</button>}
+                {c.findGenres && <button className="btn btn-accent" onClick={() => edit({ kind: 'find-genres', id: '' })}><Tags size={15} />Find genres online</button>}
+                {c.mergeGenres && <button className="btn btn-accent" onClick={() => edit({ kind: 'merge-genres', id: '' })}><GitMerge size={15} />Merge tags…</button>}</div>}
               {c.autoDates && <div className="px-4 pb-2"><button className="btn btn-accent" onClick={() => edit({ kind: 'find-dates', id: '' })}><CalendarCheck size={15} />Find dates automatically</button></div>}
               {c.addLead && <div className="px-4 pb-2"><button className="btn" onClick={() => confirm(`${c.addLead!.label} (${c.items.length})?`) && addLeadCredits(c.items)}>{c.addLead.label}</button></div>}
               {c.fix && <div className="px-4 pb-2"><button className="btn text-bad" onClick={() => confirm(`${c.fix!.label} (${c.items.length})?`) && c.items.forEach((i) => remove(c.fix!.table, i.id))}>{c.fix.label}</button></div>}
-              {c.quick ? <QuickFix check={c} /> :
+              {c.view === 'tiles' ? <HealthTiles items={c.items} lib={lib} onOpen={openItem} /> :
+              c.view === 'chips' ? <HealthChips check={c} onOpen={openItem} onRemove={(i) => c.fix && remove(c.fix.table, i.id)} /> :
+              c.view === 'meter' ? <HealthMeters items={c.items} lib={lib} onOpen={openItem} /> :
+              c.quick ? <QuickFix check={c} /> :
               c.mergeGroups ? <div className="max-h-[28rem] space-y-2 overflow-y-auto px-4 pb-3">{[...new Set(c.items.map((i) => i.group))].slice(0, 100).map((g) => { const group = c.items.filter((i) => i.group === g); return (
                 <div key={g} className="rounded-theme border border-line">
                   {group[0]?.note && <div className="border-b border-line/60 px-3 py-1 text-xs text-muted">Looks like: {group[0].note}</div>}

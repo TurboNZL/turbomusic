@@ -11,6 +11,7 @@ import { Matcher, type MatchAlbum } from './match.ts';
 import { LyricsFinder } from './lyrics.ts';
 import { similarArtists } from './recommend.ts';
 import { lookupAlbumDate } from './dates.ts';
+import { lookupAlbumGenres, lookupArtistImage } from './lookups.ts';
 import { Soloist } from './soloist.ts';
 import { ImportError, Importer } from './import.ts';
 import { serveWeb } from './web.ts';
@@ -209,6 +210,29 @@ export function createApp(
     const useSpotify = spotify.status().signedIn ? spotify : null;
     const results = [];
     for (const a of albums) results.push({ id: a.id, answer: await lookupAlbumDate(a, { spotify: useSpotify }) });
+    return c.json({ results });
+  });
+
+  // ---- gaps in the library (lookups.ts): an artist's picture (downloaded into the file store) and an album's genres, a few per request ----
+  app.post('/api/artist-images', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { artists?: unknown };
+    const artists = (Array.isArray(b.artists) ? b.artists : []).slice(0, 6).flatMap((a: any) => typeof a?.id === 'string' && typeof a.name === 'string' ? [{ id: a.id, names: [a.name, ...(Array.isArray(a.aliases) ? a.aliases : [])].filter((x: unknown): x is string => typeof x === 'string').map((x) => x.slice(0, 200)) }] : []);
+    if (!artists.length) return c.json({ error: 'nothing to look up' }, 400);
+    const results = [];
+    for (const a of artists) {
+      const hit = await lookupArtistImage(a.names);
+      let hash: string | null = null;
+      if (hit) { try { hash = await importer.fetchCover(hit.image); } catch { /* the picture could not be downloaded: counts as not found */ } }
+      results.push({ id: a.id, hash, source: hit?.source ?? null, matched: hit?.name ?? null });
+    }
+    return c.json({ results });
+  });
+  app.post('/api/album-genres', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { albums?: unknown };
+    const albums = (Array.isArray(b.albums) ? b.albums : []).slice(0, 6).flatMap((a: any) => typeof a?.id === 'string' && typeof a.album === 'string' && typeof a.artist === 'string' ? [{ id: a.id, album: a.album.slice(0, 200), artist: a.artist.slice(0, 200) }] : []);
+    if (!albums.length) return c.json({ error: 'nothing to look up' }, 400);
+    const results = [];
+    for (const a of albums) results.push({ id: a.id, genres: await lookupAlbumGenres(a) });
     return c.json({ results });
   });
 

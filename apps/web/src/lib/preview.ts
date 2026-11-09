@@ -1,6 +1,6 @@
 import { audioSource } from './files.ts';
 import { isAndroidApp } from './native.ts';
-import { middleSlice } from './rangePreview.ts';
+import { middleSlice, nativeSlice } from './rangePreview.ts';
 
 /** a preview plays this long, from the middle of the track */
 export const SNIPPET_MS = 15_000;
@@ -26,6 +26,8 @@ export const release = (p: Preview | null) => { if (!p) return; p.el.pause(); p.
 export function loadPreview(file: string, volume: number): Promise<Preview | null> {
   return audioSource(file).then(async ({ url, local }) => {
     if (!local && isAndroidApp()) { // the app's proxy cannot serve a seekable stream: take the middle of the file ourselves
+      const nat = await nativeSlice(file);
+      if (nat) return nat.whole ? streamElement(URL.createObjectURL(nat.blob), true, volume) : sliceElement(URL.createObjectURL(nat.blob), volume);
       const slice = await middleSlice(file);
       if (slice) return sliceElement(URL.createObjectURL(slice), volume);
     }

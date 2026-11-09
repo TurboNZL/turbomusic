@@ -15,6 +15,12 @@ export interface PlaybackRule {
    * The last seconds of A are then not played. Only used when the change fades at all.
    */
   crossfadeShiftSec?: number | null;
+  /**
+   * Which sides of the change fade (both default to true). `crossfadeOut: false` = the first song keeps its full volume until it is cut;
+   * `crossfadeIn: false` = the second song starts at full volume at once (the first one can still fade out underneath it).
+   */
+  crossfadeOut?: boolean | null;
+  crossfadeIn?: boolean | null;
 }
 
 export const MAX_CROSSFADE_SEC = 12;
@@ -34,6 +40,13 @@ export function crossfadeShiftFor(rules: PlaybackRule[], fromId: string, toId: s
   const rule = ruleFor(rules, fromId, source);
   if (rule && rule.trackBId === toId && typeof rule.crossfadeShiftSec === 'number' && Number.isFinite(rule.crossfadeShiftSec)) return Math.min(MAX_CROSSFADE_SHIFT_SEC, Math.max(0, rule.crossfadeShiftSec));
   return 0;
+}
+
+/** Whether the first song fades out and the second fades in for this pair (both true unless the rule turns one off). */
+export function crossfadeShapeFor(rules: PlaybackRule[], fromId: string, toId: string, source?: SourceType): { fadeOut: boolean; fadeIn: boolean } {
+  const rule = ruleFor(rules, fromId, source);
+  if (!rule || rule.trackBId !== toId) return { fadeOut: true, fadeIn: true };
+  return { fadeOut: rule.crossfadeOut !== false, fadeIn: rule.crossfadeIn !== false };
 }
 
 export type SourceType = 'album' | 'playlist' | 'track' | 'shuffle' | 'search';

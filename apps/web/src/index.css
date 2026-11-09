@@ -78,3 +78,8 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 .rc-static, .rc-static * { animation: none !important; transition: none !important; }
 .rc-static .rc-draw { stroke-dasharray: none; }
 @media (prefers-reduced-motion: reduce) { .rc-bar, .rc-float { animation: none; } .rc-rise, .rc-pop, .rc-slide-fwd, .rc-slide-back, .rc-grow, .rc-draw, .rc-shake { animation: none; } .rc-draw { stroke-dasharray: none; } }
+
+/* Hovering a cover tile darkens the whole cover in every look (a few styles used to lift only the tile's background, or nothing). */
+.bt-tile .bt-cover { transition: filter 0.18s ease; }
+.bt-tile:hover .bt-cover, .bt-tile:focus-within .bt-cover { filter: brightness(0.62); }
+@media (hover: none) { .bt-tile:hover .bt-cover { filter: none; } }

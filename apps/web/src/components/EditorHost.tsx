@@ -32,6 +32,7 @@ import { saveRules } from '../lib/profile.ts';
 import { eraPatches } from '../lib/eraOps.ts';
 import { AudioPicker, CreditsEditor, FeaturedEditor, EntityPicker, EraPicker, Field, ImagePicker, Modal, TagInput, TrackPicker } from './forms.tsx';
 import { CrossfadePick } from './CrossfadeCard.tsx';
+import { FindArtistImagesDialog, FindGenresDialog, MergeGenresDialog } from './FillGaps.tsx';
 import { AddToPlaylistDialog, AddAlbumToPlaylistDialog, NewArtistDialog, PlaylistDialog, UploadDialog } from './Dialogs.tsx';
 import { AddToAlbumDialog, ReleaseChoicePicker } from './AddToAlbum.tsx';
 
@@ -78,6 +79,8 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
   const [albumOnly, setAlbumOnly] = useState(rule?.applyToAlbumSource ?? false);
   const [fadeSec, setFadeSec] = useState<number | null>(rule?.crossfadeSec ?? null);
   const [shiftSec, setShiftSec] = useState<number>(rule?.crossfadeShiftSec ?? 0);
+  const [fadeOut, setFadeOut] = useState<boolean>(rule?.crossfadeOut !== false);
+  const [fadeIn, setFadeIn] = useState<boolean>(rule?.crossfadeIn !== false);
   const [albumSel, setAlbumSel] = useState(track?.albumId ?? '');
   const [eraIds, setEraIds] = useState<string[]>(() => (track?.albumId ? [] : track?.eraIds ?? []));
   const [choice, setChoice] = useState<ReleaseChoice>({ releaseIds: [], newRelease: false });
@@ -118,8 +121,8 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
     }
     // playback rule lives on the profile: replace this track's rule
     const others = lib.rules.filter((r) => r.trackAId !== id);
-    const rules: PlaybackRule[] = after ? [...others, { trackAId: id, trackBId: after, playFirstOnShuffle: first, applyToAlbumSource: albumOnly, crossfadeSec: fadeSec, ...(shiftSec > 0 ? { crossfadeShiftSec: shiftSec } : {}) }] : others;
-    if (rules.length !== lib.rules.length || after !== (rule?.trackBId ?? null) || first !== (rule?.playFirstOnShuffle ?? true) || albumOnly !== (rule?.applyToAlbumSource ?? false) || fadeSec !== (rule?.crossfadeSec ?? null) || shiftSec !== (rule?.crossfadeShiftSec ?? 0)) {
+    const rules: PlaybackRule[] = after ? [...others, { trackAId: id, trackBId: after, playFirstOnShuffle: first, applyToAlbumSource: albumOnly, crossfadeSec: fadeSec, ...(shiftSec > 0 ? { crossfadeShiftSec: shiftSec } : {}), ...(fadeOut ? {} : { crossfadeOut: false }), ...(fadeIn ? {} : { crossfadeIn: false }) }] : others;
+    if (rules.length !== lib.rules.length || after !== (rule?.trackBId ?? null) || first !== (rule?.playFirstOnShuffle ?? true) || albumOnly !== (rule?.applyToAlbumSource ?? false) || fadeSec !== (rule?.crossfadeSec ?? null) || shiftSec !== (rule?.crossfadeShiftSec ?? 0) || fadeOut !== (rule?.crossfadeOut !== false) || fadeIn !== (rule?.crossfadeIn !== false)) {
       saveRules(lib, rules);
     }
     onClose();
@@ -166,7 +169,7 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
         <TrackPicker value={after} onChange={setAfter} exclude={id} />
         {after && <><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={first} onChange={(e) => setFirst(e.target.checked)} />Keep them together when shuffling</label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={albumOnly} onChange={(e) => setAlbumOnly(e.target.checked)} />Only when playing from an album</label>
-          <div className="space-y-1 text-sm"><div>Crossfade into it</div><CrossfadePick value={fadeSec} onChange={setFadeSec} shift={shiftSec} onShift={setShiftSec} /></div></>}
+          <div className="space-y-1 text-sm"><div>Crossfade into it</div><CrossfadePick value={fadeSec} onChange={setFadeSec} shift={shiftSec} onShift={setShiftSec} shape={{ out: fadeOut, in: fadeIn }} onShape={(p) => { if (p.crossfadeOut !== undefined) setFadeOut(p.crossfadeOut); if (p.crossfadeIn !== undefined) setFadeIn(p.crossfadeIn); }} /></div></>}
       </div>
     </Modal>
   );
@@ -553,6 +556,9 @@ export function EditorFor({ target, close }: { target: EditTarget; close: () => 
   if (target.kind === 'new-playlist') return <PlaylistDialog key="new-playlist" onClose={close} />;
   if (target.kind === 'playlist') return <PlaylistDialog key={key} playlistId={target.id} onClose={close} />;
   if (target.kind === 'add-to-playlist') return <AddToPlaylistDialog key={key} trackId={target.id} onClose={close} />;
+  if (target.kind === 'find-artist-images') return <FindArtistImagesDialog key="find-artist-images" onClose={close} />;
+  if (target.kind === 'find-genres') return <FindGenresDialog key="find-genres" onClose={close} />;
+  if (target.kind === 'merge-genres') return <MergeGenresDialog key="merge-genres" onClose={close} />;
   if (target.kind === 'find-dates') return <FindDatesDialog key="find-dates" onClose={close} />;
   if (target.kind === 'merge-tracks') return <MergeTracksDialog key={key} ids={target.id.split(',').filter(Boolean)} onClose={close} />;
   if (target.kind === 'add-album-to-playlist') return <AddAlbumToPlaylistDialog key={key} albumId={target.id} onClose={close} />;

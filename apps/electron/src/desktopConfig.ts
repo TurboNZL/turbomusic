@@ -11,6 +11,8 @@ export interface DesktopConfig {
   customFrame: boolean;
   /** the server module is installed: this app runs its own library server. Unset = the edition's default (on in the full edition, off in the app edition). */
   serverModule?: boolean;
+  /** the access token of a server edition on this computer, kept after a one-time administrator prompt read it (a Linux service keeps its token private) */
+  localToken?: string;
   /** how Chromium starts its graphics (gpuModes.ts): "auto" tries them in turn, or a mode id */
   gpuMode: string;
   /** where Automatic is in its search, and whether it has settled */
@@ -32,6 +34,7 @@ export function loadDesktopConfig(userData: string, env: NodeJS.ProcessEnv = pro
     port: Number.isInteger(port) && port >= 1 && port <= 65535 ? port : DESKTOP_PORT,
     customFrame: saved.customFrame === true,
     serverModule: typeof saved.serverModule === 'boolean' ? saved.serverModule : undefined,
+    localToken: typeof saved.localToken === 'string' ? saved.localToken : undefined,
     gpuMode: typeof saved.gpuMode === 'string' ? saved.gpuMode : 'auto',
     gpuAuto: { step: Number(saved.gpuAuto?.step) || 0, done: saved.gpuAuto?.done === true },
   };

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Pencil, Plus, X } from 'lucide-react';
+import { ArrowRight, GitMerge, Pencil, Plus, X } from 'lucide-react';
 import type { PlaybackRule } from '@turbomusic/core';
 import { useLibrary } from '../lib/derive.ts';
 import { useStore } from '../lib/store.ts';
@@ -32,7 +32,7 @@ export function PlaybackRules() {
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.playFirstOnShuffle} onChange={(e) => setRule(i, { playFirstOnShuffle: e.target.checked })} />Keep together when shuffling</label>
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.applyToAlbumSource} onChange={(e) => setRule(i, { applyToAlbumSource: e.target.checked })} />Only when playing from an album</label>
             </div>
-          <div className="space-y-0.5 text-xs text-muted"><div>Crossfade into it</div><CrossfadePick value={r.crossfadeSec} onChange={(v) => setRule(i, { crossfadeSec: v })} shift={r.crossfadeShiftSec} onShift={(v) => setRule(i, { crossfadeShiftSec: v })} /></div>
+          <div className="space-y-0.5 text-xs text-muted"><div>Crossfade into it</div><CrossfadePick value={r.crossfadeSec} onChange={(v) => setRule(i, { crossfadeSec: v })} shift={r.crossfadeShiftSec} onShift={(v) => setRule(i, { crossfadeShiftSec: v })} shape={{ out: r.crossfadeOut, in: r.crossfadeIn }} onShape={(p) => setRule(i, p)} /></div>
         </div>))}
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-start">
         <TrackPicker value={a} onChange={setA} /><ArrowRight size={16} className="mt-2.5 hidden text-muted sm:block" /><TrackPicker value={b} onChange={setB} exclude={a ?? undefined} />
@@ -45,6 +45,7 @@ export function PlaybackRules() {
 export function Vocabulary() {
   const lib = useLibrary();
   const { put, remove } = useStore();
+  const edit = useEditor((s) => s.open);
   const [genre, setGenre] = useState('');
   const [role, setRole] = useState('');
   const genreUse = new Map<string, number>(), roleUse = new Map<string, number>();
@@ -62,7 +63,7 @@ export function Vocabulary() {
   };
   return (
     <div className="space-y-4">
-      <div className="space-y-2"><div className="text-sm font-medium">Genres</div>{chips(lib.genres, genreUse, 'genres')}
+      <div className="space-y-2"><div className="flex items-center justify-between gap-2 text-sm font-medium"><span>Genres</span><button className="btn !py-1 text-xs" onClick={() => edit({ kind: 'merge-genres', id: '' })}><GitMerge size={13} />Merge tags…</button></div>{chips(lib.genres, genreUse, 'genres')}
         <div className="flex max-w-sm gap-2"><input className="input" placeholder="New genre" value={genre} onChange={(e) => setGenre(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add('genres', genre, lib.genres, () => setGenre(''))} />
           <button className="btn" onClick={() => add('genres', genre, lib.genres, () => setGenre(''))}><Plus size={15} />Add</button></div></div>
       <div className="space-y-2"><div className="text-sm font-medium">Credit roles</div>{chips(lib.roles, roleUse, 'roleCategories')}

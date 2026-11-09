@@ -4,10 +4,12 @@ import { contextBridge, ipcRenderer } from 'electron';
  * What the web client may know about the desktop app. `token` lets a fresh install connect to its own server without typing
  * anything; the other calls open the folder dialogs, which only the main process can do.
  */
-const info = ipcRenderer.sendSync('turbomusic:info') as { token: string; version: string; dataDir: string; platform: string; desktopEnv: string; port: number; customFrame: boolean; edition: 'full' | 'app'; serverModule: boolean };
+const info = ipcRenderer.sendSync('turbomusic:info') as { token: string; version: string; dataDir: string; platform: string; desktopEnv: string; port: number; customFrame: boolean; edition: 'full' | 'app'; serverModule: boolean; localServer: { url: string; token: string } | null };
 
 contextBridge.exposeInMainWorld('turbomusicDesktop', {
   ...info,
+  /** look for a server edition on this computer again; `askAdmin` lets a Linux service's token be read once through a system prompt */
+  findLocalServer: (askAdmin = false) => ipcRenderer.invoke('turbomusic:local-server', askAdmin) as Promise<{ url: string; token: string } | null>,
   setServerModule: (on: boolean) => ipcRenderer.invoke('turbomusic:server-module', on) as Promise<boolean>,
   chooseLibraryFolder: () => ipcRenderer.invoke('turbomusic:choose-folder') as Promise<string | null>,
   setAccess: (serverUrl: string, id: string, secret: string) => ipcRenderer.send('turbomusic:access', serverUrl, id, secret),

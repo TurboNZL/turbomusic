@@ -31,6 +31,10 @@ export async function shouldBeam(): Promise<boolean> {
 }
 
 let mode: 'none' | 'native' | 'audio' = 'none';
+/** the person wants to hear the stream (Spotify is playing on the server's Soloist): a stream that dies is then started again, not left silent */
+let wanted = false;
+let retries = 0, retryTimer: ReturnType<typeof setTimeout> | undefined, watchdog: ReturnType<typeof setInterval> | undefined;
+let lastTime = -1, stuckSince = 0, nativeIdleSince = 0;
 let el: HTMLAudioElement | null = null;
 let onError: (message: string) => void = () => {};
 export const setBeamErrorListener = (f: (message: string) => void) => { onError = f; };
@@ -39,7 +43,11 @@ export const beamActive = () => mode !== 'none';
 
 /** Start playing the stream (does nothing when it already plays, or when this device should not beam). */
 export async function startBeam(): Promise<boolean> {
-  if (mode !== 'none') return true;
+  wanted = true;
+  if (mode !== 'none') {
+    // "already playing" is only true while the stream really flows: a live stream that ended (the connection dropped, ffmpeg restarted) must be started again
+    if (streamLooksDead()) dropStream(); else return true;
+  }
   if (!(await shouldBeam())) return false;
   if (mode !== 'none') return true; // started while we checked
   const url = api().beamUrl();
@@ -54,19 +62,65 @@ export async function startBeam(): Promise<boolean> {
   mode = 'audio';
   el ??= new Audio();
   el.src = url; el.volume = volume;
-  el.onerror = () => { if (mode === 'audio') { onError('The sound stream from your server stopped. Check Soloist in Settings > Spotify.'); stopBeam(); } };
-  try { await el.play(); }
+  el.onerror = () => { if (mode === 'audio') retrySoon('error'); };
+  el.onended = () => { if (mode === 'audio') retrySoon('ended'); }; // a live stream never ends by itself: the connection was cut
+  startWatchdog();
+  try { await el.play(); retries = 0; }
   catch (e) { mode = 'none'; onError((e as Error)?.name === 'NotAllowedError' ? 'The browser blocked starting the sound by itself: tap anywhere on the page, then press play.' : 'Could not play the sound stream from your server.'); return false; }
   return true;
 }
 
-export function stopBeam(): void {
+function streamLooksDead(): boolean {
+  if (mode === 'audio') return !el || el.ended || !!el.error || el.paused;
+  return false; // the app's player reports its own trouble (beamNativeEvent)
+}
+/** stop the sound without forgetting that it is wanted */
+function dropStream(): void {
   if (mode === 'native') nativeAudio.stop();
-  else if (mode === 'audio' && el) { el.onerror = null; el.pause(); el.removeAttribute('src'); el.load(); }
+  else if (mode === 'audio' && el) { el.onerror = null; el.onended = null; el.pause(); el.removeAttribute('src'); el.load(); }
   mode = 'none';
+}
+/** Start the stream again after a short wait (longer each time, up to 8 s); gives up with a message after a few tries in a row. */
+function retrySoon(why: string): void {
+  if (!wanted || retryTimer) return;
+  dropStream();
+  if (retries >= 6) { wanted = false; stopWatchdog(); onError(`The sound stream from your server keeps stopping (${why}). Check Soloist in Settings > Spotify.`); return; }
+  const wait = Math.min(8000, 700 * 2 ** retries++);
+  retryTimer = setTimeout(() => { retryTimer = undefined; if (wanted) void startBeam(); }, wait);
+}
+/** Plays-but-silent check: the element says "playing" yet its clock has not moved for a while (a stalled connection that never closes). */
+function startWatchdog(): void {
+  if (watchdog) return;
+  watchdog = setInterval(() => {
+    if (!wanted) return;
+    if (mode === 'audio' && el && !el.paused) {
+      if (el.currentTime !== lastTime) { lastTime = el.currentTime; stuckSince = 0; retries = 0; }
+      else if (!stuckSince) stuckSince = Date.now();
+      else if (Date.now() - stuckSince > 9000) { stuckSince = 0; lastTime = -1; retrySoon('stalled'); }
+    }
+  }, 3000);
+}
+function stopWatchdog(): void { if (watchdog) clearInterval(watchdog); watchdog = undefined; lastTime = -1; stuckSince = 0; }
+
+/** Events of the Android app's player about the stream: when it ends, errors or sits idle while Spotify plays, start it again. */
+export function beamNativeEvent(e: { t: string; playing?: boolean; buffering?: boolean; message?: string }): void {
+  if (mode !== 'native' || !wanted) return;
+  if (e.t === 'ended') { retrySoon('ended'); return; }
+  if (e.t === 'state') {
+    if (e.playing || e.buffering) { nativeIdleSince = 0; retries = 0; return; }
+    if (!nativeIdleSince) nativeIdleSince = Date.now();
+    else if (Date.now() - nativeIdleSince > 6000) { nativeIdleSince = 0; retrySoon('idle'); }
+  }
+}
+
+export function stopBeam(): void {
+  wanted = false;
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer = undefined; }
+  retries = 0; stopWatchdog();
+  dropStream();
 }
 
 export function setBeamVolume(v: number): void { if (el) el.volume = v; }
 
 /** an error reported by the Android app's player about the stream */
-export function beamFailed(message: string): void { if (mode === 'native') { mode = 'none'; onError(`The sound stream from your server could not play (${message}).`); } }
+export function beamFailed(message: string): void { if (mode === 'native') { if (wanted && retries < 6) retrySoon('error'); else { mode = 'none'; onError(`The sound stream from your server could not play (${message}).`); } } }
