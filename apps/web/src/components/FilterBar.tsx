@@ -81,14 +81,14 @@ export function FilterBar({ chips, onChips, text, onText, scope, placeholder = '
 
   return (
     <>
-      <div ref={box} role="search" className={cn('input flex min-h-[2.25rem] min-w-[min(16rem,100%)] flex-1 cursor-text flex-wrap items-center gap-1.5 !py-1 sm:max-w-xl', focus && 'bt-focus')} onClick={() => input.current?.focus()}>
+      <div ref={box} role="search" className={cn('input flex min-h-[2.25rem] min-w-0 flex-1 sm:min-w-[min(16rem,100%)] cursor-text flex-wrap items-center gap-1.5 !py-1 sm:max-w-xl', focus && 'bt-focus')} onClick={() => input.current?.focus()}>
         <Search size={14} className="shrink-0 text-muted" />
         {chips.map((c, i) => (
           <span key={`${c.key}${c.value}`} className="chip gap-1 !bg-accent/15 !text-fg">
             <span className="text-muted">{c.key}:</span>{c.label}
             <button type="button" aria-label={`Remove ${c.key} filter ${c.label}`} className="text-muted hover:text-fg" onClick={(e) => { e.stopPropagation(); onChips(chips.filter((_, j) => j !== i)); }}><X size={12} /></button>
           </span>))}
-        <input ref={input} className="min-w-[7rem] flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-muted" placeholder={chips.length ? 'Add a filter…' : placeholder} aria-label="Search and filter"
+        <input ref={input} className="min-w-[3.5rem] flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-muted" placeholder={chips.length ? 'Add a filter…' : placeholder} aria-label="Search and filter"
           value={text} onChange={(e) => onText(e.target.value)} onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 120)} onKeyDown={onKey} />
         {(chips.length > 0 || text) && <button type="button" className="shrink-0 text-xs text-muted hover:text-fg" onClick={(e) => { e.stopPropagation(); onChips([]); onText(''); }}>Clear</button>}
       </div>

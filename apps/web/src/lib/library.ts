@@ -32,13 +32,19 @@ export interface Track extends Omit<Row<TrackData>, 'artistId'> {
   /** when its album came out (default release's date), "YYYY", "YYYY-MM" or "YYYY-MM-DD"; null if unknown */
   releaseDate: string | null;
   allGenres: string[];
+  /** a pre-release version tied to a released track (`title` ends in " [U]"); null = an ordinary track. Only valid links count. */
+  preReleaseOf: string | null;
+  /** on a released track: the pre-release versions tied to it (hidden from the lists, see `Library.preReleases`) */
+  preReleaseIds: string[];
 }
 
 /** An era is a collection; these are what is in it, legacy single-era fields folded in. Albums' tracks are in it through their album. */
 export type Era = Row<EraData> & { albumIds: string[]; trackIds: string[]; playlistIds: string[] };
 
 export interface Library {
+  /** every track that is its own entry: tied pre-releases are NOT here (they are in `preReleases`, and still in `trackById`) */
   tracks: Track[];
+  preReleases: Track[];
   trackById: Map<string, Track>;
   artists: Row<ArtistData>[];
   artistById: Map<string, Row<ArtistData>>;
@@ -142,17 +148,28 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const albumOf = new Map<string, Row<AlbumData>>();
   const albumsById = by(coveredAlbums);
   const trackIdsByAlbum = new Map<string, { id: string; order: number }[]>();
+  // pre-release versions: tied to a released track that exists and is not itself a pre-release
+  const rawTrackById = new Map(rawTracks.map((t) => [t.id, t]));
+  const tiedTo = new Map<string, string>(), preOf = new Map<string, string[]>();
+  for (const t of rawTracks) {
+    const to = t.preReleaseOf;
+    if (!to || to === t.id) continue;
+    const target = rawTrackById.get(to);
+    if (!target || target.preReleaseOf) continue;
+    tiedTo.set(t.id, to); preOf.set(to, [...(preOf.get(to) ?? []), t.id]);
+  }
   for (const t of rawTracks) {
     for (const link of t.albums ?? []) {
       if (!albumsById.has(link.albumId)) continue;
       if (!albumOf.has(t.id)) albumOf.set(t.id, albumsById.get(link.albumId)!);
+      if (tiedTo.has(t.id)) continue; // a tied pre-release is not a track of the album
       const list = trackIdsByAlbum.get(link.albumId) ?? [];
       list.push({ id: t.id, order: link.order });
       trackIdsByAlbum.set(link.albumId, list);
     }
   }
 
-  const tracks: Track[] = rawTracks.map((t) => {
+  const allTracks: Track[] = rawTracks.map((t) => {
     const r = ranked.get(t.id)!;
     const rating = ratings.get(t.id) ?? 0;
     const album = albumOf.get(t.id) ?? null;
@@ -166,7 +183,11 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     const artistId = leadArtistId(credits, t.artistId ?? '');
     const leads = leadsOf(credits, t.artistId, artistById);
     return {
-      ...t, credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, rating, effectiveRating: eff, tenStarRank: null,
+      ...t, title: tiedTo.has(t.id) ? `${t.title} [U]` : t.title,
+      // the released track plays a tied pre-release's audio only when that was chosen by hand
+      file: t.primaryAudioFrom && tiedTo.get(t.primaryAudioFrom) === t.id ? rawTrackById.get(t.primaryAudioFrom)?.file ?? t.file : t.file,
+      preReleaseOf: tiedTo.get(t.id) ?? null, preReleaseIds: preOf.get(t.id) ?? [],
+      credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, rating, effectiveRating: eff, tenStarRank: null,
       artistName: namesOf(leads),
       albumId: album?.id ?? null, albumTitle: album?.title ?? null, cover: t.cover || album?.cover || null,
       releaseDate: album ? earliestRelease.get(t.id) ?? albumDate.get(album.id) ?? null : t.releaseDate || null, // a single keeps its own
@@ -174,8 +195,10 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
       allGenres: genres ?? [],
     };
   });
+  const tracks = allTracks.filter((t) => !t.preReleaseOf);
+  const preReleases = allTracks.filter((t) => !!t.preReleaseOf);
   tenStarRanks(tracks);
-  const trackById = by(tracks);
+  const trackById = by(allTracks);
 
   // Legacy data has album_tracks.order = 0 almost everywhere, but every album has an ordered release,
   // so a track's position comes from the album's default release (else its longest one), then `order`.
@@ -200,7 +223,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   });
 
   return {
-    tracks, trackById, artists, artistById, albums, albumById: by(albums),
+    tracks, preReleases, trackById, artists, artistById, albums, albumById: by(albums),
     eras: eras, eraById: by(eras), singles: tracks.filter((t) => !t.albumId),
     releases, releaseNames: live<ReleaseNameData>(rows.releaseNames), playlists: live<PlaylistData>(rows.playlists),
     genres: live<GenreData>(rows.genres), roles: live<RoleCategoryData>(rows.roleCategories), timeline: live<TimelineData>(rows.timeline), groups: live<GroupData>(rows.groups), noteCategories: live<NoteCategoryData>(rows.noteCategories), legacyNotes: live<NoteData>(rows.notes),

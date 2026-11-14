@@ -4,6 +4,7 @@ import { RANGES } from '../lib/listenStats.ts';
 import { DEFAULT_FILTER, activeCount, platformsOf, type DayPart, type StatsFilter } from '../lib/statsFilter.ts';
 import type { Listen } from '../lib/listens.ts';
 import { cn } from '../lib/cn.ts';
+import { useLibrary } from '../lib/derive.ts';
 import { FilterBar } from './FilterBar.tsx';
 
 const LENGTHS = [{ ms: 0, label: 'Any length' }, { ms: 10_000, label: '10 s or more' }, { ms: 30_000, label: '30 s or more' }, { ms: 60_000, label: '1 min or more' }, { ms: 120_000, label: '2 min or more' }];
@@ -19,6 +20,7 @@ export function StatsFilters({ value, onChange, listens }: { value: StatsFilter;
   const platforms = useMemo(() => platformsOf(listens), [listens]);
   const set = (p: Partial<StatsFilter>) => onChange({ ...value, ...p });
   const n = activeCount(value);
+  const hasPre = useLibrary().preReleases.length > 0;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -45,6 +47,7 @@ export function StatsFilters({ value, onChange, listens }: { value: StatsFilter;
             <select className="input !w-auto !py-1 !text-xs" aria-label="Platform" value={value.platform} onChange={(e) => set({ platform: e.target.value })}><option value="">Any platform</option>{platforms.map((p) => <option key={p} value={p}>{p}</option>)}</select>
             <select className="input !w-auto !py-1 !text-xs" aria-label="Time of day" value={value.dayPart} onChange={(e) => set({ dayPart: e.target.value as DayPart })}>{PARTS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
             <select className="input !w-auto !py-1 !text-xs" aria-label="Days" value={value.days} onChange={(e) => set({ days: e.target.value as StatsFilter['days'] })}><option value="all">Every day</option><option value="weekdays">Weekdays</option><option value="weekends">Weekends</option></select>
+            {hasPre && <label className="flex items-center gap-1.5 text-xs text-muted" title="Plays of pre-release versions (marked [U]) count as plays of the released track"><input type="checkbox" checked={!!value.combinePre} onChange={(e) => set({ combinePre: e.target.checked })} />Combine pre-release versions with the released track</label>}
             <label className="flex items-center gap-1.5 text-xs text-muted"><input type="checkbox" checked={value.libraryOnly} onChange={(e) => set({ libraryOnly: e.target.checked })} />Only tracks in my library</label>
           </div>
           <FilterBar scope="tracks" chips={value.chips} onChips={(chips) => set({ chips })} text={value.text} onText={(text) => set({ text })} placeholder="Words, or filter: artist, album, era, genre, rating…" />

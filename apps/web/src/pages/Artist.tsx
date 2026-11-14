@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, MoreHorizontal, Pencil, Play, Shuffle } from 'lucide-react';
-import { shuffleWithRules } from '@turbomusic/core';
-import { usePlayer } from '../lib/player.ts';
+import { BarChart3, MoreHorizontal, Pencil } from 'lucide-react';
+import { PlayControls } from '../components/PlayControls.tsx';
 import { Link, useParams } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { cn } from '../lib/cn.ts';
@@ -28,7 +27,6 @@ export function ArtistPage() {
   const { id } = useParams();
   const lib = useLibrary();
   const edit = useEditor((s) => s.open);
-  const play = usePlayer((s) => s.play);
   const menu = useMenu();
   const artistItems = useArtistMenuItems();
   const albumItems = useAlbumMenuItems();
@@ -68,8 +66,7 @@ export function ArtistPage() {
           {akaLine(artist.aliases) && <div className="text-sm text-muted" title={artist.aliases!.join(', ')}>{akaLine(artist.aliases)}</div>}
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{albums.length} album{albums.length === 1 ? "" : "s"}</Link>{singles.length > 0 && <> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{singles.length} single{singles.length === 1 ? "" : "s"}</Link></>} · <Link className="hover:text-fg hover:underline" to={where('tracks')}>{tracks.length} tracks</Link></div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'search', id: null })}><Play size={16} fill="currentColor" />Play</button>
-            <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'search', id: null }); }}><Shuffle size={16} />Shuffle</button>
+            <PlayControls ids={playable} source={{ type: 'search', id: null }} label="this artist" />
             <Link className="btn btn-ghost" to={statsPath('artist', artist.id)}><BarChart3 size={15} />Stats</Link>
             <button className="btn btn-ghost" onClick={() => edit({ kind: 'artist', id: artist.id })}><Pencil size={15} />Edit</button>
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" onClick={(e) => menu.toggle(e.currentTarget, 'artist', artistItems(artist.id), `Actions for ${artist.name}`)}><MoreHorizontal size={16} /></button></div></div>

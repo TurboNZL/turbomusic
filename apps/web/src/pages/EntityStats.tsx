@@ -44,7 +44,8 @@ export function EntityStatsPage() {
   const ids = kind ? entityTrackIds(lib, kind, id) : null;
   // plays shorter than the shortest length chosen on the Stats page (30 s by default) do not count here either
   const minMs = useMemo(() => loadFilter().minMs, []);
-  const stats = useMemo(() => (ids ? entityStats(lib, ids, minMs) : null), [lib, ids, minMs]);
+  const [combine, setCombine] = useState(false);
+  const stats = useMemo(() => (ids ? entityStats(lib, ids, minMs, combine) : null), [lib, ids, minMs, combine]);
   if (!kind || !ids || !stats) return <div className="text-muted">Nothing to show stats for. <Link className="underline" to="/stats">Stats</Link></div>;
 
   const track = kind === 'track' ? lib.trackById.get(id) : undefined;
@@ -73,6 +74,7 @@ export function EntityStatsPage() {
         <div className="min-w-0 space-y-2">
           <div className="text-xs uppercase tracking-wider text-muted">{KIND_LABEL[kind]} stats</div>
           <h1 className="text-3xl font-bold leading-tight">{title}</h1>
+          {ids.some((tid) => lib.trackById.get(tid)?.preReleaseIds.length) && <label className="flex items-center gap-1.5 text-sm text-muted"><input type="checkbox" checked={combine} onChange={(e) => setCombine(e.target.checked)} />Include the plays of pre-release versions ([U])</label>}
           <div className="text-sm text-muted">
             {track && <><ArtistLinks leads={track.leads} featured={track.featured} />{track.albumTitle && <> · {track.albumTitle}</>}</>}
             {album && <><ArtistLinks leads={album.leads} /> · {plural(album.trackIds.length, 'track')}</>}

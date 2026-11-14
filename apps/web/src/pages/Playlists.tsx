@@ -1,8 +1,8 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { statsPath } from '../lib/entityStats.ts';
-import { ArrowLeft, BarChart3, Search, ArrowDown, ArrowUp, Link2, ListEnd, ListStart, RefreshCw, Pencil, Play, Plus, Shuffle, Sparkles, X } from 'lucide-react';
-import { shuffleWithRules } from '@turbomusic/core';
+import { ArrowLeft, BarChart3, Search, ArrowDown, ArrowUp, Link2, RefreshCw, Pencil, Play, Plus, Sparkles, X } from 'lucide-react';
+import { PlayControls } from '../components/PlayControls.tsx';
 import { moveTrack, removeTrack } from '../lib/defaults.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
@@ -37,14 +37,8 @@ export function PlaylistsPage() {
   const menu = useMenu();
   useEffect(() => setWithin(''), [openId]);
   const menuItems = usePlaylistMenuItems();
-  // one switch instead of a Shuffle button next to every Play: it applies to Play, Then: replace and Add to Then
-  const [shuffleOn, setShuffleOn] = useState(() => { try { return localStorage.getItem('turbomusic.playlistShuffle') === '1'; } catch { return false; } });
-  const toggleShuffle = () => setShuffleOn((v) => { const n = !v; try { localStorage.setItem('turbomusic.playlistShuffle', n ? '1' : '0'); } catch { /* private window */ } return n; });
   const [adding, setAdding] = useState('');
   const [find, setFind] = useState('');
-  const replaceRest = usePlayer((s) => s.replaceRest);
-  const appendRest = usePlayer((s) => s.appendRest);
-  const hasCurrent = usePlayer((s) => !!s.queue.currentId);
   const deferredFind = useDeferredValue(find); // typing stays smooth: the lists below follow a moment later
   // two automatic playlists (thumbs up / thumbs down) come first; they are read-only
   const quick = useMemo(() => quickPlaylists(lib), [lib]);
@@ -63,7 +57,6 @@ export function PlaylistsPage() {
   const albums = useMemo(() => (open && albumMode ? playlistAlbums(lib, open) : []), [lib, open, albumMode]);
   const tracks = useMemo(() => (open ? playlistTrackIds(lib, open).map((id) => lib.trackById.get(id)!) : []), [lib, open]);
   const playable = useMemo(() => tracks.filter(canPlay).map((t) => t.id), [tracks]);
-  const ordered = () => (shuffleOn ? shuffleWithRules(playable, lib.rules) : playable);
   const offlineHashes = useMemo(() => tracks.flatMap((t) => (t.file ? [t.file] : [])), [tracks]);
   // a filter box inside the open playlist: title, artist and album (reordering is off while it is on: positions would be of the filtered list)
   const [within, setWithin] = useState('');
@@ -128,12 +121,7 @@ export function PlaylistsPage() {
               <h2 className="text-2xl font-bold leading-tight">{open.name}</h2>
               {open.description && <p className="max-w-xl whitespace-pre-wrap text-sm text-muted">{open.description}</p>}
               <div className="flex flex-wrap gap-2 pt-1">
-                <button className="btn btn-accent" disabled={!playable.length} onClick={() => { const o = ordered(); play(o[0], o, { type: 'playlist', id: open.id }); }}><Play size={16} fill="currentColor" />Play</button>
-                <button className={cn('btn', shuffleOn && 'btn-accent')} aria-pressed={shuffleOn} onClick={toggleShuffle} title={shuffleOn ? 'Shuffle is on: Play, Then and Add to Then mix the playlist' : 'Shuffle is off: they keep the playlist order'}><Shuffle size={16} />Shuffle {shuffleOn ? 'on' : 'off'}</button>
-                {hasCurrent && <>
-                  <button className="btn" disabled={!playable.length} title="Keep playing the current track, then continue with this playlist instead of what was coming next" onClick={() => replaceRest(ordered(), { type: 'playlist', id: open.id })}><ListStart size={16} />Then: replace</button>
-                  <button className="btn btn-ghost" disabled={!playable.length} title="Add this playlist to the end of what is coming next" onClick={() => appendRest(ordered())}><ListEnd size={16} />Add to Then</button>
-                </>}
+                <PlayControls ids={playable} source={{ type: 'playlist', id: open.id }} label="this playlist" />
                 {!readOnly && <Link className="btn btn-ghost" to={statsPath('playlist', open.id)}><BarChart3 size={15} />Stats</Link>}
                 {!readOnly && <button className="btn btn-ghost" onClick={() => edit({ kind: 'playlist', id: open.id })}><Pencil size={15} />Edit</button>}
                 <KeepOffline hashes={offlineHashes} />
