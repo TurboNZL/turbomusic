@@ -93,7 +93,7 @@ export function PlayerBar() {
           <input type="range" aria-label="Volume" className="bt-range bt-hit w-24" style={pct(v.volume, 1)} min={0} max={1} step={0.01} value={v.volume} onChange={(e) => v.setVolume(Number(e.target.value))} />
         </div>
       </div>
-      <div className="h-0.5 w-full bg-line/60 sm:hidden" aria-hidden><div className="h-full bg-accent" style={{ width: `${v.duration > 0 ? Math.min(100, (v.time / v.duration) * 100) : 0}%` }} /></div>
+      <div className="bt-pprog h-0.5 w-full bg-line/60 !p-0 sm:hidden" aria-hidden><div className="h-full bg-accent" style={{ width: `${v.duration > 0 ? Math.min(100, (v.time / v.duration) * 100) : 0}%` }} /></div>
       <CoverPreview anchor={coverBtn} track={track} />
       <MiniQueue anchor={queueBtn} />
       <DevicesPopover anchor={devBtn} />
