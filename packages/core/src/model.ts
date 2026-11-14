@@ -89,6 +89,13 @@ export interface TrackData {
   bpm: number | null;
   key: string | null;
   memories: number;
+  /**
+   * Pre-release (leaked, demo, unreleased) version of another track: the id of the released track it is tied to. While tied it keeps its own info and
+   * stats, but is hidden from every list, shuffle and ranking (it is not a separate entry); clearing this makes it an ordinary track again.
+   */
+  preReleaseOf?: string | null;
+  /** On the RELEASED track: the id of a tied pre-release whose audio file is used as this track's primary audio. Set by hand, never automatically. */
+  primaryAudioFrom?: string | null;
   syncWithAlbumCredits: boolean;
   queueRules: Record<string, unknown>;
 }

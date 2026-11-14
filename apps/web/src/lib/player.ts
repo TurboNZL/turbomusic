@@ -8,7 +8,7 @@ import { BEAM_ID, beamActive, beamFailed, beamNativeEvent, setBeamVolume } from 
 import { getLibrary } from './derive.ts';
 import { useStore } from './store.ts';
 import { addEqElement, resumeEq, setEq } from './eq.ts';
-import { clampShift, fadeDelayMs, fadeGains, fadeLength, MIN_FADE_SEC, shouldPrepare } from './crossfadeMath.ts';
+import { clampShift, fadeDelayMs, fadeGains, fadeLength, GAPLESS_OVERLAP_SEC, MIN_FADE_SEC, shouldPrepare } from './crossfadeMath.ts';
 import { eqConfig } from './eqConfig.ts';
 import { isFlat } from './eqPresets.ts';
 import { refreshSpotifyStatus, spotifyCan, spotifyEngine, spotifyUriOf } from './spotifyPlayer.ts';
@@ -167,7 +167,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
     let { fadeOut, fadeIn } = crossfadeShapeFor(rules(), q.currentId, next, src);
     // a cut moved earlier: the end of the first song is clipped off and the second starts at once, both sides hard
     if (!(wanted > 0) && shift > 0) { wanted = MIN_FADE_SEC; fadeOut = false; fadeIn = false; }
-    return wanted > 0 ? { nextId: next, wanted, shift, fadeOut, fadeIn } : null;
+    // a plain cut (no fade asked for): still hand over through the preloaded spare so there is no gap between songs, like the Android player's gapless playlist
+    if (!(wanted > 0)) { wanted = GAPLESS_OVERLAP_SEC; fadeOut = false; fadeIn = false; }
+    return { nextId: next, wanted, shift, fadeOut, fadeIn };
   }
   async function prepare(id: string) {
     dropPrep();

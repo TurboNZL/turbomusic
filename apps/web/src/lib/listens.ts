@@ -74,3 +74,17 @@ export function buildListens(lib: Library): Listen[] {
   cache.set(lib, out);
   return out;
 }
+
+/**
+ * Plays of a tied pre-release version counted as plays of the released track (its title, artist and album replace the "[U]" version's).
+ * Without this each pre-release is its own entry in the stats, marked "[U]".
+ */
+export function combinePreReleases(lib: Library, listens: Listen[]): Listen[] {
+  if (!lib.preReleases.length) return listens;
+  return listens.map((l) => {
+    const pre = l.trackId ? lib.trackById.get(l.trackId) : undefined;
+    const t = pre?.preReleaseOf ? lib.trackById.get(pre.preReleaseOf) : undefined;
+    if (!t) return l;
+    return { ...l, trackId: t.id, artistId: t.leads[0]?.id ?? null, albumId: t.albumId ?? null, title: t.title, artist: t.leads[0]?.name ?? t.artistName, album: t.albumTitle ?? '' };
+  });
+}

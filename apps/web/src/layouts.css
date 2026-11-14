@@ -5,18 +5,21 @@
 
 /* ---- toolbar ---- */
 /* Standard v1 layout (data-layout=toolbar, any look): a 16rem side bar with the library pages only; the brand wordmark below belongs to the Standard v1 look */
-[data-layout="toolbar"] .bt-side.bt-shell { width: 16rem; padding: 0 1rem 1rem; }
-/* Toolbar: text links on the left, a 16rem pill search and icon buttons on the right (the Top tabs layout shares the link styles) */
-[data-layout="toolbar"] .bt-toplink { font-size: 0.75rem; line-height: 1rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: hsl(var(--muted)); transition: color var(--dur) var(--ease); }
-[data-layout="toolbar"] .bt-toplink:hover { color: color-mix(in srgb, hsl(var(--fg)) 80%, hsl(var(--bg))); }
-[data-layout="toolbar"] .bt-toplink[aria-current="page"] { color: hsl(var(--fg)); }
-[data-layout="toolbar"] .bt-top .bt-search .input { height: 2.25rem; border-radius: 9999px; background: hsl(var(--raised)); }
-[data-layout="toolbar"] .bt-top .bt-search .input:focus { box-shadow: 0 0 0 2px hsl(var(--bg)), 0 0 0 4px hsl(var(--accent)); }
-[data-layout="toolbar"] .bt-top .bt-add { background: transparent; border: 0; box-shadow: none; width: 2.25rem; height: 2.25rem; padding: 0; text-transform: none; color: color-mix(in srgb, hsl(var(--fg)) 63%, hsl(var(--bg))); }
-[data-layout="toolbar"] .bt-top .bt-add:hover { background: hsl(var(--hover)); color: hsl(var(--fg)); }
-[data-layout="toolbar"] .bt-top .bt-add span { display: none; }
-[data-layout="toolbar"] .bt-top .btn-ghost { color: color-mix(in srgb, hsl(var(--fg)) 63%, hsl(var(--bg))); }
-[data-layout="toolbar"] .bt-top .btn-ghost:hover { color: hsl(var(--fg)); }
+/* layouts are for wide windows: on a phone every layout is the same (bottom tab bar), so none of these rules apply below 768 px */
+@media (min-width: 768px) {
+  [data-layout="toolbar"] .bt-side.bt-shell { width: 16rem; padding: 0 1rem 1rem; }
+  /* Toolbar: text links on the left, a 16rem pill search and icon buttons on the right (the Top tabs layout shares the link styles) */
+  [data-layout="toolbar"] .bt-toplink { font-size: 0.75rem; line-height: 1rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: hsl(var(--muted)); transition: color var(--dur) var(--ease); }
+  [data-layout="toolbar"] .bt-toplink:hover { color: color-mix(in srgb, hsl(var(--fg)) 80%, hsl(var(--bg))); }
+  [data-layout="toolbar"] .bt-toplink[aria-current="page"] { color: hsl(var(--fg)); }
+  [data-layout="toolbar"] .bt-top .bt-search .input { height: 2.25rem; border-radius: 9999px; background: hsl(var(--raised)); }
+  [data-layout="toolbar"] .bt-top .bt-search .input:focus { box-shadow: 0 0 0 2px hsl(var(--bg)), 0 0 0 4px hsl(var(--accent)); }
+  [data-layout="toolbar"] .bt-top .bt-add { background: transparent; border: 0; box-shadow: none; width: 2.25rem; height: 2.25rem; padding: 0; text-transform: none; color: color-mix(in srgb, hsl(var(--fg)) 63%, hsl(var(--bg))); }
+  [data-layout="toolbar"] .bt-top .bt-add:hover { background: hsl(var(--hover)); color: hsl(var(--fg)); }
+  [data-layout="toolbar"] .bt-top .bt-add span { display: none; }
+  [data-layout="toolbar"] .bt-top .btn-ghost { color: color-mix(in srgb, hsl(var(--fg)) 63%, hsl(var(--bg))); }
+  [data-layout="toolbar"] .bt-top .btn-ghost:hover { color: hsl(var(--fg)); }
+}
 @media (min-width: 768px) {
   [data-layout="toolbar"] .bt-top.bt-shell { padding: 1rem 2rem; }
   [data-layout="toolbar"] .bt-topin { max-width: none; margin: 0; gap: 1rem; }
@@ -83,7 +86,13 @@
   /* Standard v1: the side bar is 16rem wide, not 14rem */
   :is(html, div)[data-ui="liquid"][data-layout="toolbar"] .bt-player.bt-shell { left: calc(16rem + 24px); }
   /* dock: the floating dock sits at the bottom, so the player rides above it (the phone rule does the same) */
-  :is(html, div)[data-ui="liquid"][data-layout="dock"] .bt-player.bt-shell { bottom: calc(12px + 3.9rem); }
+  :is(html, div)[data-ui="liquid"][data-layout="dock"] .bt-player.bt-shell { bottom: calc(20px + 3.9rem); }
   :is(html, div)[data-ui="liquid"][data-layout="dock"] main { padding-bottom: 5rem; }
-  :is(html, div)[data-ui="liquid"][data-layout="dock"] main.has-player { padding-bottom: 11.5rem; }
+  :is(html, div)[data-ui="liquid"][data-layout="dock"] main.has-player { padding-bottom: 12rem; }
+}
+
+/* Liquid Glass on a phone: the player floats clear of the dock (a few px of the page show between them) instead of touching it, which read as one bar with a grey strip joining them */
+@media (max-width: 767.98px) {
+  :is(html, div)[data-ui="liquid"] .bt-player.bt-shell { bottom: calc(20px + 3.9rem); }
+  :is(html, div)[data-ui="liquid"] main.has-player { padding-bottom: 12.25rem; }
 }

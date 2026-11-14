@@ -165,6 +165,22 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
         <SpotifyLinks primary={t.spotifyUrl ?? null} others={t.spotifyUrls ?? []} onChange={(f) => setT((p) => ({ ...p!, ...f }))} /></Field>
       <Field label="Genius URL"><input className="input" value={t.geniusUrl ?? ''} onChange={(e) => set('geniusUrl', e.target.value || null)} /></Field>
       <div className="space-y-2 rounded-theme border border-line p-3">
+        <div className="text-sm font-medium">Pre-release version</div>
+        {!track.preReleaseIds.length && <>
+          <div className="text-xs text-muted">Is this a leak, demo or other unreleased version of a song that has come out? Tie it to the released track: it keeps its own info and stats, but stops showing up as an entry of its own (lists, shuffle, ranking) until you untie it.</div>
+          <TrackPicker value={t.preReleaseOf ?? null} onChange={(v) => set('preReleaseOf', v)} exclude={id} />
+          {t.preReleaseOf && <div className="text-xs text-muted">Tied to “{lib.trackById.get(t.preReleaseOf)?.title ?? 'a track'}”. {lib.trackById.get(t.preReleaseOf)?.preReleaseOf ? 'That track is itself a pre-release, so this link does nothing until you pick a released track.' : 'Its title shows “[U]” in stats and history. Clear the choice above to make it an ordinary track again.'}</div>}</>}
+        {track.preReleaseIds.length > 0 && <>
+          <div className="text-xs text-muted">These pre-release versions are tied to this track and hidden from the lists. Choose one as the primary audio to play its file for this track (never done automatically). Unties here, or in each one’s own editor.</div>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" name="primary-audio" checked={!t.primaryAudioFrom} onChange={() => set('primaryAudioFrom', null)} />This track’s own audio</label>
+          {track.preReleaseIds.map((pid) => { const p = lib.trackById.get(pid); return p && (
+            <div key={pid} className="flex items-center gap-2 text-sm">
+              <label className="flex min-w-0 flex-1 items-center gap-2"><input type="radio" name="primary-audio" disabled={!p.file} checked={t.primaryAudioFrom === pid} onChange={() => set('primaryAudioFrom', pid)} /><span className="truncate">{p.title}{!p.file && ' (no audio)'}</span></label>
+              <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => useEditor.getState().open({ kind: 'track', id: pid })}>Edit</button>
+              <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => patch('tracks', pid, { preReleaseOf: null } as Partial<TrackData>)}>Untie</button>
+            </div>); })}</>}
+      </div>
+      <div className="space-y-2 rounded-theme border border-line p-3">
         <div className="text-sm font-medium">Playback rule: play another track right after this one</div>
         <TrackPicker value={after} onChange={setAfter} exclude={id} />
         {after && <><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={first} onChange={(e) => setFirst(e.target.checked)} />Keep them together when shuffling</label>

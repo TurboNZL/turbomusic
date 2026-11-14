@@ -32,6 +32,9 @@ export function nearestStop(stops: number[], sec: number): number {
 /** "off", "0.3 s", "2.25 s", "8 s" */
 export const fadeLabel = (sec: number) => (sec > 0 ? `${Math.round(sec * 100) / 100} s` : 'off');
 
+/** A cut with no fade still starts the next song this long before the end of the first, so the spare's start-up time leaves no gap (both at full volume). */
+export const GAPLESS_OVERLAP_SEC = 0.08;
+
 /** Seconds before the end at which the spare is loaded (a download may be needed first). */
 export const PREPARE_AHEAD_SEC = 6;
 /** Fades never start earlier than this much before the end plus the timer's slack (the player reports about four times a second). */

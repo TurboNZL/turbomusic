@@ -27,29 +27,20 @@ export function haptic(kind: HapticKind = 'tap') {
 const PRESSABLE = 'button, a[href], summary, [role="button"], [role="menuitem"], [role="tab"], [role="option"], [role="switch"], input[type="checkbox"], input[type="radio"], label, .bt-nav, .bt-row, .bt-tile, [data-haptic]';
 
 /**
- * Light feedback for touch presses anywhere in the page. Call once at start-up.
- * The tick is held back for a moment and dropped if the finger starts moving, the browser takes the gesture over to
- * scroll (`pointercancel`) or a scroll event arrives: touching a scrolling list to scroll it is not a press.
+ * Light feedback when a control is really pressed. The tick comes with the `click` the browser fires only for a completed tap:
+ * resting a finger on a button, scrolling a list that starts on a row, or dragging away from a control never clicks, so none of those buzz.
+ * Call once at start-up.
  */
 export function startHaptics() {
-  let timer = 0, sx = 0, sy = 0;
-  const cancel = () => { if (timer) { clearTimeout(timer); timer = 0; } };
-  document.addEventListener('pointerdown', (e) => {
-    cancel();
-    if (e.pointerType === 'mouse' || !(e.target instanceof Element)) return;
+  let touch = false;
+  document.addEventListener('pointerdown', (e) => { touch = e.pointerType !== 'mouse'; }, { capture: true, passive: true });
+  document.addEventListener('click', (e) => {
+    if (!touch || !(e.target instanceof Element)) return;
+    touch = false;
     const hit = e.target.closest(PRESSABLE);
     if (!hit || (hit as HTMLButtonElement).disabled) return;
-    const kind: HapticKind = hit.closest('[data-haptic="none"]') ? 'tick' : 'tap';
-    sx = e.clientX; sy = e.clientY;
-    timer = window.setTimeout(() => { timer = 0; haptic(kind); }, 70);
+    haptic(hit.closest('[data-haptic="none"]') ? 'tick' : 'tap');
   }, { capture: true, passive: true });
-  document.addEventListener('pointermove', (e) => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 6) cancel(); }, { capture: true, passive: true });
-  for (const t of ['pointercancel', 'pointerup', 'touchmove']) document.addEventListener(t, (e) => {
-    // a quick tap is over before the delay: still tick, as long as it did not move
-    if (t === 'pointerup' && timer) { cancel(); const pe = e as PointerEvent; if (Math.hypot(pe.clientX - sx, pe.clientY - sy) <= 6) haptic('tap'); return; }
-    cancel();
-  }, { capture: true, passive: true });
-  document.addEventListener('scroll', cancel, { capture: true, passive: true });
   // sliders tick as the value steps
   document.addEventListener('input', (e) => { if (e.target instanceof HTMLInputElement && e.target.type === 'range') haptic('tick'); }, { capture: true, passive: true });
   // a long press that opens a menu

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useChunks } from '../lib/useChunks.ts';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { matchesAll, splitTyped, trackSubject, type Chip } from '../lib/filters.ts';
 import { playCounts } from '../lib/listens.ts';
@@ -26,6 +27,8 @@ export function SinglesPage() {
     return sortTracks(lib.singles.filter((t) => `${t.title} ${t.artistName}`.toLowerCase().includes(needle) && matchesAll(chips, trackSubject(lib, t))), page.sort, page.dir, page.sort === 'plays' ? playCounts(lib) : undefined);
   }, [lib, q, chips, page.sort, page.dir]);
   const playable = singles.filter(canPlay).map((t) => t.id);
+  const CH = useChunks(singles.length, 48, `${q}|${chips.length}|${page.sort}|${page.dir}|${page.view}`);
+  const shownSingles = singles.slice(0, CH.shown);
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -38,7 +41,8 @@ export function SinglesPage() {
       </div>
       <ListToolbar scope="singles" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search singles, or filter: artist, era, before…" sorts={TRACK_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {!singles.length && <p className="text-sm text-muted">{lib.singles.length ? 'No singles match.' : 'No singles. A single is a track that is not on an album: make one with New single, or take a track off its album in the track editor.'}</p>}
-      {page.view === 'grid' ? <SingleGrid tracks={singles} /> : <div className="card overflow-hidden"><TrackTable tracks={singles} source="search" covers /></div>}
+      {page.view === 'grid' ? <SingleGrid tracks={shownSingles} /> : <div className="card overflow-hidden"><TrackTable tracks={shownSingles} queue={singles} source="search" covers /></div>}
+      {CH.left > 0 && <div ref={CH.sentinel} className="mt-4 text-center"><button className="btn" onClick={CH.more}>Show more ({CH.left} left)</button></div>}
     </div>
   );
 }

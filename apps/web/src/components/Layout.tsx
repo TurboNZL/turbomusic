@@ -1,7 +1,7 @@
 import { WindowFrame } from './WindowFrame.tsx';
 import { NavLink, Outlet, useLocation, useMatch, useNavigate, useNavigationType } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BarChart3, Compass, Stethoscope, Disc, Disc3, Download, FileAudio, Home, Layers, ListMusic, MoreHorizontal, Network, ListOrdered, Music2, Plus, Search, Settings, Swords, User, Users } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { effectiveUi } from 'turbothemes';
 import { usePlayer } from '../lib/player.ts';
 import { togglePlayback } from '../lib/connect.ts';
@@ -79,7 +79,7 @@ function SyncDot() {
   const { state, error } = useStore((s) => s.sync);
   const color = { idle: 'bg-good', syncing: 'bg-warn animate-pulse', offline: 'bg-muted', error: 'bg-bad', unconfigured: 'bg-muted' }[state];
   const text = { idle: 'Synced', syncing: 'Syncing…', offline: 'Offline', error: error ?? 'Sync error', unconfigured: 'Local only' }[state];
-  return <div className="flex items-center gap-2 px-3 text-xs text-muted md:px-3" title={error ?? ""}><span className={cn('h-2 w-2 rounded-full', color)} /><span className="bt-label-text">{text}</span></div>;
+  return <div className="flex items-center gap-2 px-1 text-xs text-muted md:px-3" title={error ?? text} aria-label={text}><span className={cn('h-2 w-2 shrink-0 rounded-full', color)} /><span className="bt-label-text max-md:hidden">{text}</span></div>;
 }
 
 /** Layout "toolbar" (the Toolbar UI style): these pages stay in the side bar, in this order; every other page becomes a text link in the top bar. */
@@ -130,7 +130,7 @@ function MoreMenu({ dock }: { dock: boolean }) {
       {open && <>
         <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
         <div role="menu" className="bt-menu absolute bottom-full right-0 z-30 mb-2 w-48 origin-bottom-right overflow-hidden py-1">
-          {NAV.filter((n) => MOBILE_HIDDEN.includes(n.to) && !(dock && n.to === '/settings')).map(({ to, label, icon: Icon }) => (
+          {NAV.filter((n) => MOBILE_HIDDEN.includes(n.to)).map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} role="menuitem" onClick={() => setOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm"><Icon size={16} />{label}</NavLink>))}
         </div></>}
     </div>
@@ -231,7 +231,7 @@ export function Layout() {
         </aside>}
         <main ref={mainRef} className={cn('min-w-0 flex-1 overflow-y-auto overflow-x-hidden', hasPlayer && 'has-player')}>
           <form className="bt-top bt-shell sticky top-0 z-10 p-3 backdrop-blur" onSubmit={(e) => { e.preventDefault(); if (words().trim() || chips.length) nav(searchHref({ q: words(), chips, kind: searchKind })); }}>
-            <div className="bt-topin relative mx-auto flex max-w-3xl items-center gap-3">
+            <div className="bt-topin relative mx-auto flex max-w-3xl items-center gap-2 md:gap-3">
               <div className={cn('flex shrink-0 items-center gap-2 font-bold', !noSide && 'md:hidden')}><img src={logo} alt="TurboMusic" width={28} height={28} className="h-7 w-7 shrink-0" draggable={false} />{topbar && <span className="hidden md:inline">TurboMusic</span>}</div>
               <div className={cn(!noSide && 'md:hidden')}><SyncDot /></div>
               {(toolbar || topbar) && <nav className="bt-toplinks hidden min-w-0 items-center gap-6 overflow-x-auto md:flex" aria-label="Pages">
@@ -250,7 +250,7 @@ export function Layout() {
               {toolbar && <NavLink to="/settings" className="btn btn-ghost bt-add hidden !p-2 md:inline-flex" aria-label="Settings" title="Settings"><Settings size={18} /></NavLink>}
             </div>
           </form>
-          <div className={cn('bt-content mx-auto p-4 md:p-6', wide ? 'max-w-[96rem]' : 'max-w-6xl')}><div key={pathname} className={cn('bt-page', pageDir)}><Outlet /></div></div>
+          <div className={cn('bt-content mx-auto p-4 md:p-6', wide ? 'max-w-[96rem]' : 'max-w-6xl')}><div key={pathname} className={cn('bt-page', pageDir)}><Suspense fallback={<div className="p-4 text-muted">Loading…</div>}><Outlet /></Suspense></div></div>
         </main>
       </div>
       <PlayerBar />
@@ -260,7 +260,7 @@ export function Layout() {
         <span className="bt-ind" aria-hidden />
         {NAV.filter((n) => dock || !MOBILE_HIDDEN.includes(n.to)).map(({ to, label, icon: Icon, ...rest }) => (
           // the dock lists every page on a wide window; on a phone only the usual tabs plus Settings (the rest sit under More)
-          <NavLink key={to} to={to} end={'end' in rest} className={cn('bt-tab flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]', dock && MOBILE_HIDDEN.includes(to) && to !== '/settings' && 'max-md:hidden')}>
+          <NavLink key={to} to={to} end={'end' in rest} className={cn('bt-tab flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]', dock && MOBILE_HIDDEN.includes(to) && 'max-md:hidden')}>
             <Icon size={20} />{label}
           </NavLink>
         ))}

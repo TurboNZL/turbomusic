@@ -1,5 +1,5 @@
 import type { Library, Track } from './library.ts';
-import { buildListens, type Listen } from './listens.ts';
+import { buildListens, combinePreReleases, type Listen } from './listens.ts';
 import { computeListenStats, type ListenStats } from './listenStats.ts';
 import { playlistTrackIds } from './playlists.ts';
 
@@ -75,10 +75,11 @@ export interface EntityStats {
 }
 
 /** Everything a stats page shows about a set of tracks. Pure. */
-export function entityStats(lib: Library, trackIds: string[], minMs = 0): EntityStats {
+export function entityStats(lib: Library, trackIds: string[], minMs = 0, combinePre = false): EntityStats {
   const set = new Set(trackIds);
   const tracks = trackIds.flatMap((id) => lib.trackById.get(id) ?? []);
-  const listens = buildListens(lib).filter((l) => l.trackId && set.has(l.trackId) && l.ms >= minMs);
+  // with `combinePre` the plays of tied pre-release versions count as plays of the released track
+  const listens = (combinePre ? combinePreReleases(lib, buildListens(lib)) : buildListens(lib)).filter((l) => l.trackId && set.has(l.trackId) && l.ms >= minMs);
   const playsByTrack = new Map<string, { plays: number; ms: number }>();
   for (const l of listens) {
     const r = playsByTrack.get(l.trackId!) ?? { plays: 0, ms: 0 };

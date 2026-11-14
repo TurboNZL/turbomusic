@@ -4,6 +4,7 @@ import { albumSubject, matchesAll, splitTyped, type Chip } from '../lib/filters.
 import { ALBUM_SORTS, sortAlbums } from '../lib/listSort.ts';
 import { usePageState } from '../lib/pageState.ts';
 import { useMemo, useState } from 'react';
+import { useChunks } from '../lib/useChunks.ts';
 import { Download, Plus, Shuffle } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { usePlayer } from '../lib/player.ts';
@@ -35,6 +36,8 @@ export function AlbumsPage() {
   /** every playable track of the albums shown (filters apply), shuffled by the playback rules */
   const playable = useMemo(() => [...new Set(albums.flatMap((a) => a.trackIds))].filter((id) => { const t = lib.trackById.get(id); return !!t && canPlay(t); }), [albums, lib]);
 
+  const CH = useChunks(albums.length, 48, `${q}|${chips.length}|${page.sort}|${page.dir}|${page.view}`); // drawn a screenful at a time
+  const shownAlbums = albums.slice(0, CH.shown);
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -45,10 +48,10 @@ export function AlbumsPage() {
       </div>
       <ListToolbar scope="albums" chips={chips} onChips={setChips} text={q} onText={setQ} sorts={ALBUM_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {page.view === 'list'
-        ? <EntityList rows={albums.map((a) => ({ id: a.id, to: `/albums/${a.id}`, cover: a.cover, seed: a.title, title: a.title, sub: <ArtistLinks leads={a.leads} />,
+        ? <EntityList rows={shownAlbums.map((a) => ({ id: a.id, to: `/albums/${a.id}`, cover: a.cover, seed: a.title, title: a.title, sub: <ArtistLinks leads={a.leads} />,
             meta: <>{a.releaseDate?.slice(0, 4)}{a.releaseDate ? ' · ' : ''}{plural(a.trackIds.length, 'track')}{a.rating != null && ` · ${a.rating.toFixed(1)}`}</>, menu: menu.onContextMenu(itemsFor(a), `Actions for ${a.title}`, a.id) }))} />
         : <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
-            {albums.map((a) => (
+            {shownAlbums.map((a) => (
               <div key={a.id} className="bt-tile group" onContextMenu={menu.onContextMenu(itemsFor(a), `Actions for ${a.title}`, a.id)}>
                 <Link to={`/albums/${a.id}`} className="block">
                   <Cover hash={a.cover} seed={a.title} className="transition-transform group-hover:scale-[1.02]" />
@@ -58,6 +61,7 @@ export function AlbumsPage() {
               </div>
             ))}
           </div>}
+      {CH.left > 0 && <div ref={CH.sentinel} className="mt-4 text-center"><button className="btn" onClick={CH.more}>Show more ({CH.left} left)</button></div>}
       {!albums.length && <p className="text-sm text-muted">{lib.albums.length ? 'No albums match.' : 'No albums yet.'}</p>}
       {menu.element}
     </div>

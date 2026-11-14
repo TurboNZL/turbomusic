@@ -1,5 +1,5 @@
 import type { Library } from './library.ts';
-import type { Listen } from './listens.ts';
+import { combinePreReleases, type Listen } from './listens.ts';
 import { DAY, rangeFor, type Range, type RangeId } from './listenStats.ts';
 import { matchesAll, trackSubject, type Chip } from './filters.ts';
 
@@ -25,6 +25,8 @@ export interface StatsFilter {
   text: string;
   /** library filters (artist:, album:, era:, genre:, rating:, ...); they apply to plays of library tracks, so plays that are not in the library drop out */
   chips: Chip[];
+  /** count plays of pre-release versions ("[U]") as plays of the released track instead of as entries of their own */
+  combinePre?: boolean;
 }
 
 export const DEFAULT_FILTER: StatsFilter = { range: 'all', from: '', to: '', minMs: 30_000, source: 'all', skips: 'all', libraryOnly: false, platform: '', dayPart: 'any', days: 'all', text: '', chips: [] };
@@ -41,10 +43,11 @@ export function filterRange(f: StatsFilter, now = Date.now()): Range {
 const part = (h: number): Exclude<DayPart, 'any'> => (h >= 5 && h < 12 ? 'morning' : h >= 12 && h < 17 ? 'afternoon' : h >= 17 && h < 22 ? 'evening' : 'night');
 
 /** How many things are narrowing the list (for a "clear" button and a badge); the range and the length are shown elsewhere. */
-export const activeCount = (f: StatsFilter) => [f.source !== 'all', f.skips !== 'all', f.libraryOnly, !!f.platform, f.dayPart !== 'any', f.days !== 'all', !!f.text.trim(), f.chips.length > 0].filter(Boolean).length;
+export const activeCount = (f: StatsFilter) => [f.source !== 'all', f.skips !== 'all', f.libraryOnly, !!f.platform, f.dayPart !== 'any', f.days !== 'all', !!f.text.trim(), f.chips.length > 0, !!f.combinePre].filter(Boolean).length;
 
 /** The plays that pass every filter except the time range and the minimum length. Pure. */
-export function applyFilter(lib: Library, listens: Listen[], f: StatsFilter): Listen[] {
+export function applyFilter(lib: Library, listensIn: Listen[], f: StatsFilter): Listen[] {
+  const listens = f.combinePre ? combinePreReleases(lib, listensIn) : listensIn;
   const needle = f.text.trim().toLowerCase();
   const plain = f.source === 'all' && f.skips === 'all' && !f.libraryOnly && !f.platform && f.dayPart === 'any' && f.days === 'all' && !needle && !f.chips.length;
   if (plain) return listens;

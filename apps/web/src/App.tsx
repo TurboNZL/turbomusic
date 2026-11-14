@@ -1,10 +1,8 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout.tsx';
 import { useStore } from './lib/store.ts';
-import { HealthPage } from './pages/Health.tsx';
 import { HomePage } from './pages/Home.tsx';
-import { NotesPage } from './pages/NotesPage.tsx';
 import { AlbumsPage } from './pages/Albums.tsx';
 import { AlbumPage } from './pages/Album.tsx';
 import { SinglesPage } from './pages/Singles.tsx';
@@ -12,17 +10,22 @@ import { ErasPage, EraPage } from './pages/Eras.tsx';
 import { ArtistsPage } from './pages/Artists.tsx';
 import { ArtistPage } from './pages/Artist.tsx';
 import { TracksPage } from './pages/Tracks.tsx';
-import { VotePage } from './pages/Vote.tsx';
-import { NotePage } from './pages/NotePage.tsx';
 import { QueuePage } from './pages/Queue.tsx';
 import { PlaylistsPage } from './pages/Playlists.tsx';
 import { SearchPage } from './pages/Search.tsx';
-import { DiscoverPage } from './pages/Discover.tsx';
-import { EntityStatsPage } from './pages/EntityStats.tsx';
-import { RecapsPage } from './pages/Recaps.tsx';
-import { WrappedPage } from './pages/Wrapped.tsx';
-import { StatsPage } from './pages/Stats.tsx';
-import { SettingsPage } from './pages/Settings.tsx';
+
+
+// rarely-first pages load when first opened, so the app starts with less to parse
+const HealthPage = lazy(() => import('./pages/Health.tsx').then((m) => ({ default: m.HealthPage })));
+const NotesPage = lazy(() => import('./pages/NotesPage.tsx').then((m) => ({ default: m.NotesPage })));
+const NotePage = lazy(() => import('./pages/NotePage.tsx').then((m) => ({ default: m.NotePage })));
+const DiscoverPage = lazy(() => import('./pages/Discover.tsx').then((m) => ({ default: m.DiscoverPage })));
+const EntityStatsPage = lazy(() => import('./pages/EntityStats.tsx').then((m) => ({ default: m.EntityStatsPage })));
+const RecapsPage = lazy(() => import('./pages/Recaps.tsx').then((m) => ({ default: m.RecapsPage })));
+const WrappedPage = lazy(() => import('./pages/Wrapped.tsx').then((m) => ({ default: m.WrappedPage })));
+const StatsPage = lazy(() => import('./pages/Stats.tsx').then((m) => ({ default: m.StatsPage })));
+const SettingsPage = lazy(() => import('./pages/Settings.tsx').then((m) => ({ default: m.SettingsPage })));
+const VotePage = lazy(() => import('./pages/Vote.tsx').then((m) => ({ default: m.VotePage })));
 
 export function App() {
   const init = useStore((s) => s.init);
