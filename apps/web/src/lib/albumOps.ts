@@ -46,7 +46,7 @@ export function planAddToAlbum(lib: Library, raw: TrackData, trackId: string, al
     trackAlbums: [{ albumId: album.id, order: album.trackIds.length }, ...(raw.albums ?? []).filter((l) => l.albumId !== album.id)],
     trackOrder: appendTrack(album.trackIds, trackId),
     releaseAppends,
-    newRelease: choice.newRelease ? { albumId: album.id, title: raw.title, cover: raw.cover ?? null, releaseDate: null, trackIds: [trackId] } : null,
+    newRelease: choice.newRelease ? { albumId: album.id, title: raw.title, cover: raw.cover ?? null, releaseDate: raw.releaseDate ?? null, trackIds: [trackId] } : null,
   };
 }
 
