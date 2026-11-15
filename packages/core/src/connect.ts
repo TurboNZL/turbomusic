@@ -10,7 +10,10 @@ export interface PlaybackSnapshot {
   duration: number;
   playing: boolean;
   volume: number;
+  /** what to show for the track (title, artist, album, cover file hash) so a widget can draw it without the library; added by newer clients */
+  meta?: TrackMeta;
 }
+export interface TrackMeta { title: string; artist: string; album: string; cover: string | null }
 
 export type DeviceKind = 'web' | 'electron' | 'android';
 export interface DeviceInfo { id: string; name: string; kind: DeviceKind; state: PlaybackSnapshot | null; updatedAt: number }
@@ -46,6 +49,7 @@ export function parseSnapshot(raw: unknown): PlaybackSnapshot | null {
     history: ids(o.history).slice(-50),
     position: Math.max(0, num(o.position)), duration: Math.max(0, num(o.duration)),
     playing: o.playing === true, volume: Math.min(1, Math.max(0, num(o.volume, 0.8))),
+    ...(o.meta && typeof o.meta === 'object' ? { meta: { title: str(o.meta.title, 300), artist: str(o.meta.artist, 300), album: str(o.meta.album, 300), cover: typeof o.meta.cover === 'string' && /^[0-9a-f]{64}$/.test(o.meta.cover) ? o.meta.cover : null } } : {}),
   };
 }
 

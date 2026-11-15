@@ -31,6 +31,7 @@ import { tarChunks, tarLength, type TarEntry } from './tar.ts';
 import { rmSync } from 'node:fs';
 import { diskUsage, filePath, parseRange, saveVerified, streamFile, UploadError } from './files.ts';
 import { cleanKbps, transcodedPath } from './transcode.ts';
+import { WIDGET_HTML } from './widget.ts';
 
 export const API_VERSION = 1;
 
@@ -128,6 +129,20 @@ export function createApp(
     });
   });
   app.get('/api/connect/devices', (c) => c.json({ devices: hub.list() }));
+  // What is playing right now on any device (for the OBS widget, the KDE panel widget, or anything that wants to show it).
+  app.get('/api/nowplaying', (c) => c.json({ track: hub.nowPlaying() }, 200, { 'Cache-Control': 'no-store' }));
+  // Play/pause/next/previous for whatever is playing (the KDE panel widget uses this): the command goes to the device that nowplaying names.
+  app.post('/api/nowplaying/command', async (c) => {
+    const b = (await c.req.json().catch(() => null)) as { type?: unknown } | null;
+    const command = parseCommand({ type: b?.type });
+    if (!command || !['play', 'pause', 'toggle', 'next', 'prev'].includes(command.type)) return c.json({ error: 'bad command' }, 400);
+    const np = hub.nowPlaying();
+    return np && hub.command('nowplaying', np.deviceId, command) ? c.json({ ok: true }) : c.json({ error: 'nothing is connected to control' }, 404);
+  });
+  // The widget page itself. It is outside /api, so it checks the token here; the page then reads /api/nowplaying with the same token.
+  app.get('/widget', (c) => tokenOk(c.req.query('token'), config.token)
+    ? c.html(WIDGET_HTML, 200, { 'Cache-Control': 'no-store' })
+    : c.text('Add ?token=<your access token> to the address.', 401));
   app.post('/api/connect/state', async (c) => {
     const b = (await c.req.json().catch(() => null)) as { device?: unknown; name?: unknown; state?: unknown } | null;
     if (typeof b?.device !== 'string') return c.json({ error: 'device missing' }, 400);

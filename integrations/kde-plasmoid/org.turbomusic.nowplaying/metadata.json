@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "TurboNZL" }],
+        "Category": "Multimedia",
+        "Description": "Shows what TurboMusic is playing, with play/pause and skip, in a panel or on the desktop",
+        "EnabledByDefault": true,
+        "Icon": "multimedia-player",
+        "Id": "org.turbomusic.nowplaying",
+        "License": "MIT",
+        "Name": "TurboMusic Now Playing",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

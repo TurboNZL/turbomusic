@@ -98,3 +98,24 @@ describe('connect over HTTP', () => {
     await reader.cancel().catch(() => undefined);
   });
 });
+
+describe('now playing', () => {
+  it('is the device that is playing, moved on by the time since it reported, with its meta', () => {
+    const hub = new ConnectHub();
+    hub.connect({ id: 'pc', name: 'Desktop', kind: 'electron' }, () => undefined);
+    hub.connect({ id: 'phone', name: 'Phone', kind: 'android' }, () => undefined);
+    expect(hub.nowPlaying()).toBeNull();
+    hub.report('phone', parseSnapshot({ ...snap, trackId: 'old', playing: false, meta: { title: 'Old', artist: 'X', album: 'Y', cover: null } }));
+    hub.report('pc', parseSnapshot({ ...snap, meta: { title: 'Song', artist: 'Ann', album: 'LP', cover: 'a'.repeat(64) } }));
+    const np = hub.nowPlaying(Date.now() + 5000)!;
+    expect(np.trackId).toBe('t1');
+    expect(np.meta?.title).toBe('Song');
+    expect(np.position).toBeGreaterThan(17);
+    expect(np.position).toBeLessThan(18.5);
+    expect(np.device).toBe('Desktop');
+    expect(np.deviceId).toBe('pc');
+  });
+  it('drops a cover that is not a file hash', () => {
+    expect(parseSnapshot({ ...snap, meta: { title: 'T', artist: 'A', album: '', cover: '../../etc' } })?.meta?.cover).toBeNull();
+  });
+});

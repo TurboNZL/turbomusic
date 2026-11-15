@@ -8,8 +8,8 @@ export { positionNow };
 import { api, useStore } from './store.ts';
 import { spotifyEngine } from './spotifyPlayer.ts';
 import { stopBeam } from './beam.ts';
-import { resyncMirror } from './spotifyMirror.ts';
 import { getLibrary } from './derive.ts';
+import { resyncMirror } from './spotifyMirror.ts';
 import { HeaderEventSource, type EventSourceLike } from './sse.ts';
 
 /**
@@ -55,12 +55,18 @@ async function send(to: string, command: Command) {
   catch { if (useConnect.getState().remoteId === to) useConnect.setState({ remoteId: null }); }
 }
 
+/** the title, artist, album and cover of the playing track ride along, so the server can show "now playing" (the OBS widget, the KDE panel) without the library */
+function withMeta(snap: PlaybackSnapshot): PlaybackSnapshot {
+  const t = snap.trackId ? getLibrary().trackById.get(snap.trackId) : undefined;
+  return t ? { ...snap, meta: { title: t.title, artist: t.artistName, album: t.albumTitle ?? '', cover: t.cover ?? null } } : snap;
+}
+
 /** Publish what this device is doing. */
 let lastPub = { t: 0, at: 0 };
 function publish() {
   const { live } = useConnect.getState();
   if (!live) return;
-  const snap = usePlayer.getState().snapshot();
+  const snap = withMeta(usePlayer.getState().snapshot());
   lastPub = { t: snap.position, at: Date.now() };
   // while this device is only a remote it plays nothing; its state is the idle one
   void api().connectState(myId(), myName(), snap.trackId ? snap : null).catch(() => undefined);
