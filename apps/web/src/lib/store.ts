@@ -109,19 +109,28 @@ export const useStore = create<State>((set, get) => {
       }
       // 2. pull what changed elsewhere
       let cursor = await getMeta<number>('cursor', 0);
+      lastTell = Date.now();
       for (;;) {
         const page = await a.pull(cursor, 1000);
-        if (page.records.length) await applyRemote(page.records);
+        if (page.records.length) {
+          // the pages of a pull are applied to the rows at once, but the screens are told once at the end (or every few seconds of a very long pull):
+          // telling them per page made the home page flash through half-loaded states (older "last played" tracks, growing lists) after a long time away
+          const changed = await applyRemote(page.records);
+          pendStructural ||= changed.structural; pendLogs ||= changed.logs;
+          if (page.more && Date.now() - lastTell > 4000) { flush(); }
+        }
         cursor = page.cursor;
         await setMeta('cursor', cursor);
         if (!page.more) break;
       }
+      flush();
       migrateLegacyArtists();
       migrateNotes();
       const pending = (await db.count('outbox'));
       setSync({ state: 'idle', lastSync: Date.now(), pending });
       await setMeta('lastSync', Date.now());
     } catch (e) {
+      flush(); // what was applied before the failure still counts
       const offline = e instanceof TypeError; // fetch() network failure
       setSync({ state: offline ? 'offline' : 'error', error: offline ? 'Server unreachable' : (e as Error).message });
     }
@@ -151,7 +160,11 @@ export const useStore = create<State>((set, get) => {
     for (const id of plan.removeNotes) get().remove('notes', id);
   }
 
-  async function applyRemote(records: SyncRecord[]) {
+  // what a pull has applied to the rows but not yet told the screens about (see syncNow)
+  let pendStructural = false, pendLogs = false, lastTell = 0;
+  const flush = () => { if (pendStructural) bump(); if (pendLogs) touch('playbackLogs'); pendStructural = pendLogs = false; lastTell = Date.now(); };
+
+  async function applyRemote(records: SyncRecord[]): Promise<{ structural: boolean; logs: boolean }> {
     const db = await localDb();
     const rows = get().rows;
     const tx = db.transaction(['records', 'outbox'], 'readwrite');
@@ -166,9 +179,7 @@ export const useStore = create<State>((set, get) => {
       tx.objectStore('outbox').delete([rec.table, rec.id]); // remote won; nothing left to push
     }
     await tx.done;
-    // a pull that changed nothing (our own push coming back) must not rebuild the library
-    if (structural) bump();
-    if (logs) touch('playbackLogs');
+    return { structural, logs }; // the caller tells the screens (a pull that changed nothing, like our own push coming back, rebuilds nothing)
   }
 
   const stamp = (table: RecordTable, id: string, data: object, deleted: boolean): SyncRecord => ({
@@ -188,7 +199,15 @@ export const useStore = create<State>((set, get) => {
       watchSystemTheme(() => get().settings);
       const db = await localDb();
       const rows = emptyRows();
-      for (const r of await db.getAll('records')) rows[r.table]?.set(r.id, r);
+      // the app opens as soon as everything except the play history is in memory; the history (the largest table by far, with an imported
+      // Spotify history) is read right after and the screens that show it are told when it is there
+      const inTable = (t: string) => IDBKeyRange.bound([t, ''], [t, '\uffff']);
+      const tables = Object.keys(rows);
+      await Promise.all(tables.filter((t) => t !== 'playbackLogs').map(async (t) => { for (const r of await db.getAll('records', inTable(t))) rows[r.table]?.set(r.id, r); }));
+      void (async () => {
+        for (const r of await db.getAll('records', inTable('playbackLogs'))) rows[r.table]?.set(r.id, r);
+        touch('playbackLogs');
+      })();
       set({ rows, audioCache: await getMeta('audioCache', {}), ready: true, rev: 1, sync: { ...get().sync, lastSync: await getMeta('lastSync', null), pending: await db.count('outbox'), state: configured() ? 'idle' : 'unconfigured' } });
       if (!configured()) { migrateLegacyArtists(); migrateNotes(); }
       void get().syncNow();

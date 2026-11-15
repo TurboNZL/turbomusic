@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { Select } from './Select.tsx';
+import { artistRows } from '../lib/listSort.ts';
 import { Check, ImageDown, Loader2, Tags, GitMerge } from 'lucide-react';
 import { useLibrary } from '../lib/derive.ts';
 import { api, useStore } from '../lib/store.ts';
@@ -23,7 +25,14 @@ export function FindArtistImagesDialog({ onClose }: { onClose: () => void }) {
   const lib = useLibrary();
   const patch = useStore((s) => s.patch);
   const configured = useStore((s) => !!s.settings.token);
-  const todo = lib.artists.filter((a) => !a.image);
+  // the artists with no picture, the most relevant first (most tracks, best-rated tracks, memories); how many to look up is the user's choice,
+  // so a library with hundreds of them can be done in sensible pieces instead of all at once
+  const [size, setSize] = useState('100');
+  const missing = useMemo(() => {
+    const score = new Map(artistRows(lib).map((r) => [r.id, r.tracks + 2 * r.strength + r.memories]));
+    return lib.artists.filter((a) => !a.image).sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0) || a.name.localeCompare(b.name));
+  }, [lib]);
+  const todo = useMemo(() => (size === 'all' ? missing : missing.slice(0, Number(size))), [missing, size]);
   const [rows, setRows] = useState<{ id: string; name: string; hash: string; matched: string; on: boolean }[]>([]);
   const [missed, setMissed] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -53,8 +62,11 @@ export function FindArtistImagesDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Find artist pictures" onClose={onClose} wide
       footer={saved !== null ? <button className="btn btn-accent ml-auto" onClick={onClose}>Done</button> : <><button className="btn" onClick={onClose}>Close</button><button className="btn btn-accent ml-auto" disabled={!on || running} onClick={apply}>Use {on} pictures</button></>}>
-      <p className="text-sm text-muted">{todo.length} artist{todo.length === 1 ? ' has' : 's have'} no picture. The server looks each one up on Deezer by exact name (and any other names you gave them) and keeps the picture it finds. Check them before saving: a famous namesake is possible.</p>
+      <p className="text-sm text-muted">{missing.length} artist{missing.length === 1 ? ' has' : 's have'} no picture ({todo.length} in this batch). The server looks each one up on Deezer by exact name (and any other names you gave them) and keeps the picture it finds. Check them before saving: a famous namesake is possible.</p>
       {!configured && <div className="rounded-theme bg-warn/15 p-3 text-sm text-warn">This needs your server (Settings).</div>}
+      <label className="flex flex-wrap items-center gap-2 text-sm">How many to look up
+        <Select className="!w-auto" value={size} disabled={running} onChange={setSize} options={[['25', 'The 25 most relevant'], ['50', 'The 50 most relevant'], ['100', 'The 100 most relevant'], ['250', 'The 250 most relevant'], ['all', `All ${missing.length}`]].map(([value, label]) => ({ value, label }))} />
+        <span className="text-xs text-muted">Relevance = how many tracks they have, how well those are rated, and memories. Run it again for the next batch.</span></label>
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-accent" disabled={running || !todo.length || !configured} onClick={() => void run()}>{running ? <Loader2 size={15} className="animate-spin" /> : <ImageDown size={15} />}{rows.length || missed.length ? 'Search again' : 'Find pictures'}</button>
         {running && <button className="btn" onClick={() => { stop.current = true; setProgress((p) => (p ? { ...p } : p)); }}>Stop</button>}

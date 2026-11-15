@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { leaveRemoved } from '../lib/leave.ts';
 import { isQuickPlaylist, playlistTrackIds } from '../lib/playlists.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
+import { readShuffle, writeShuffle } from './PlayControls.tsx';
 import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search } from 'lucide-react';
@@ -22,12 +23,14 @@ function useTrackListActions() {
   return (ids: string[], source: Parameters<typeof play>[2]): MenuItem[] => {
     const playable = ids.filter((id) => canPlay(lib.trackById.get(id)));
     const none = !playable.length;
+    // the one Shuffle switch (the same one the Play button on playlists and artists uses): Play, Play next and Add to queue all follow it
+    const ordered = () => (readShuffle() ? shuffleWithRules(playable, lib.rules) : playable);
     return [
-      { label: 'Play', icon: <Play size={15} />, run: () => play(playable[0], playable, source), disabled: none },
-      { label: 'Shuffle', icon: <Shuffle size={15} />, run: () => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, source); }, disabled: none },
-      // each goes right after the one before it, so "next" keeps the list's order
-      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...playable].reverse().forEach((id) => enqueue(id, 'next')), disabled: none },
-      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => playable.forEach((id) => enqueue(id, 'last')), disabled: none },
+      { label: 'Play', icon: <Play size={15} />, run: () => { const o = ordered(); play(o[0], o, source); }, disabled: none },
+      { label: 'Shuffle', icon: <Shuffle size={15} />, checked: readShuffle(), keepOpen: true, run: () => writeShuffle(!readShuffle()) },
+      // each goes right after the one before it, so "next" keeps the order (the shuffled order when Shuffle is on)
+      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next')), disabled: none },
+      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last')), disabled: none },
     ];
   };
 }

@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 
 export type MenuItem =
   | { separator: true }
-  | { label: string; icon?: ReactNode; run?: () => void; to?: string; disabled?: boolean; danger?: boolean };
+  /** `checked` draws a tick (a switch); `keepOpen` runs the item without closing the menu, and the tick flips at once */
+  | { label: string; icon?: ReactNode; run?: () => void; to?: string; disabled?: boolean; danger?: boolean; checked?: boolean; keepOpen?: boolean };
 
 export interface MenuAt { x: number; y: number; items: MenuItem[]; label: string; key?: string }
 
@@ -17,6 +18,7 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
   const ref = useRef<HTMLDivElement>(null);
   const nav = useNavigate();
   const [pos, setPos] = useState({ left: at.x, top: at.y });
+  const [flipped, setFlipped] = useState<ReadonlySet<number>>(new Set());
 
   // keep the menu on screen
   useLayoutEffect(() => {
@@ -44,7 +46,11 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
       {at.items.map((it, i) => 'separator' in it
         ? <div key={i} role="separator" className="my-1 border-t border-line/60" />
         : <button key={i} role="menuitem" disabled={it.disabled} className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm disabled:opacity-40 ${it.danger ? 'text-bad' : ''}`}
-            onClick={() => { onClose(); if (it.to) nav(it.to); it.run?.(); }}>{it.icon}{it.label}</button>)}
+            aria-checked={it.checked === undefined ? undefined : it.checked !== flipped.has(i)}
+            onClick={() => {
+              if (it.keepOpen) { it.run?.(); setFlipped((f) => { const n = new Set(f); if (n.has(i)) n.delete(i); else n.add(i); return n; }); return; }
+              onClose(); if (it.to) nav(it.to); it.run?.();
+            }}>{it.icon}<span className="min-w-0 flex-1">{it.label}</span>{it.checked !== undefined && <span className="w-4 shrink-0 text-accent" aria-hidden>{it.checked !== flipped.has(i) ? '✓' : ''}</span>}</button>)}
     </div>, document.body);
 }
 

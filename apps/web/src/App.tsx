@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout.tsx';
 import { useStore } from './lib/store.ts';
@@ -27,11 +27,18 @@ const StatsPage = lazy(() => import('./pages/Stats.tsx').then((m) => ({ default:
 const SettingsPage = lazy(() => import('./pages/Settings.tsx').then((m) => ({ default: m.SettingsPage })));
 const VotePage = lazy(() => import('./pages/Vote.tsx').then((m) => ({ default: m.VotePage })));
 
+/** Shown while the library is read from this device (normally a fraction of a second): blank at first, so a fast start never flashes a message. */
+function BootSplash() {
+  const [late, setLate] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setLate(true), 700); return () => clearTimeout(t); }, []);
+  return <div className="p-8 text-muted">{late ? 'Loading library…' : null}</div>;
+}
+
 export function App() {
   const init = useStore((s) => s.init);
   const ready = useStore((s) => s.ready);
   useEffect(() => { void init(); }, [init]);
-  if (!ready) return <div className="p-8 text-muted">Loading library…</div>;
+  if (!ready) return <BootSplash />;
   return (
     <Routes>
       <Route element={<Layout />}>

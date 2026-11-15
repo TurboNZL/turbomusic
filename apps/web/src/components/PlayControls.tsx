@@ -6,6 +6,8 @@ import { useLibrary } from '../lib/derive.ts';
 import { cn } from '../lib/cn.ts';
 
 const KEY = 'turbomusic.playlistShuffle';
+export const readShuffle = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
+export const writeShuffle = (v: boolean) => { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch { /* private window */ } };
 /** The one Shuffle switch (kept per device) shared by every page that plays a list: playlists, artists. */
 export function useShuffleSwitch(): [boolean, () => void] {
   const [on, setOn] = useState(() => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } });

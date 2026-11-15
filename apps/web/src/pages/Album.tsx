@@ -7,7 +7,6 @@ import { useLibrary } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
 import { initialView, viewTrackIds, type AlbumView } from '../lib/albumOps.ts';
-import { useStore } from '../lib/store.ts';
 import { plural } from '../lib/cn.ts';
 import { Cover } from '../components/Cover.tsx';
 import { Notes } from '../components/Notes.tsx';
