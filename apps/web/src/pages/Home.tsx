@@ -106,10 +106,10 @@ export function HomePage() {
               <div className="truncate text-2xl font-bold">{last.t.title}</div>
               <div className="truncate text-sm text-muted">{last.t.artistName}{last.t.albumTitle ? ` · ${last.t.albumTitle}` : ''} · {ago(last.at)}</div>
               <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(last.pos / 60)}:{String(Math.floor(last.pos % 60)).padStart(2, '0')}</button>
-                <Link to="/vote" className="btn"><Swords size={16} />Keep ranking · {lib.tracks.length - done} to go</Link></div>
+                <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div>
             </div></>
           : <div className="min-w-0 flex-1 space-y-2"><h1 className="text-2xl font-bold">Welcome back</h1><p className="text-sm text-muted">If you stop a song part-way, it will be waiting for you here.</p>
-              <div className="flex flex-wrap gap-2"><Link to="/vote" className="btn btn-accent"><Swords size={16} />Keep ranking · {lib.tracks.length - done} to go</Link><Link to="/albums" className="btn">Browse albums</Link></div></div>}
+              <div className="flex flex-wrap gap-2"><Link to="/vote" className="btn btn-accent whitespace-nowrap"><Swords size={16} />Keep ranking · {lib.tracks.length - done} to go</Link><Link to="/albums" className="btn">Browse albums</Link></div></div>}
         </div>
       </section>
       {lib.tracks.filter((t) => t.file).length >= 3 && <EloQuestions />}

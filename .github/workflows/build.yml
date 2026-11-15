@@ -179,7 +179,7 @@ jobs:
           retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
 
   # the TurboMusic Server app (apps/android-server): the server in its own screen-less Android app (Node as a library). The Android app installs it
-  # from the release (turbomusic-<version>-android-server.apk; the name must NOT end in "-android.apk", which is how the app finds itself).
+  # from the release (turbomusic-<version>-android-server.apk.bin; the name must NOT end in .apk, which is how older apps find their own update).
   android-server:
     needs: version
     if: needs.version.outputs.reuse == ''
@@ -204,7 +204,8 @@ jobs:
           VERSION='${{ needs.version.outputs.version }}'
           gradle -p apps/android-server -PserverAbis=arm64-v8a -PappVersion="$VERSION" :app:assembleRelease
           mkdir out
-          cp apps/android-server/app/build/outputs/apk/release/app-release.apk "out/turbomusic-$VERSION-android-server.apk"
+          # NOT ending in .apk: apps already installed pick the first .apk of a release to update themselves, and must never find this one
+          cp apps/android-server/app/build/outputs/apk/release/app-release.apk "out/turbomusic-$VERSION-android-server.apk.bin"
       - uses: actions/upload-artifact@v4
         with:
           name: build-android-server
@@ -274,7 +275,7 @@ jobs:
           ls -lh files
           VERSION='${{ needs.version.outputs.version }}'
           # an incomplete release would leave the installed apps without an update feed, so refuse rather than publish part of one
-          for f in "turbomusic-$VERSION-android.apk" "turbomusic-$VERSION-android-server.apk" latest.yml latest-linux.yml app.yml app-linux.yml server.yml server-linux.yml "turbomusic-server-$VERSION-node.tar.gz"; do
+          for f in "turbomusic-$VERSION-android.apk" "turbomusic-$VERSION-android-server.apk.bin" latest.yml latest-linux.yml app.yml app-linux.yml server.yml server-linux.yml "turbomusic-server-$VERSION-node.tar.gz"; do
             [ -f "files/$f" ] || { echo "missing: $f"; exit 1; }
           done
           grep -q "version: $VERSION" files/latest.yml || { echo "files/latest.yml is not version $VERSION"; exit 1; }

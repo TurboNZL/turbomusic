@@ -60,7 +60,14 @@ class PlaybackService : MediaLibraryService() {
         }
         val sources = CacheDataSource.Factory().setCache(simpleCache).setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        // start sooner: ExoPlayer's default waits for 2.5 s of audio before the first sound (which over a tunnel is the "delay" a tap felt like);
+        // a short wait is enough for a music stream, and the longer buffers keep the following tracks loading ahead so back-to-back stays gapless
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(20_000, 60_000, 700, 2_000)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
         val player = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
             .setMediaSourceFactory(DefaultMediaSourceFactory(sources))
             .setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).setUsage(C.USAGE_MEDIA).build(), false) // audio focus is FocusKeeper's: Play must also work during a call
             .setHandleAudioBecomingNoisy(true)

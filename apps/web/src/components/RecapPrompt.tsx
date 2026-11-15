@@ -35,9 +35,9 @@ export function RecapPrompt({ lib }: { lib: Library }) {
     <div className="space-y-3">
       {showWrapped && wrapped && (
         <section className="card relative flex flex-wrap items-center gap-4 overflow-hidden p-4" style={{ background: 'linear-gradient(135deg, #db2777 0%, #7c2d12 100%)', color: '#fff' }} aria-label="Wrapped">
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-bold uppercase tracking-widest text-white/70">Your {year} Wrapped is ready</div>
-            <div className="text-2xl font-black tabular-nums">{wrapped.minutes.toLocaleString()} minutes <span className="text-base font-semibold text-white/75">· {wrapped.topArtists[0]?.label ?? ''}</span></div>
+          <div className="min-w-0 flex-1 basis-44 pr-5">
+            <div className="text-xs font-bold uppercase tracking-wider text-white/70">Your {year} Wrapped is ready</div>
+            <div className="text-2xl font-black tabular-nums">{wrapped.minutes.toLocaleString()} minutes</div><div className="text-sm font-medium text-white/75">{wrapped.topArtists[0]?.label ?? ''}</div>
           </div>
           <Link to={`/wrapped?year=${year}`} onClick={() => dismiss(lib, 'wrapped', year)} className="btn btn-accent"><Gift size={15} />Open Wrapped</Link>
           <X_ onClick={() => dismiss(lib, 'wrapped', year)} />
@@ -45,9 +45,9 @@ export function RecapPrompt({ lib }: { lib: Library }) {
       {showMonth && monthRecap && m !== null && (
         <section className="card relative flex flex-wrap items-center gap-4 overflow-hidden p-4" style={{ background: 'linear-gradient(135deg, #db2777 0%, #7c2d4a 55%, #1e1b4b 100%)', color: '#fff' }} aria-label="Monthly recap">
           <Cover hash={monthRecap.topTracks[0]?.id ? lib.trackById.get(monthRecap.topTracks[0].id!)?.cover : null} seed={monthRecap.topTracks[0]?.label ?? 'month'} className="!h-20 !w-20 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-bold uppercase tracking-widest text-white/70">Your {monthLabelOf(m)} recap is ready</div>
-            <div className="text-2xl font-black tabular-nums">{fmtHours(monthRecap.ms)} <span className="text-base font-semibold text-white/75">· {monthRecap.plays.toLocaleString()} plays</span></div>
+          <div className="min-w-0 flex-1 basis-44 pr-5">
+            <div className="text-xs font-bold uppercase tracking-wider text-white/70">Your {monthLabelOf(m)} recap is ready</div>
+            <div className="text-2xl font-black tabular-nums">{fmtHours(monthRecap.ms)}</div><div className="text-sm font-medium text-white/75">{monthRecap.plays.toLocaleString()} plays</div>
             <div className="truncate text-sm text-white/80">{monthRecap.topTracks[0]?.label}{monthRecap.topArtists[0] ? ` · ${monthRecap.topArtists[0].label}` : ''}</div>
           </div>
           <Link to={`/recaps?kind=month&month=${iso(m)}`} onClick={() => dismiss(lib, 'month', m)} className="btn btn-accent"><Gift size={15} />See your month</Link>
@@ -58,9 +58,9 @@ export function RecapPrompt({ lib }: { lib: Library }) {
         return (
           <section className="card relative flex flex-wrap items-center gap-4 overflow-hidden p-4" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #4c1d95 55%, #1e1b4b 100%)', color: '#fff' }} aria-label="Weekly recap">
             <Cover hash={top?.id ? lib.trackById.get(top.id)?.cover : null} seed={top?.label ?? 'week'} className="!h-20 !w-20 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold uppercase tracking-widest text-white/70">{recap.partial ? 'Your week so far' : 'Your weekly recap is ready'} · {weekLabelOf(recap.from, recap.to - 1)}</div>
-              <div className="text-2xl font-black tabular-nums">{fmtHours(recap.ms)} <span className="text-base font-semibold text-white/75">· {recap.plays.toLocaleString()} plays</span></div>
+            <div className="min-w-0 flex-1 basis-44 pr-5">
+              <div className="text-xs font-bold uppercase tracking-wider text-white/70">{recap.partial ? 'Your week so far' : 'Your weekly recap is ready'}<span className="block font-medium normal-case tracking-normal text-white/60">{weekLabelOf(recap.from, recap.to - 1)}</span></div>
+              <div className="text-2xl font-black tabular-nums">{fmtHours(recap.ms)}</div><div className="text-sm font-medium text-white/75">{recap.plays.toLocaleString()} plays</div>
               <div className="truncate text-sm text-white/80">{top ? top.label : ''}{top && art ? ' · ' : ''}{art ? art.label : ''}</div>
             </div>
             <Link to={`/recaps?week=${iso(week)}`} onClick={() => dismiss(lib, 'week', week)} className="btn btn-accent"><Gift size={15} />See your recap</Link>

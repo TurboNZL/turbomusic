@@ -27,11 +27,11 @@ export function PlayControls({ ids, source, label = 'this list' }: { ids: string
   return (
     <>
       <button className="btn btn-accent" disabled={!ids.length} onClick={() => { const o = ordered(); play(o[0], o, source); }}><Play size={16} fill="currentColor" />Play</button>
-      <button className={cn('btn', shuffleOn && 'btn-accent')} aria-pressed={shuffleOn} onClick={toggleShuffle} title={shuffleOn ? 'Shuffle is on: Play, Then and Add to Then mix the list' : 'Shuffle is off: they keep the list order'}><Shuffle size={16} />Shuffle {shuffleOn ? 'on' : 'off'}</button>
-      {hasCurrent && <>
+      <button className={cn('btn', shuffleOn && 'btn-accent')} aria-pressed={shuffleOn} onClick={toggleShuffle} title={shuffleOn ? 'Shuffle is on: Play, Then and Add to Then mix the list' : 'Shuffle is off: they keep the list order'}><Shuffle size={16} /><span className="max-sm:sr-only">Shuffle {shuffleOn ? 'on' : 'off'}</span></button>
+      {hasCurrent && <div className="contents max-sm:hidden">
         <button className="btn" disabled={!ids.length} title={`Keep playing the current track, then continue with ${label} instead of what was coming next`} onClick={() => replaceRest(ordered(), source)}><ListStart size={16} />Then: replace</button>
         <button className="btn btn-ghost" disabled={!ids.length} title={`Add ${label} to the end of what is coming next`} onClick={() => appendRest(ordered())}><ListEnd size={16} />Add to Then</button>
-      </>}
+      </div>}
     </>
   );
 }

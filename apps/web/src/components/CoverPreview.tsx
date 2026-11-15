@@ -23,7 +23,7 @@ export function CoverPreview({ anchor, track }: { anchor: HTMLElement | null; tr
   const v = usePlaybackView();
   const pct = (x: number, max: number) => ({ '--p': `${max > 0 ? Math.min(100, (x / max) * 100) : 0}%` }) as React.CSSProperties;
   return (
-    <Popover open={open && !!track} anchor={anchor} onClose={close} label="Now playing" className="w-[min(22rem,calc(100vw-1.5rem))] p-3">
+    <Popover open={open && !!track} anchor={anchor} onClose={close} label="Now playing" className="w-[min(22rem,calc(100vw-1.5rem))] p-3 max-md:p-4">
       {track && <div className="flex flex-col gap-3">
         <Cover hash={track.cover} seed={track.albumTitle ?? track.title} className="mx-auto w-full max-w-[19rem]" />
         <div className="flex items-start gap-3">

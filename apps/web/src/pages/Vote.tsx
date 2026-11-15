@@ -312,7 +312,7 @@ export function VotePage() {
   const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* private mode */ } };
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-center gap-1.5 text-sm" role="tablist" aria-label="How to rank">
+      <div className="mb-3 flex shrink-0 items-center gap-1.5 overflow-x-auto pb-1 text-sm sm:flex-wrap sm:justify-center [&>*]:shrink-0" role="tablist" aria-label="How to rank">
         <span className="mr-1 text-muted">Rank by</span>
         {MODES.map((m) => <button key={m.id} role="tab" aria-selected={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={cn('chip cursor-pointer', mode === m.id ? 'bg-accent text-accent-fg' : 'hover:brightness-125')}>{m.label}</button>)}
       </div>

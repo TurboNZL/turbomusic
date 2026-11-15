@@ -112,7 +112,7 @@ export function NowPlaying() {
     <div className={cn('bt-now fixed inset-x-0 z-[90] flex flex-col overflow-hidden bg-bg text-fg', hidden && 'cursor-none')} style={{ top: frame, height: `calc(100dvh - ${frame})` }} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={wake} onTouchStart={wake} onClick={() => { if (saver) setSaver(false); else if (idle) wake(); }}>
       {cover && <div className="absolute inset-0 scale-125 bg-cover bg-center opacity-50 blur-3xl" style={{ backgroundImage: `url(${cover})` }} aria-hidden />}
       <div className="absolute inset-0 bg-bg/55" aria-hidden />
-      <header className={cn('relative z-10 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
+      <header className={cn('relative z-20 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
         <button className="btn" onClick={() => setNow(false)} aria-label="Close"><X size={18} /></button>
         <div className="ml-auto flex gap-2">
           <button className={cn('btn', showLyrics && !saver && 'btn-accent')} aria-pressed={showLyrics} title="Lyrics (L)" onClick={pickLyrics}><Mic2 size={16} /><span className="max-sm:hidden">Lyrics</span></button>
@@ -121,8 +121,8 @@ export function NowPlaying() {
           {canFull && <button className="btn" title="Full screen (F11 also works)" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
         </div>
       </header>
-      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:gap-3 max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center')}>
-        <div className={cn('shrink-0', saver ? 'bt-drift w-[min(78vmin,44rem)]' : showLyrics ? 'w-[min(30vh,62vw,22rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
+      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:justify-start max-md:gap-3 max-md:overflow-hidden max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center')}>
+        <div className={cn('shrink-0', saver ? 'bt-drift w-[min(78vmin,44rem)]' : showLyrics ? 'w-[min(24vh,56vw,20rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
           {cover ? <img src={cover} alt="" className="aspect-square w-full rounded-theme object-cover shadow-2xl" draggable={false} /> : <div className="aspect-square w-full rounded-theme bg-raised" />}
           {!saver && <div className="mt-2 min-w-0 text-center md:mt-4 md:text-left"><div className="truncate text-2xl font-bold md:text-3xl">{track.title}</div>
             <div className="truncate text-base text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}

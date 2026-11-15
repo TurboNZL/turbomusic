@@ -63,9 +63,9 @@ export function ArtistPage() {
   const where = (kind: 'albums' | 'singles' | 'tracks') => searchHref({ kind, chips: [idChip('artist', artist.id, artist.name), ...(era ? [idChip('era', era, lib.eraById.get(era)?.name ?? '')] : [])] });
   return (
     <DetailLayout right={<Notes lib={lib} type="artist" id={artist.id} />}>
-      <div className="flex items-center gap-5" onContextMenu={menu.onContextMenu(artistItems(artist.id), `Actions for ${artist.name}`, 'artist')}>
-        <Cover kind="artist" hash={artist.image} seed={artist.name} className="w-32 shrink-0 sm:w-40" />
-        <div><div className="text-xs uppercase tracking-wider text-muted">Artist</div><h1 className="text-3xl font-bold">{artist.name}</h1>
+      <div className="flex items-center gap-4 sm:gap-5" onContextMenu={menu.onContextMenu(artistItems(artist.id), `Actions for ${artist.name}`, 'artist')}>
+        <Cover kind="artist" hash={artist.image} seed={artist.name} className="w-24 shrink-0 sm:w-40" />
+        <div><div className="text-xs uppercase tracking-wider text-muted">Artist</div><h1 className="text-2xl font-bold sm:text-3xl">{artist.name}</h1>
           {akaLine(artist.aliases) && <div className="text-sm text-muted" title={artist.aliases!.join(', ')}>{akaLine(artist.aliases)}</div>}
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{albums.length} album{albums.length === 1 ? "" : "s"}</Link>{singles.length > 0 && <> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{singles.length} single{singles.length === 1 ? "" : "s"}</Link></>} · <Link className="hover:text-fg hover:underline" to={where('tracks')}>{tracks.length} tracks</Link></div>
           <div className="mt-3 flex flex-wrap gap-2">
