@@ -30,6 +30,7 @@ import { README, libraryJson, loadInput, planLayout, playlistFiles, tracksCsv } 
 import { tarChunks, tarLength, type TarEntry } from './tar.ts';
 import { rmSync } from 'node:fs';
 import { diskUsage, filePath, parseRange, saveVerified, streamFile, UploadError } from './files.ts';
+import { cleanKbps, transcodedPath } from './transcode.ts';
 
 export const API_VERSION = 1;
 
@@ -467,16 +468,24 @@ export function createApp(
     }
   });
 
-  app.get('/api/files/:hash', (c) => {
+  app.get('/api/files/:hash', async (c) => {
     const hash = c.req.param('hash');
-    const info = sha256Hex.test(hash) ? store.fileInfo(hash) : undefined;
-    const path = info && filePath(config.dataDir, hash);
+    let info = sha256Hex.test(hash) ? store.fileInfo(hash) : undefined;
+    let path = info && filePath(config.dataDir, hash);
     if (!info || !path || !existsSync(path)) return c.json({ error: 'not found' }, 404);
+
+    // ?kbps=128: a smaller MP3 copy for saving offline (made once, cached; the original when ffmpeg cannot make it). Pictures are never touched.
+    const kbps = info.mime.startsWith('audio/') ? cleanKbps(c.req.query('kbps')) : null;
+    let tag = hash;
+    if (kbps) {
+      const small = await transcodedPath(config, hash, kbps);
+      if (small) { path = small; info = { ...info, size: statSync(small).size, mime: 'audio/mpeg' }; tag = `${hash}-${kbps}`; }
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': info.mime, 'Accept-Ranges': 'bytes',
       // content-addressed => the bytes can never change
-      'Cache-Control': 'public, max-age=31536000, immutable', ETag: `"${hash}"`,
+      'Cache-Control': 'public, max-age=31536000, immutable', ETag: `"${tag}"`,
     };
     const range = parseRange(c.req.header('Range'), info.size);
     if (range === 'invalid') return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${info.size}` } });

@@ -153,7 +153,8 @@ export const cacheBytes = (c: Record<string, CacheEntry>) => Object.values(c).re
 export async function downloadAudio(hash: string, protect: ReadonlySet<string> = new Set()): Promise<void> {
   const st = useStore.getState();
   if (st.audioCache[hash]) return;
-  const res = await api().fetchLink(api().fileUrl(hash));
+  const kbps = st.settings.offlineKbps > 0 ? st.settings.offlineKbps : undefined;
+  const res = await api().fetchLink(api().fileUrl(hash, kbps));
   if (!res.ok) throw new Error(`Server said ${res.status}`);
   const blob = await res.blob();
   const limit = st.settings.storageLimitOn ? st.settings.storageLimitMb * 1024 * 1024 : Infinity;
@@ -223,7 +224,9 @@ export function cancelPrefetch(): void { prefetched?.abort.abort(); prefetched =
 
 /** URL to play `hash` from: the local copy when kept offline, then a FINISHED prefetch, otherwise streamed from the server. Caller revokes blob: URLs. */
 export async function audioSource(hash: string): Promise<{ url: string; local: boolean }> {
-  const own = await localAudio(hash);
+  // "always stream" still plays a copy that has not reached the server yet (it exists nowhere else)
+  const streamOnly = useStore.getState().settings.preferLocalCopy === false && !(await getMeta<string[]>('pendingUploads', [])).includes(hash);
+  const own = streamOnly ? null : await localAudio(hash);
   if (own) return { url: own, local: true };
   if (prefetched?.hash === hash) {
     const p = prefetched; prefetched = null;

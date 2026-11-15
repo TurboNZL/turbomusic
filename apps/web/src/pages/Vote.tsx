@@ -8,7 +8,7 @@ import { heardTrackIds, onlyHeard } from '../lib/heard.ts';
 import { useEditor } from '../lib/editor.ts';
 import { pairLacksAudio, pickPair, rankPool, tierPool, TIERS, type Tier, type TierChoice } from '../lib/pairing.ts';
 import { useStore } from '../lib/store.ts';
-import { loadPreview, middle, release, SNIPPET_MS, type Preview } from '../lib/preview.ts';
+import { fadeOut, loadPreview, middle, release, SNIPPET_MS, type Preview } from '../lib/preview.ts';
 import { usePlayer } from '../lib/player.ts';
 import { Cover } from '../components/Cover.tsx';
 import { Rating } from '../components/Rating.tsx';
@@ -57,11 +57,15 @@ function useCompact(height: number | undefined) {
   return w < 360 || (height !== undefined && height < 440);
 }
 
+let keptPair: [string, string] | null = null;
+
 export function VotePage() {
   const lib = useLibraryLive();
   const edit = useEditor((s) => s.open);
   const put = useStore((s) => s.put);
-  const [pair, setPair] = useState<[string, string] | null>(null);
+  // the pair survives leaving the tab and coming back (kept in `keptPair`), so a visit does not hand out a new one
+  const [pair, setPair] = useState<[string, string] | null>(() => (keptPair && lib.trackById.has(keptPair[0]) && lib.trackById.has(keptPair[1]) ? keptPair : null));
+  useEffect(() => { keptPair = pair; }, [pair]);
   // ranking is about listening, so tracks with audio come first by default
   const [onlyPlayable, setOnlyPlayable] = useState(true);
   /** the tracks of the pair on screen whose preview is buffered and can start at once */
@@ -83,7 +87,8 @@ export function VotePage() {
   const compact = useCompact(fit.height);
   // which class of track both sides come from ("top 10% against top 10%"); kept for next time
   const [tier, setTierState] = useState<TierChoice>(() => { try { return { tier: 'any' as Tier, min: 7, max: 10, ...JSON.parse(localStorage.getItem('turbomusic.rankTier') ?? '{}') }; } catch { return { tier: 'any', min: 7, max: 10 }; } });
-  const setTier = (t: TierChoice) => { setTierState(t); setPair(null); try { localStorage.setItem('turbomusic.rankTier', JSON.stringify(t)); } catch { /* ignore */ } };
+  // changing the band does not throw the pair on screen away: it applies from the next pair
+  const setTier = (t: TierChoice) => { setTierState(t); try { localStorage.setItem('turbomusic.rankTier', JSON.stringify(t)); } catch { /* ignore */ } };
   // only tracks that were played at least once are ranked: ranking is about songs you know (the "Try something new" list on the home page is for the rest)
   const heard = useMemo(() => heardTrackIds(buildListens(lib)), [lib]);
   const { pool: knownPool, fellBack: noHistory } = useMemo(() => onlyHeard(lib.tracks, heard), [lib, heard]);
@@ -98,7 +103,7 @@ export function VotePage() {
   const stop = useCallback(() => {
     clearTimeout(timer.current);
     loadSeq.current++; // a preview still resolving its source must not start after this
-    previews.current.forEach((p) => void p.then((v) => v?.el.pause()));
+    previews.current.forEach((p) => void p.then((v) => { if (v) void fadeOut(v.el); }));
     setPlaying(null);
   }, []);
   const next = useCallback(() => {

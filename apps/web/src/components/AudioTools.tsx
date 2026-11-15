@@ -4,6 +4,7 @@ import { api, useStore } from '../lib/store.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { claimedKbps, qualityOf, runAudioCheck, type CheckProgress } from '../lib/audioCheck.ts';
 import { cn } from '../lib/cn.ts';
+import { fresh, peek } from '../lib/swr.ts';
 
 const Bar = ({ value, tone = 'accent' }: { value: number; tone?: 'accent' | 'good' | 'warn' }) => (
   <div className="h-2 overflow-hidden rounded-full bg-raised"><div className={cn('h-full rounded-full transition-[width] duration-500', tone === 'good' ? 'bg-good' : tone === 'warn' ? 'bg-warn' : 'bg-accent')} style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }} /></div>
@@ -23,7 +24,8 @@ export function MissingAudioCard() {
     try { const r = await api().acquireStatus(); setSt(r); if (r.queued + r.running === 0) { window.clearInterval(timer.current); timer.current = 0; } }
     catch { setMsg('Could not reach the server.'); window.clearInterval(timer.current); timer.current = 0; }
   }
-  useEffect(() => { if (configured) void poll(); return () => window.clearInterval(timer.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // the first look may be a minute old (coming back to this page); a running queue is polled live below
+  useEffect(() => { if (configured) void fresh('acquire-status', 30_000, () => api().acquireStatus()).then((r) => { setSt(r); if (r.queued + r.running > 0 && !timer.current) timer.current = window.setInterval(() => void poll(), 1500); }).catch(() => undefined); return () => window.clearInterval(timer.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   async function start() {
     try { const r = await api().acquire(); setMsg(`Queued ${r.queued} tracks.`); await poll(); if (!timer.current) timer.current = window.setInterval(() => void poll(), 1500); }
     catch { setMsg('Could not reach the server.'); }

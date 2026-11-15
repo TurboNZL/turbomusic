@@ -21,6 +21,8 @@ export interface Listen {
   album: string;
   uri: string | null;
   skipped: boolean;
+  /** the track's length in seconds, when the play recorded it */
+  length?: number | null;
   shuffle: boolean | null;
   platform: string | null;
   reasonEnd: string | null;
@@ -67,7 +69,7 @@ export function buildListens(lib: Library): Listen[] {
       const t = lib.trackById.get(l.trackId);
       if (!t) continue;
       out.push({ id: l.id, ts: l.timestamp, ms: Math.round((l.duration ?? 0) * 1000), trackId: t.id, artistId: t.leads[0]?.id ?? null, albumId: t.albumId ?? null, title: t.title, artist: t.leads[0]?.name ?? t.artistName, album: t.albumTitle ?? '',
-        uri: spotifyTrackId(t.spotifyUrl) ? `spotify:track:${spotifyTrackId(t.spotifyUrl)}` : null, skipped: !!l.isSkip, shuffle: null, platform: 'TurboMusic', reasonEnd: null, source: 'turbomusic' });
+        uri: spotifyTrackId(t.spotifyUrl) ? `spotify:track:${spotifyTrackId(t.spotifyUrl)}` : null, skipped: !!l.isSkip, length: l.length ?? null, shuffle: null, platform: 'TurboMusic', reasonEnd: null, source: 'turbomusic' });
     }
   }
   out.sort((a, b) => a.ts - b.ts);

@@ -13,7 +13,9 @@ import { cn } from '../lib/cn.ts';
 export function PreviewCard({ t, preview, badge, accent, children }: { t: Track; preview: PreviewState; badge?: ReactNode; accent?: boolean; children?: ReactNode }) {
   const on = preview.playing === t.id;
   return (
-    <div data-selected={on || undefined} className={cn('card bt-sel flex min-w-0 flex-col gap-2 p-3', accent && 'ring-1 ring-accent/40')}>
+    // the whole card previews (like the Rank page); only the buttons, links and inputs on it keep their own clicks
+    <div data-selected={on || undefined} className={cn('card bt-sel flex min-w-0 flex-col gap-2 p-3', t.file && 'cursor-pointer', accent && 'ring-1 ring-accent/40')}
+      onClick={(e) => { if (t.file && !(e.target as HTMLElement).closest('a, button, input, select, textarea')) preview.toggle(t); }}>
       <button type="button" disabled={!t.file} aria-pressed={on} aria-label={`${on ? 'Stop preview of' : 'Preview'} ${t.title}`} onClick={() => preview.toggle(t)}
         className="relative mx-auto block aspect-square w-full max-w-[9.5rem] disabled:cursor-default">
         <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-full w-full" />
@@ -25,7 +27,7 @@ export function PreviewCard({ t, preview, badge, accent, children }: { t: Track;
         <div className="truncate text-xs text-muted"><ArtistLinks leads={t.leads} featured={t.featured} /></div>
         <div className="mt-0.5 text-[11px] text-muted" aria-hidden>
           {!t.file ? 'No audio yet' : on ? <span className="inline-flex items-center gap-1"><Pause size={10} />Tap to stop</span>
-            : preview.ready.has(t.id) ? <span className="inline-flex items-center gap-1"><Play size={10} />Tap the cover: 15 s</span>
+            : preview.ready.has(t.id) ? <span className="inline-flex items-center gap-1"><Play size={10} />Tap the card: 15 s</span>
             : <span className="inline-flex items-center gap-1"><Loader2 size={10} className="animate-spin" />Loading preview…</span>}
         </div>
       </div>

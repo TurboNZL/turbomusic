@@ -17,12 +17,14 @@ import { statsPath } from '../lib/entityStats.ts';
 import type { SourceType } from '@turbomusic/core';
 
 /** Compact rows for ranking/editing lists. `list` is the playback order handed to the queue. */
-export function TrackTable({ tracks, queue, source, sourceId = null, numbered = false, showAlbum = true, covers = false, extra, below }: {
+export function TrackTable({ tracks, queue, source, sourceId = null, numbered = false, showAlbum = true, covers = false, keepQueue = false, extra, below }: {
   tracks: Track[];
   /** the whole list when `tracks` is only the part drawn so far: playing a row queues all of it */
   queue?: Track[]; source: SourceType; sourceId?: string | null; numbered?: boolean; showAlbum?: boolean;
   /** a small cover (the track's own, else its album's) before the title: for singles and search results, where the album is not around */
   covers?: boolean;
+  /** play only the chosen track and leave what was queued after it as it was (search results: see Settings > Playback) */
+  keepQueue?: boolean;
   /** extra controls at the end of each row (e.g. move/remove in a playlist) */
   extra?: (t: Track, index: number) => React.ReactNode;
   /** a full-width line under a row (e.g. a playlist note) */
@@ -34,6 +36,11 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
   const edit = useEditor((s) => s.open);
   const cache = useStore((s) => s.audioCache);
   const ids = (queue ?? tracks).map((t) => t.id);
+  const playRow = (id: string) => {
+    if (!keepQueue) { play(id, ids, { type: source, id: sourceId }); return; }
+    const st = usePlayer.getState();
+    play(id, [id, ...st.queue.active.filter((x) => x !== id)], st.queue.currentId ? st.source : { type: source, id: sourceId }); // what was coming next still comes next
+  };
   const menu = useMenu();
   const itemsFor = useTrackMenuItems();
   // ?track=<id> (from "Go to track") scrolls that row into view and flashes it
@@ -54,18 +61,18 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
       {tracks.map((t, i) => (
         <div key={t.id}>
         <div data-track-id={t.id} className={cn('bt-row group flex items-center gap-3 px-3', current === t.id && 'bt-row-current')} style={{ paddingBlock: 'var(--row-y)' }}
-          onContextMenu={menu.onContextMenu(itemsFor(t, () => play(t.id, ids, { type: source, id: sourceId })), `Actions for ${t.title}`, t.id)}>
+          onContextMenu={menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)}>
           {covers ? <>
             {numbered && <span className={cn('w-6 shrink-0 text-center text-sm text-muted', current === t.id && 'text-accent')}>{i + 1}</span>}
             {/* the cover is the play button: the Play glyph appears over it on hover or focus (and a tap on a phone plays) */}
-            <button className="relative w-10 shrink-0 rounded-theme disabled:cursor-not-allowed" disabled={!canPlay(t)} aria-label={canPlay(t) ? `Play ${t.title}` : 'No audio file yet'}
-              onClick={() => play(t.id, ids, { type: source, id: sourceId })} title={canPlay(t) ? 'Play' : 'No audio file yet'}>
+            <button className="relative block w-10 shrink-0 overflow-hidden rounded-theme leading-none disabled:cursor-not-allowed" disabled={!canPlay(t)} aria-label={canPlay(t) ? `Play ${t.title}` : 'No audio file yet'}
+              onClick={() => playRow(t.id)} title={canPlay(t) ? 'Play' : 'No audio file yet'}>
               <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="w-full" />
               {canPlay(t) && <span className="absolute inset-0 grid place-items-center rounded-theme bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"><Play size={16} fill="currentColor" /></span>}
             </button>
           </> : (
           <button className="relative w-6 shrink-0 text-center text-sm text-muted disabled:cursor-not-allowed" disabled={!canPlay(t)}
-            onClick={() => play(t.id, ids, { type: source, id: sourceId })} title={canPlay(t) ? 'Play' : 'No audio file yet'}>
+            onClick={() => playRow(t.id)} title={canPlay(t) ? 'Play' : 'No audio file yet'}>
             <span className={cn(canPlay(t) && 'group-hover:hidden', current === t.id && canPlay(t) && 'text-accent')}>{numbered ? i + 1 : ''}</span>
             {canPlay(t) && <Play size={14} fill="currentColor" className="mx-auto hidden group-hover:block" />}
           </button>)}

@@ -17,7 +17,20 @@ export function previewStart(duration: number, seekableEnd = NaN): number | null
 /** previews that already hold just the middle of the track (they start at 0) */
 const slices = new WeakSet<HTMLAudioElement>();
 export const middle = (el: HTMLAudioElement) => slices.has(el) ? 0 : previewStart(el.duration, el.seekable.length ? el.seekable.end(el.seekable.length - 1) : NaN) ?? 0;
-export const release = (p: Preview | null) => { if (!p) return; p.el.pause(); p.el.removeAttribute('src'); p.el.load(); if (p.local) URL.revokeObjectURL(p.url); };
+/** Ramp a playing preview to silence over ~90 ms, then pause it and put its volume back: pausing mid-waveform makes a click. */
+export function fadeOut(el: HTMLAudioElement, ms = 90): Promise<void> {
+  if (el.paused) return Promise.resolve();
+  const v0 = el.volume, steps = 9;
+  let i = 0;
+  return new Promise((resolve) => {
+    const t = setInterval(() => { i++; el.volume = Math.max(0, v0 * (1 - i / steps)); if (i >= steps) { clearInterval(t); el.pause(); el.volume = v0; resolve(); } }, ms / steps);
+  });
+}
+export const release = (p: Preview | null) => {
+  if (!p) return;
+  const done = () => { p.el.pause(); p.el.removeAttribute('src'); p.el.load(); if (p.local) URL.revokeObjectURL(p.url); };
+  if (p.el.paused) done(); else void fadeOut(p.el).then(done);
+};
 
 /**
  * Start loading a track for the preview: its source is resolved (the copy kept on this device, else the server), and the

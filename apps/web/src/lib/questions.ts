@@ -44,7 +44,7 @@ export function makeQuestion(tracks: Q[], kind: Question['kind'], rnd: () => num
     // the track nearest the line, so the answer actually tells something: rated 7-9, few comparisons
     const cand = tracks.filter((t) => t.id !== ref.id && t.comparisons <= 4).sort((x, y) => Math.abs(x.elo - ref.elo) - Math.abs(y.elo - ref.elo)).slice(0, 6);
     const t = cand[Math.floor(rnd() * cand.length)];
-    return t ? { kind, id: t.id, ref: ref.id, why: `The line for your top 10% is ${ref.rating.toFixed(1)}. Does this one clear it?` } : null;
+    return t ? { kind, id: t.id, ref: ref.id, why: `Which is better? The track on the left sits at your top-10% line (${ref.rating.toFixed(1)}); picking the challenger says it belongs up there too.` } : null;
   }
   if (kind === 'love') {
     const t = least.find((x, i) => x.comparisons <= 1 && i >= Math.floor(rnd() * 10)) ?? least[0];

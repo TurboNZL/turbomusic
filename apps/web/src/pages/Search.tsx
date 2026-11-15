@@ -5,10 +5,13 @@ import { useLibrary, type Library } from '../lib/derive.ts';
 import { albumSubject, artistSubject, eraSubject, matchesAll, splitTyped, trackSubject } from '../lib/filters.ts';
 import { KIND_SCOPE, SEARCH_KINDS, chipsApply, parseSearch, searchHref, type SearchKind } from '../lib/searchUrl.ts';
 import { cn } from '../lib/cn.ts';
+import { useStore } from '../lib/store.ts';
 import { Cover } from '../components/Cover.tsx';
 import { TrackTable } from '../components/TrackTable.tsx';
 import { SingleGrid } from '../components/SingleCard.tsx';
 import { ArtistLinks } from '../components/ArtistLinks.tsx';
+import { useMenu } from '../components/Menu.tsx';
+import { useAlbumMenuItems, useArtistMenuItems } from '../components/entityMenus.tsx';
 
 const LABEL: Record<SearchKind, string> = { all: 'All', artists: 'Artists', albums: 'Albums', singles: 'Singles', tracks: 'Tracks', eras: 'Eras' };
 const GLANCE = 12, CHUNK = 100;
@@ -21,6 +24,10 @@ export function SearchPage() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const lib = useLibrary();
+  const menu = useMenu();
+  const albumItems = useAlbumMenuItems();
+  const artistItems = useArtistMenuItems();
+  const searchPlaysAll = useStore((s) => s.settings.searchPlaysAll);
   const { q, chips, kind } = parseSearch(params);
   const [shown, setShown] = useState(CHUNK);
 
@@ -51,6 +58,7 @@ export function SearchPage() {
 
   return (
     <div className="space-y-6">
+      {menu.element}
       <div>
         <h1 className="text-2xl font-bold">Search</h1>
         <p className="text-sm text-muted">{chips.length || q ? `${total} result${total === 1 ? '' : 's'}` : 'Type in the search bar above, or add a filter such as artist: or era:.'}</p>
@@ -63,17 +71,17 @@ export function SearchPage() {
         })}
       </div>
       {visible('artists') && <section>{heading('artists')}<div className="flex flex-wrap gap-3">{cap(results.artists!, 'artists').map((a) => (
-        <Link key={a.id} to={`/artists/${a.id}`} className="card flex w-48 items-center gap-3 p-2"><Cover kind="artist" hash={a.image} seed={a.name} className="w-10" /><span className="truncate text-sm">{a.name}</span></Link>))}</div>{more('artists')}</section>}
+        <Link key={a.id} to={`/artists/${a.id}`} className="card flex w-48 items-center gap-3 p-2" onContextMenu={menu.onContextMenu(artistItems(a.id), `Actions for ${a.name}`, a.id)}><Cover kind="artist" hash={a.image} seed={a.name} className="w-10" /><span className="truncate text-sm">{a.name}</span></Link>))}</div>{more('artists')}</section>}
       {visible('albums') && <section>{heading('albums')}
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
           {cap(results.albums!, 'albums').map((a: Library['albums'][number]) => (
-            <div key={a.id} className="bt-tile"><Link to={`/albums/${a.id}`} className="block"><Cover hash={a.cover} seed={a.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div></Link>
+            <div key={a.id} className="bt-tile" onContextMenu={menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id)}><Link to={`/albums/${a.id}`} className="block"><Cover hash={a.cover} seed={a.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div></Link>
               <div className="bt-cap truncate text-xs text-muted"><ArtistLinks leads={a.leads} /></div></div>))}
         </div>{more('albums')}</section>}
       {visible('singles') && <section>{heading('singles')}<SingleGrid tracks={cap(results.singles!, 'singles')} />{more('singles')}</section>}
       {visible('eras') && <section>{heading('eras')}<div className="flex flex-wrap gap-3">{cap(results.eras!, 'eras').map((e) => (
         <Link key={e.id} to={`/eras/${e.id}`} className="card flex w-56 items-center gap-3 p-2"><Cover hash={e.cover} seed={e.name} className="w-10" /><span className="flex min-w-0 items-center gap-1.5 truncate text-sm"><Layers size={13} className="shrink-0 text-muted" />{e.name}</span></Link>))}</div>{more('eras')}</section>}
-      {visible('tracks') && <section>{heading('tracks')}<div className="card overflow-hidden"><TrackTable tracks={cap(results.tracks!, 'tracks')} queue={results.tracks!} source="search" covers /></div>{more('tracks')}</section>}
+      {visible('tracks') && <section>{heading('tracks')}<div className="card overflow-hidden"><TrackTable tracks={cap(results.tracks!, 'tracks')} queue={results.tracks!} source="search" covers keepQueue={!searchPlaysAll} /></div>{more('tracks')}</section>}
       {(chips.length > 0 || q) && total === 0 && <p className="text-muted">Nothing matches.</p>}
     </div>
   );

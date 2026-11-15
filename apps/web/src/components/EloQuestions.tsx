@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, Equal, RefreshCw, SkipForward, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { Check, ChevronDown, Equal, RefreshCw, SkipForward, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
 import { heardTrackIds, onlyHeard } from '../lib/heard.ts';
@@ -9,8 +9,10 @@ import { usePreviews } from '../lib/usePreviews.ts';
 import { PreviewCard } from './PreviewCard.tsx';
 import { cn } from '../lib/cn.ts';
 
-const LABEL: Record<Question['kind'], string> = { duel: 'Head to head', triple: 'Best of three', benchmark: 'Top 10% check', love: 'Gut check' };
+const LABEL: Record<Question['kind'], string> = { duel: 'Head to head', triple: 'Best of three', benchmark: 'Against your top 10%', love: 'Gut check' };
 const OPEN_KEY = 'turbomusic.eloQuestionOpen';
+/** the question on screen survives leaving the home page and coming back */
+let kept: Question | null = null;
 const wasOpen = () => { try { return localStorage.getItem(OPEN_KEY) === '1'; } catch { return false; } };
 
 /**
@@ -23,7 +25,8 @@ export function EloQuestions() {
   const [open, setOpen] = useState(wasOpen);
   // only tracks that were played at least once get asked about (the rest are on the home page's "Try something new")
   const pool = useMemo(() => onlyHeard(lib.tracks.filter((t) => t.file), heardTrackIds(buildListens(lib))).pool.map((t) => ({ id: t.id, elo: t.elo, comparisons: t.comparisons, rating: t.rating })), [lib]);
-  const [q, setQ] = useState<Question | null>(() => nextQuestion(pool));
+  const [q, setQ] = useState<Question | null>(() => kept ?? nextQuestion(pool));
+  useEffect(() => { kept = q; }, [q]);
   const [answered, setAnswered] = useState(0);
   // the library may still be loading when this mounts: ask again once there is something to ask about
   useEffect(() => { if (!q && pool.length >= 2) setQ(nextQuestion(pool)); }, [q, pool]);
@@ -39,10 +42,10 @@ export function EloQuestions() {
     if (a !== 'skip') setAnswered((n) => n + 1);
     next(q.kind);
   };
-  const pick = (t: Track, label = 'This one') => <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={() => answer(t.id)}><Check size={14} />{label}</button>;
+  const pick = (t: Track, label = 'This one', on?: () => void) => <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={on ?? (() => answer(t.id))}><Check size={14} />{label}</button>;
 
   return (
-    <section className="card max-w-2xl" aria-label="Ranking question">
+    <section className="card" aria-label="Ranking question">
       <button type="button" className="flex w-full items-center gap-2 px-4 py-3 text-left" aria-expanded={open} onClick={toggle}>
         <h2 className="font-semibold">Sharpen your ranking</h2>
         <span className="chip">{LABEL[q.kind]}</span>
@@ -51,21 +54,13 @@ export function EloQuestions() {
       </button>
       {open && <div className="space-y-3 px-4 pb-4">
         <p className="text-sm text-muted">{q.why}</p>
-        {q.kind === 'duel' && <div className="grid grid-cols-2 gap-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t)}</PreviewCard>)}</div>}
-        {q.kind === 'triple' && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t, 'Best')}</PreviewCard>)}</div>}
+        {q.kind === 'duel' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t)}</PreviewCard>)}</div>}
+        {q.kind === 'triple' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t, 'Best')}</PreviewCard>)}</div>}
         {q.kind === 'benchmark' && (() => { const [ref, t] = tracks; return (
-          <div className="space-y-3">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <PreviewCard t={ref} preview={preview} badge={`The line · ${ref.rating.toFixed(1)}`} />
-              <span className="text-xs font-medium uppercase tracking-wide text-muted">vs</span>
-              <PreviewCard t={t} preview={preview} accent badge="Challenger" />
-            </div>
-            {/* the same three columns as the cards above: the line (left) wins when the challenger falls short, the challenger (right) wins when it clears the line */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <button className="btn w-full" onClick={() => answer('no')}><X size={14} />Falls short</button>
-              <span className="invisible text-xs" aria-hidden>vs</span>
-              <button className="btn btn-accent w-full" onClick={() => answer('yes')}><Check size={14} />Clears the line</button>
-            </div>
+          // a plain head-to-head: the track on your top-10% line against a challenger. Picking the challenger says it clears the line.
+          <div className="grid grid-cols-2 gap-3">
+            <PreviewCard t={ref} preview={preview} badge={`The line · ${ref.rating.toFixed(1)}`}>{pick(ref, 'This one is better', () => answer('no'))}</PreviewCard>
+            <PreviewCard t={t} preview={preview} accent badge="Challenger">{pick(t, 'This one is better', () => answer('yes'))}</PreviewCard>
           </div>); })()}
         {q.kind === 'love' && (() => { const [t] = tracks; return (
           <div className="mx-auto max-w-[12rem]"><PreviewCard t={t} preview={preview}>

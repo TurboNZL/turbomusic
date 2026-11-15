@@ -189,7 +189,7 @@ function buildSlide(id: SlideId, { w, lib, edition, onAnswered }: Ctx): ReactNod
       if (w.peakHour === null) return null;
       const maxH = Math.max(1, ...w.hours), maxD = Math.max(1, ...w.weekdays);
       return <Split ratio="0.8fr 1.2fr"
-        left={<><Title sub={w.lateNight > 0 ? `${w.lateNight.toLocaleString()} plays came after midnight.` : undefined}>{`Your day runs on ${hourLabel(w.peakHour).replace(/([ap])$/, ' $1m')}`}</Title><p className="rc-rise text-[24px] text-white/85" style={rise(3)}>{Math.round(w.weekendShare * 100)}% of your plays were on weekends.</p></>}
+        left={<><Title sub={w.lateNight > 0 ? `${w.lateNight.toLocaleString()} plays came after midnight.` : undefined}>{`Your day runs on ${hourLabel(w.peakHour)}`}</Title><p className="rc-rise text-[24px] text-white/85" style={rise(3)}>{Math.round(w.weekendShare * 100)}% of your plays were on weekends.</p></>}
         right={<div className="space-y-6">
           <div><div className="flex h-[230px] items-end gap-[4px]" role="img" aria-label="Listening by hour of the day">{w.hours.map((h, k) => <div key={k} className={`rc-bar flex-1 rounded-t ${k === w.peakHour ? 'bg-yellow-300' : 'bg-white/70'}`} style={{ height: `${Math.max(3, (h / maxH) * 100)}%`, ...rise(k) }} />)}</div>
             <div className="mt-1.5 flex justify-between text-[15px] text-white/70"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span></div></div>
@@ -219,7 +219,7 @@ function buildSlide(id: SlideId, { w, lib, edition, onAnswered }: Ctx): ReactNod
       const rows: [string, ReactNode, string][] = [];
       if (w.streak.days > 1) rows.push(['Longest streak', <><CountUp value={w.streak.days} ms={1000} /> days</>, 'in a row with music']);
       if (w.busiestMonth) rows.push(['Busiest month', MONTH_LONG(w.busiestMonth.month), fmtHours(w.busiestMonth.ms)]);
-      if (w.peakHour !== null) rows.push(['Favourite hour', hourLabel(w.peakHour).replace(/([ap])$/, ' $1m'), 'when you listened most']);
+      if (w.peakHour !== null) rows.push(['Favourite hour', hourLabel(w.peakHour), 'when you listened most']);
       if (w.biggestDays[0]) rows.push(['Biggest day', dayLong(w.biggestDays[0].key), `${fmtHours(w.biggestDays[0].ms)} of music`]);
       if (w.firstPlay) rows.push(['First song of the year', <span key="f" className="text-[34px]">{w.firstPlay.title}</span>, w.firstPlay.artist]);
       return <Split left={<Title>When it happened</Title>} right={<div className="grid grid-cols-2 gap-4">{rows.slice(0, 6).map(([l, v, sub], k) => <Card key={l} i={k}><div className="text-[17px] uppercase tracking-wider text-white/70">{l}</div><div className="text-[44px] font-black leading-tight">{v}</div><div className="truncate text-[18px] text-white/75">{sub}</div></Card>)}</div>} />;

@@ -165,7 +165,8 @@ export class Api {
   /** `<audio src>` / `<img src>` cannot send headers, hence ?token= */
   /** the live stream of the server's Soloist (server/src/beam.ts); plays like internet radio */
   beamUrl() { return this.url(`/api/soloist/stream?token=${encodeURIComponent(this.s.token)}`); }
-  fileUrl(hash: string) { return this.url(`/api/files/${hash}?token=${encodeURIComponent(this.s.token)}`); }
+  /** `kbps`: ask the server for a smaller MP3 copy of an audio file (what "Keep offline" uses when a bit rate is chosen) */
+  fileUrl(hash: string, kbps?: number) { return this.url(`/api/files/${hash}?token=${encodeURIComponent(this.s.token)}${kbps ? `&kbps=${kbps}` : ''}`); }
 }
 
 export interface MirrorInfo { enabled: boolean; mode: 'symlink' | 'hardlink' | 'copy'; dir: string | null; defaultDir: string; effectiveDir: string; last: { linked: number; removed: number; skipped: number; at: number } | null; error: string | null; running: boolean }
