@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Gift, Pause, Play } from 'lucide-react';
 import { useLibraryLive, type Library } from '../lib/derive.ts';
@@ -340,7 +341,7 @@ export function WrappedPage() {
     <div className="mx-auto max-w-xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-2xl font-bold">Wrapped</h1>
-        {years.length > 1 && <select className="input w-auto" value={year} onChange={(e) => setParams({ year: e.target.value }, { replace: true })} aria-label="Year">{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>}
+        {years.length > 1 && <ThemedSelect className="input w-auto" value={year} onChange={(e) => setParams({ year: e.target.value }, { replace: true })} aria-label="Year">{years.map((y) => <option key={y} value={y}>{y}</option>)}</ThemedSelect>}
         <Link to="/recaps" className="btn"><Gift size={15} />Weekly recap</Link>
       </div>
       {w.plays < 5

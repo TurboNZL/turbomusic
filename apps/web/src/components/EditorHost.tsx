@@ -82,7 +82,8 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
   const [fadeOut, setFadeOut] = useState<boolean>(rule?.crossfadeOut !== false);
   const [fadeIn, setFadeIn] = useState<boolean>(rule?.crossfadeIn !== false);
   const [albumSel, setAlbumSel] = useState(track?.albumId ?? '');
-  const [eraIds, setEraIds] = useState<string[]>(() => (track?.albumId ? [] : track?.eraIds ?? []));
+  // the eras that list THIS track (a track on an album also follows its album's eras, which are not editable here)
+  const [eraIds, setEraIds] = useState<string[]>(() => lib.eras.filter((e) => e.trackIds.includes(id)).map((e) => e.id));
   const [choice, setChoice] = useState<ReleaseChoice>({ releaseIds: [], newRelease: false });
   if (!track || !t) return null;
   const set = <K extends keyof TrackData>(k: K, v: TrackData[K]) => setT((p) => ({ ...p!, [k]: v }));
@@ -106,7 +107,7 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
     const albums = moved ? (plan ? plan.trackAlbums : kept.albums) : d.albums;
     put('tracks', { ...d, albums, eraId: null }, id);
     // eras are collections: a single is listed in them, a track on an album is in them through its album
-    for (const e of eraPatches(lib, 'track', id, albumSel ? [] : eraIds)) patch('eras', e.id, e.patch);
+    for (const e of eraPatches(lib, 'track', id, eraIds)) patch('eras', e.id, e.patch);
     if (moved) {
       const from = track!.albumId ? lib.albumById.get(track!.albumId) : undefined;
       if (from) {
@@ -153,7 +154,7 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
       {follows && <Field label="Featured artists" hint="Added on this track only; the credits above stay the album's."><FeaturedEditor value={t.credits ?? []} onChange={(v) => set('credits', v)} /></Field>}
       {albumSel && t.syncWithAlbumCredits && <Field label="Genres (from the album)"><div className="flex flex-wrap gap-1.5">{(selAlbum?.genres ?? []).length ? selAlbum!.genres.map((g) => <span key={g} className="chip">{g}</span>) : <span className="text-sm text-muted">The album has no genre yet.</span>}</div></Field>}
       {(!albumSel || !t.syncWithAlbumCredits) && <Field label="Genres"><TagInput value={t.genres ?? []} onChange={(v) => set('genres', v)} suggestions={lib.genres.map((g) => g.name)} /></Field>}
-      {!albumSel && <Field label="Eras" hint="Optional. A single can be in several eras."><EraPicker value={eraIds} onChange={setEraIds} /></Field>}
+      <Field label="Eras" hint={albumSel ? 'Optional. Puts just this track in an era; the album’s own eras apply to all its tracks and are set on the album.' : 'Optional. A single can be in several eras.'}><EraPicker value={eraIds} onChange={setEraIds} /></Field>
       <Field label="Cover" hint={albumSel ? "Optional. Without one the track shows its album's cover. If you add a track that has one to another album, it becomes a release of its own." : 'The single’s artwork.'}>
         <ImagePicker hash={t.cover ?? null} onChange={(h) => set('cover', h)} seed={t.title || 'track'} /></Field>
       {!albumSel && <Field label="Release date" hint="When the single came out. A track on an album uses its album's release date."><input type="date" className="input" value={t.releaseDate ?? ''} onChange={(e) => set('releaseDate', e.target.value || null)} />
@@ -543,7 +544,7 @@ function EraDialog({ eraId, onClose }: { eraId?: string; onClose: () => void }) 
       <Field label="Name" hint="An era is a collection of albums, singles and playlists: a phase of an artist, a feud, a scene. Collections can overlap."><input autoFocus className="input" value={e.name} onChange={(x) => setE({ ...e, name: x.target.value })} /></Field>
       <Field label="Description"><textarea className="input" rows={3} value={e.description ?? ''} onChange={(x) => setE({ ...e, description: x.target.value })} /></Field>
       {list('Albums', albumIds, setAlbumIds, lib.albums, (a) => `${a.title} · ${a.artistName}`)}
-      {list('Singles', trackIds, setTrackIds, lib.singles, (t) => `${t.title} · ${t.artistName}`)}
+      {list('Tracks and singles', trackIds, setTrackIds, lib.tracks, (t) => `${t.title} · ${t.artistName}${t.albumTitle ? ` · ${t.albumTitle}` : ''}`)}
       {list('Playlists', playlistIds, setPlaylistIds, lib.playlists, (p) => p.name)}
       <p className="text-xs text-muted">Notes can be tied to an era from the note’s own editor, or with the + on the era’s page.</p>
     </Modal>

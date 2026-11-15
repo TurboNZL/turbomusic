@@ -1,4 +1,5 @@
 import { CandidateArt } from './CandidateArt.tsx';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, Loader2, Search } from 'lucide-react';
 import { newTrackData, inheritFromAlbum } from '../lib/defaults.ts';
@@ -202,10 +203,10 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
                 <span className="w-6 text-right text-xs text-muted">{i + 1}</span>
                 <div className="min-w-0 flex-1 basis-48">{t ? <div className="truncate text-sm">{r.entry.title}{t.title !== r.entry.title && <span className="text-muted"> = {t.title}</span>}</div>
                   : <input className="input !py-1" value={r.title} onChange={(e) => set({ title: e.target.value })} aria-label="New track title" />}</div>
-                <select className="input !w-auto !py-1 text-xs" value={r.trackId ?? ''} aria-label="Which track of the album this is" onChange={(e) => set({ trackId: e.target.value || null })}>
+                <ThemedSelect className="input !w-auto !py-1 text-xs" value={r.trackId ?? ''} aria-label="Which track of the album this is" onChange={(e) => set({ trackId: e.target.value || null })}>
                   <option value="">New track</option>
                   {have.filter((h) => h.id === r.trackId || !taken.has(h.id)).map((h) => <option key={h.id} value={h.id}>In album: {h.title}</option>)}
-                </select>
+                </ThemedSelect>
               </div>);
           })}
         </div>

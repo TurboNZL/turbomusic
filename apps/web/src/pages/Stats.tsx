@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CalendarDays, Gift, Clock, Download, Flame, History, LayoutGrid, List, Upload, Users, SkipForward, Shuffle } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
@@ -134,8 +135,8 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
         <input className="input !w-64 max-w-full" placeholder="Search your history…" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE); }} />
         <input className="input !w-auto" type="date" aria-label="Jump to a day" value={on} onChange={(e) => { setOn(e.target.value); setShown(PAGE); }} />
         {on && <button className="btn btn-ghost" onClick={() => setOn('')}>All days</button>}
-        <select className="input !w-auto" value={source} onChange={(e) => { setSource(e.target.value as typeof source); setShown(PAGE); }}><option value="all">All sources</option><option value="turbomusic">Played in TurboMusic</option><option value="spotify">From Spotify</option></select>
-        <select className="input !w-auto" value={skips} onChange={(e) => { setSkips(e.target.value as typeof skips); setShown(PAGE); }}><option value="all">Plays and skips</option><option value="played">Played through</option><option value="skipped">Skipped only</option></select>
+        <ThemedSelect className="input !w-auto" value={source} onChange={(e) => { setSource(e.target.value as typeof source); setShown(PAGE); }}><option value="all">All sources</option><option value="turbomusic">Played in TurboMusic</option><option value="spotify">From Spotify</option></ThemedSelect>
+        <ThemedSelect className="input !w-auto" value={skips} onChange={(e) => { setSkips(e.target.value as typeof skips); setShown(PAGE); }}><option value="all">Plays and skips</option><option value="played">Played through</option><option value="skipped">Skipped only</option></ThemedSelect>
         <span className="ml-auto text-xs text-muted">{rows.length.toLocaleString()} plays</span>
       </div>
       {!rows.length && <div className="card p-6 text-center text-sm text-muted">{listens.length ? 'No plays match.' : 'No plays yet. Play something, or import your Spotify history.'}</div>}

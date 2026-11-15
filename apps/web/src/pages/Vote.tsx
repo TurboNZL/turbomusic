@@ -1,4 +1,5 @@
 import { haptic } from '../lib/haptics.ts';
+import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Check, Loader2, Pause, Play, Equal, SkipForward, Volume2 } from 'lucide-react';
 import type { VoteData } from '@turbomusic/core';
@@ -237,7 +238,7 @@ export function VotePage() {
         <span className="text-sm text-muted tabular-nums">{lib.votes.length} votes</span>
         {noHistory && !compact && <span className="basis-full text-xs text-warn">Fewer than two tracks have been played yet, so every track is used. Ranking normally covers only tracks you have heard.</span>}
       </div>
-      {compact ? <select className="input mb-1 shrink-0 !py-0.5 text-xs" aria-label="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
+      {compact ? <ThemedSelect className="input mb-1 shrink-0 !py-0.5 text-xs" aria-label="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</ThemedSelect>
       : <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 text-sm" role="group" aria-label="Which tracks to compare">
         <span className="mr-1 text-muted">Compare</span>
         {TIERS.map((x) => <button key={x.id} type="button" title={x.hint} aria-pressed={tier.tier === x.id} onClick={() => setTier({ ...tier, tier: x.id })}

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { Download, FileUp, Upload } from 'lucide-react';
 import { Modal } from './forms.tsx';
 import { useStore } from '../lib/store.ts';
@@ -69,7 +70,7 @@ export function ImportHistoryDialog({ onClose }: { onClose: () => void }) {
           <div><b className="tabular-nums">{preview.records.length.toLocaleString()}</b> music plays{preview.from && preview.to ? <> from {new Date(preview.from).toLocaleDateString()} to {new Date(preview.to).toLocaleDateString()}</> : null}
             <span className="text-muted"> · {preview.notMusic.toLocaleString()} podcast/audiobook entries skipped{preview.tooShort ? ` · ${preview.tooShort.toLocaleString()} too short` : ''}</span></div>
           <label className="flex flex-wrap items-center gap-2 text-xs text-muted">Skip plays shorter than
-            <select className="input !w-auto !py-1" value={minSec} onChange={(e) => setMinSec(Number(e.target.value))}><option value={0}>nothing (keep all)</option><option value={5}>5 seconds</option><option value={30}>30 seconds (like stats.fm)</option></select>
+            <ThemedSelect className="input !w-auto !py-1" value={minSec} onChange={(e) => setMinSec(Number(e.target.value))}><option value={0}>nothing (keep all)</option><option value={5}>5 seconds</option><option value={30}>30 seconds (like stats.fm)</option></ThemedSelect>
             <span>Plays you skipped within seconds stay in the history otherwise, marked as skips.</span></label>
         </div>)}
       {busy && <div className="text-sm text-muted" role="status">{busy}</div>}
