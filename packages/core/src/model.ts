@@ -43,6 +43,10 @@ export interface AlbumData {
   needsSource?: boolean;
   /** the user marked that this album is not on YouTube Music: Health keeps it out of the main "missing YouTube link" list and shows it in its own */
   noYoutube?: boolean;
+  /** the user says nothing more is missing from this album (no tracks to add, no links to find): it is left out of the "to do" lists */
+  complete?: boolean;
+  /** kept out of the Albums list and of search (unless nothing else matches); still there for the tracks that belong to it */
+  hidden?: boolean;
   /** explicit track order (ids); wins over the release tracklist. Set when the user reorders or adds tracks by hand. */
   trackOrder?: string[];
 }

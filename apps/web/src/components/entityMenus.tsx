@@ -5,7 +5,7 @@ import { canPlay } from '../lib/spotifyPlayer.ts';
 import { readShuffle, writeShuffle } from './PlayControls.tsx';
 import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
-import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search } from 'lucide-react';
+import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibrary, type Library } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
@@ -85,6 +85,12 @@ export function useAlbumMenuItems() {
     ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
     { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
     ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
+    (album as { complete?: boolean }).complete
+      ? { label: 'Not complete after all', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: false }) }
+      : { label: 'Mark as complete', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
+    (album as { hidden?: boolean }).hidden
+      ? { label: 'Show this album again', icon: <Eye size={15} />, run: () => patch('albums', album.id, { hidden: false }) }
+      : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
     (album as { noYoutube?: boolean }).noYoutube
       ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
       : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },

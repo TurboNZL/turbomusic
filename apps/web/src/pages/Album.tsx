@@ -82,7 +82,7 @@ export function AlbumPage() {
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end" onContextMenu={menu.onContextMenu(fullMenu, `Actions for ${album.title}`, 'album')}>
         <Cover hash={cover} seed={album.title} className="w-48 shrink-0 sm:w-56" />
         <div className="min-w-0 space-y-2">
-          <div className="text-xs uppercase tracking-wider text-muted">{release ? 'Release' : 'Album'}</div>
+          <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-muted">{release ? 'Release' : 'Album'}{(album as { complete?: boolean }).complete && <span className="chip !normal-case">Complete</span>}{(album as { hidden?: boolean }).hidden && <span className="chip !normal-case">Hidden</span>}</div>
           <h1 className="text-3xl font-bold leading-tight">{album.title}</h1>
           {release && release.title !== album.title && <div className="text-sm font-medium">{release.title}{release.releaseDate && <span className="text-muted"> · {release.releaseDate}</span>}</div>}
           <div className="text-sm">

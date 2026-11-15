@@ -37,7 +37,12 @@ export function SearchPage() {
     const ok = (k: keyof typeof KIND_SCOPE) => chipsApply(chips, k);
     return {
       artists: ok('artists') ? lib.artists.filter((a) => has([a.name, ...(a.aliases ?? [])].join(' ')) && matchesAll(chips, artistSubject(lib, a.id))).sort((a, b) => a.name.localeCompare(b.name)) : null,
-      albums: ok('albums') ? byDate(lib.albums.filter((a) => has(`${a.title} ${a.artistName}`) && matchesAll(chips, albumSubject(lib, a)))) : null,
+      albums: ok('albums') ? (() => {
+        const found = lib.albums.filter((a) => has(`${a.title} ${a.artistName}`) && matchesAll(chips, albumSubject(lib, a)));
+        // hidden albums only turn up when nothing else matches
+        const shown = found.filter((a) => !(a as { hidden?: boolean }).hidden);
+        return byDate(shown.length ? shown : found);
+      })() : null,
       singles: ok('singles') ? byDate(lib.singles.filter((t) => has(`${t.title} ${t.artistName}`) && matchesAll(chips, trackSubject(lib, t)))) : null,
       tracks: ok('tracks') ? lib.tracks.filter((t) => has(`${t.title} ${t.artistName} ${t.albumTitle ?? ''}`) && matchesAll(chips, trackSubject(lib, t))).sort((a, b) => b.effectiveRating - a.effectiveRating) : null,
       eras: ok('eras') ? lib.eras.filter((e) => has(e.name) && matchesAll(chips, eraSubject(lib, e))).sort((a, b) => a.name.localeCompare(b.name)) : null,

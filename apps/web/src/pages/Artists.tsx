@@ -34,9 +34,8 @@ export function ArtistsPage() {
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Artists <span className="text-base font-normal text-muted">{rows.length}</span></h1>
-        <button className="btn" onClick={() => edit({ kind: 'new-artist', id: '' })}><Plus size={15} />New artist</button>
       </div>
-      <ListToolbar scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={<><button className="btn" onClick={() => edit({ kind: 'new-artist', id: '' })}><Plus size={15} />New artist</button></>} scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {page.view === 'list'
         ? <EntityList rows={shownRows.map((a) => ({ id: a.id, to: `/artists/${a.id}`, cover: a.image, seed: a.name, title: a.name, kind: 'artist' as const,
             sub: `${plural(a.tracks, 'track')} · ${plural(a.albums, 'album')}`, meta: a.rating != null ? a.rating.toFixed(1) : undefined, menu: menu.onContextMenu(itemsFor(a.id), `Actions for ${a.name}`, a.id) }))} />

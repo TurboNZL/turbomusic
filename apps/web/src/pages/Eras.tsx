@@ -42,9 +42,8 @@ export function ErasPage() {
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Eras <span className="text-base font-normal text-muted">{rows.length}</span></h1>
-        <button className="btn" onClick={() => edit({ kind: 'new-era', id: '' })}><Plus size={15} />New era</button>
       </div>
-      <ListToolbar scope="eras" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search eras, or filter: artist, genre, before…" sorts={ERA_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={<><button className="btn" onClick={() => edit({ kind: 'new-era', id: '' })}><Plus size={15} />New era</button></>} scope="eras" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search eras, or filter: artist, genre, before…" sorts={ERA_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {!all.length && <p className="max-w-xl text-sm text-muted">An era groups albums and singles that belong to the same period (a phase of an artist, a scene). Make one here and fill it, or choose it in an album’s or single’s editor. Eras can overlap, and notes and playlists can belong to them.</p>}
       {all.length > 0 && !rows.length && <p className="text-sm text-muted">No eras match.</p>}
       {page.view === 'list'

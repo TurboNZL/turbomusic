@@ -24,6 +24,7 @@ import { TrackDetails } from './TrackDetails.tsx';
 import { ImportDialog } from './ImportDialog.tsx';
 import { logJournal } from '../lib/journal.ts';
 import { newAlbumData, newTrackData, inheritFromAlbum, appendTrack, moveTrack, removeTrack, cleanCredits, hasLead, leadCredit, LEAD_ROLE, withLeadFallback, ownCreditsFromAlbum } from '../lib/defaults.ts';
+import { statsPath } from '../lib/entityStats.ts';
 import { defaultChoice, defaultRelease, planAddToAlbum, type ReleaseChoice } from '../lib/albumOps.ts';
 import { albumCover, coverPicked, coverPool } from '../lib/covers.ts';
 import { CoverPool } from './CoverPool.tsx';
@@ -291,15 +292,46 @@ function NewAlbumDialog({ onClose }: { onClose: () => void }) {
   const [credits, setCredits] = useState<Credit[]>([{ artistId: '', role: [LEAD_ROLE] }]);
   const [genres, setGenres] = useState<string[]>([]);
   const [cover, setCover] = useState<string | null>(null);
+  // a single is one song with no album: the same form, but it makes a track
+  const [asSingle, setAsSingle] = useState(false);
+  const [releaseDate, setReleaseDate] = useState('');
+  // the songs, typed one per line (blank lines are ignored); they follow the album's credits and genres, and can be changed later on the album's page
+  const [songs, setSongs] = useState('');
   const clean = cleanCredits(credits);
   const ok = title.trim() && hasLead(clean);
+  const names = songs.split('\n').map((l) => l.replace(/^\s*\d+[.)\-]\s+/, '').trim()).filter(Boolean);
+  function create() {
+    ensureGenres(genres); ensureRoles(clean);
+    const who = lib.artistById.get(clean.find((c) => c.artistId)?.artistId ?? '')?.name ?? '';
+    if (asSingle) {
+      const id = put('tracks', newTrackData({ title: title.trim(), credits: clean, genres, cover, releaseDate: releaseDate || null, syncWithAlbumCredits: false }));
+      logJournal('add', `Added single: ${title.trim()}`, who, id);
+      onClose(); nav(statsPath('track', id)); return;
+    }
+    const id = put('albums', newAlbumData({ title: title.trim(), credits: clean, genres, cover, covers: cover ? [cover] : [], coverPicked: !!cover }));
+    if (names.length) {
+      const album = { credits: clean, artistId: '', genres };
+      const ids = names.map((name, i) => put('tracks', newTrackData({ title: name, credits: clean, ...inheritFromAlbum(album, clean), albums: [{ albumId: id, order: i }] })));
+      const releaseId = put('releases', { albumId: id, title: '', cover, releaseDate: releaseDate || null, trackIds: ids });
+      useStore.getState().patch('albums', id, { trackOrder: ids, defaultReleaseId: releaseId });
+    }
+    logJournal('add', `Added album: ${title.trim()}`, who, id);
+    onClose(); nav(`/albums/${id}`);
+  }
   return (
-    <Modal title="New album" onClose={onClose} footer={<div className="ml-auto flex gap-2"><button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-      <button className="btn btn-accent" disabled={!ok} onClick={() => { ensureGenres(genres); ensureRoles(clean); const id = put('albums', newAlbumData({ title: title.trim(), credits: clean, genres, cover, covers: cover ? [cover] : [], coverPicked: !!cover })); logJournal('add', `Added album: ${title.trim()}`, lib.artistById.get(clean.find((c) => c.artistId)?.artistId ?? '')?.name ?? '', id); onClose(); nav(`/albums/${id}`); }}>Create</button></div>}>
+    <Modal title={asSingle ? 'New single' : 'New album'} onClose={onClose} footer={<div className="ml-auto flex gap-2"><button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+      <button className="btn btn-accent" disabled={!ok} onClick={create}>Create{!asSingle && names.length ? ` with ${names.length} track${names.length === 1 ? '' : 's'}` : ''}</button></div>}>
+      <div className="flex flex-wrap items-center gap-2 rounded-theme border border-line p-2 text-sm">
+        <span className="mr-auto text-muted">Already on YouTube Music?</span>
+        <button type="button" className="btn !py-1 text-xs" onClick={() => useEditor.getState().open({ kind: 'import', id: asSingle ? 'single' : '' })}>Search or paste a link…</button>
+      </div>
       <ImagePicker hash={cover} onChange={setCover} seed={title || 'new'} />
       <Field label="Title"><input autoFocus className="input" value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={asSingle} onChange={(e) => setAsSingle(e.target.checked)} /><span>This is a single <span className="text-muted">(one song with no album: it is added to Singles)</span></span></label>
       <Field label="Credits"><CreditsEditor requireLead value={credits} onChange={setCredits} /></Field>
       <Field label="Genres"><TagInput value={genres} onChange={setGenres} suggestions={lib.genres.map((g) => g.name)} /></Field>
+      <Field label="Release date" hint="Optional. It can be looked up later from Library health."><input type="date" className="input" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} /></Field>
+      {!asSingle && <Field label="Tracks" hint="One song per line, in order; a leading number is ignored. Optional: add them now or on the album's page. Audio is added to each track afterwards."><textarea className="input font-mono text-sm" rows={5} value={songs} onChange={(e) => setSongs(e.target.value)} placeholder={'Intro\nSecond song\nThird song'} /></Field>}
     </Modal>
   );
 }
