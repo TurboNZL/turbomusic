@@ -5,7 +5,7 @@ import { cn } from '../lib/cn.ts';
 
 /**
  * A panel that opens above the player bar, grown out of the control that opened it, in the active UI style's menu
- * animation (and its exit animation). Desktop: anchored over `anchor`; phone: centred above the bar.
+ * animation (and its exit animation). Desktop: anchored over `anchor`; phone: centred (auto side margins) above the bar.
  * It closes on Escape and on a press outside, unless `pinned`. Presses on `[data-popover-trigger]` are ignored
  * because the trigger toggles the panel itself.
  */
@@ -22,7 +22,7 @@ export function Popover({ open, anchor, onClose, align = 'left', pinned = false,
       const bar = document.querySelector('.bt-player')?.getBoundingClientRect();
       const a = anchor?.getBoundingClientRect();
       const bottom = window.innerHeight - (bar?.top ?? a?.top ?? window.innerHeight) + 10;
-      if (window.innerWidth < 768 || !a) { setPos({ left: 12, right: 12, bottom, transformOrigin: `${a ? a.left + a.width / 2 - 12 : 100}px 100%` }); return; }
+      if (window.innerWidth < 768 || !a) { setPos({ left: 12, right: 12, marginInline: 'auto', bottom, maxHeight: `calc(100dvh - ${bottom}px - 4.5rem)`, overflowY: 'auto', transformOrigin: `${a ? a.left + a.width / 2 - 12 : 100}px 100%` }); return; }
       const w = ref.current?.offsetWidth ?? 320;
       const left = align === 'left' ? Math.max(12, Math.min(a.left, window.innerWidth - w - 12)) : Math.max(12, Math.min(a.right - w, window.innerWidth - w - 12));
       setPos({ left, bottom, transformOrigin: `${Math.max(0, a.left + a.width / 2 - left)}px 100%` });

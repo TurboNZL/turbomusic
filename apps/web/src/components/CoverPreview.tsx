@@ -1,4 +1,3 @@
-import { Cast } from 'lucide-react';
 import { Info, Maximize2, Volume2 } from 'lucide-react';
 import { usePlaybackView } from '../lib/connect.ts';
 import { usePlayer } from '../lib/player.ts';
@@ -24,7 +23,7 @@ export function CoverPreview({ anchor, track }: { anchor: HTMLElement | null; tr
   const v = usePlaybackView();
   const pct = (x: number, max: number) => ({ '--p': `${max > 0 ? Math.min(100, (x / max) * 100) : 0}%` }) as React.CSSProperties;
   return (
-    <Popover open={open && !!track} anchor={anchor} onClose={close} label="Now playing" className="w-[min(22rem,calc(100vw-1.5rem))] p-3">
+    <Popover open={open && !!track} anchor={anchor} onClose={close} label="Now playing" className="w-[min(22rem,calc(100vw-1.5rem))] p-3 max-md:p-4">
       {track && <div className="flex flex-col gap-3">
         <Cover hash={track.cover} seed={track.albumTitle ?? track.title} className="mx-auto w-full max-w-[19rem]" />
         <div className="flex items-start gap-3">
@@ -32,7 +31,6 @@ export function CoverPreview({ anchor, track }: { anchor: HTMLElement | null; tr
             <div className="truncate text-base font-semibold">{track.title}</div>
             <div className="truncate text-sm text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && ` · ${track.albumTitle}`}</div>
             <div className="mt-2 flex items-center gap-2"><Rating track={track} /><button type="button" className="btn btn-ghost !p-1.5" title="Track info" aria-label="Track info" onClick={() => { close(); edit({ kind: 'track-details', id: track.id }); }}><Info size={16} /></button>
-              <button type="button" className="btn btn-ghost !p-1.5 md:hidden" title="Play on a device" aria-label="Play on a device" onClick={() => { close(); usePopups.getState().toggleDevices(); }}><Cast size={16} /></button>
               <button type="button" className="btn btn-ghost !p-1.5" title="Now playing: cover and lyrics (F11 for full screen)" aria-label="Full screen now playing" onClick={() => usePopups.getState().setNow(true)}><Maximize2 size={16} /></button></div>
           </div>
           <RateBlock track={track} />
