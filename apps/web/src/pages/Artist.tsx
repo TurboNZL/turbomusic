@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
-import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, MoreHorizontal, Pencil } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { PlayControls } from '../components/PlayControls.tsx';
 import { Link, useParams } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { cn } from '../lib/cn.ts';
-import { useEditor } from '../lib/editor.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { Notes } from '../components/Notes.tsx';
 import { Cover } from '../components/Cover.tsx';
@@ -26,7 +24,6 @@ const ALBUM_CHUNK = 24, SINGLE_CHUNK = 24, TRACK_CHUNK = 30;
 export function ArtistPage() {
   const { id } = useParams();
   const lib = useLibrary();
-  const edit = useEditor((s) => s.open);
   const menu = useMenu();
   const artistItems = useArtistMenuItems();
   const albumItems = useAlbumMenuItems();
@@ -36,8 +33,8 @@ export function ArtistPage() {
   const artist = id ? lib.artistById.get(id) : undefined;
   const newestKey = newest ? 1 : 0;
   // derived once per artist/era/order, not on every scroll step
-  const { albums, singles, tracks, eraIds } = useMemo(() => {
-    if (!artist) return { albums: [], singles: [], tracks: [], eraIds: [] as string[] };
+  const { albums, singles, tracks, features, eraIds } = useMemo(() => {
+    if (!artist) return { albums: [], singles: [], tracks: [], features: [], eraIds: [] as string[] };
     const credited = (cs: { artistId: string }[]) => cs.some((c) => c.artistId === artist.id);
     const allAlbums = lib.albums.filter((a) => credited(a.credits));
     const allTracks = lib.tracks.filter((t) => credited(t.credits));
@@ -46,15 +43,21 @@ export function ArtistPage() {
     // albums and singles run by release date (undated last whichever way it runs); the direction is remembered
     const byDate = <T extends { releaseDate?: string | null }>(xs: T[]) => [...xs].sort((a, b) => (a.releaseDate ? (b.releaseDate ? (newestKey ? -1 : 1) * a.releaseDate.localeCompare(b.releaseDate) : -1) : b.releaseDate ? 1 : 0));
     const albums = byDate(era ? allAlbums.filter((a) => a.eraIds.includes(era)) : allAlbums);
-    const tracks = (era ? allTracks.filter((t) => t.eraIds.includes(era)) : allTracks).sort((a, b) => b.effectiveRating - a.effectiveRating || b.elo - a.elo);
+    const inEra = era ? allTracks.filter((t) => t.eraIds.includes(era)) : allTracks;
+    // a song the artist only features on is listed under Features, not Tracks (their own songs and other credits stay in Tracks)
+    const isFeature = (t: (typeof allTracks)[number]) => t.featured.some((f) => f.id === artist.id) && !t.leads.some((l) => l.id === artist.id);
+    const tracks = inEra.filter((t) => !isFeature(t)).sort((a, b) => b.effectiveRating - a.effectiveRating || b.elo - a.elo);
+    const features = inEra.filter(isFeature).sort((a, b) => b.effectiveRating - a.effectiveRating || b.elo - a.elo);
     const singles = byDate(tracks.filter((t) => !t.albumId));
-    return { albums, singles, tracks, eraIds };
+    return { albums, singles, tracks, features, eraIds };
   }, [lib, artist, era, newestKey]);
+  const [list, setList] = useState<'tracks' | 'features'>('tracks');
   const playable = useMemo(() => tracks.filter(canPlay).map((t) => t.id), [tracks]);
   const resetKey = `${id}|${era}|${newestKey}`;
   const albumChunks = useChunks(albums.length, ALBUM_CHUNK, resetKey);
   const singleChunks = useChunks(singles.length, SINGLE_CHUNK, resetKey);
-  const trackChunks = useChunks(tracks.length, TRACK_CHUNK, resetKey);
+  const shownList = list === 'features' ? features : tracks;
+  const trackChunks = useChunks(shownList.length, TRACK_CHUNK, `${resetKey}|${list}`);
   if (!artist) return <div className="text-muted">Artist not found.</div>;
   // a link to the search page with this artist as a chip, listing only that kind
   const where = (kind: 'albums' | 'singles' | 'tracks') => searchHref({ kind, chips: [idChip('artist', artist.id, artist.name), ...(era ? [idChip('era', era, lib.eraById.get(era)?.name ?? '')] : [])] });
@@ -67,8 +70,6 @@ export function ArtistPage() {
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{albums.length} album{albums.length === 1 ? "" : "s"}</Link>{singles.length > 0 && <> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{singles.length} single{singles.length === 1 ? "" : "s"}</Link></>} · <Link className="hover:text-fg hover:underline" to={where('tracks')}>{tracks.length} tracks</Link></div>
           <div className="mt-3 flex flex-wrap gap-2">
             <PlayControls ids={playable} source={{ type: 'search', id: null }} label="this artist" />
-            <Link className="btn btn-ghost" to={statsPath('artist', artist.id)}><BarChart3 size={15} />Stats</Link>
-            <button className="btn btn-ghost" onClick={() => edit({ kind: 'artist', id: artist.id })}><Pencil size={15} />Edit</button>
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" onClick={(e) => menu.toggle(e.currentTarget, 'artist', artistItems(artist.id), `Actions for ${artist.name}`)}><MoreHorizontal size={16} /></button></div></div>
       </div>
       {eraIds.length > 0 && <section className="flex flex-wrap items-center gap-2" aria-label="Eras">
@@ -91,8 +92,16 @@ export function ArtistPage() {
             </div>))}
         </div>{albumChunks.left > 0 && <div ref={albumChunks.sentinel} className="mt-3 text-center"><button className="btn" onClick={albumChunks.more}>Show more ({albumChunks.left} left)</button></div>}</section>}
       {singles.length > 0 && <section><h2 className="mb-3 text-lg font-semibold"><Link to={where('singles')} className="hover:underline" title="Search these singles">Singles</Link></h2><SingleGrid tracks={singles.slice(0, singleChunks.shown)} />{singleChunks.left > 0 && <div ref={singleChunks.sentinel} className="mt-3 text-center"><button className="btn" onClick={singleChunks.more}>Show more ({singleChunks.left} left)</button></div>}</section>}
-      <section><h2 className="mb-3 text-lg font-semibold"><Link to={where('tracks')} className="hover:underline" title="Search these tracks">Tracks</Link>, best first</h2>
-        <div className="card overflow-hidden"><TrackTable tracks={tracks.slice(0, trackChunks.shown)} queue={tracks} source="search" covers /></div>
+      <section>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div role="tablist" className="flex gap-1" aria-label="Tracks or features">
+            <button role="tab" aria-selected={list === 'tracks'} className={cn('btn !py-1', list === 'tracks' && 'btn-accent')} onClick={() => setList('tracks')}>Tracks <span className="text-xs opacity-70">{tracks.length}</span></button>
+            {features.length > 0 && <button role="tab" aria-selected={list === 'features'} className={cn('btn !py-1', list === 'features' && 'btn-accent')} onClick={() => setList('features')}>Features <span className="text-xs opacity-70">{features.length}</span></button>}
+          </div>
+          <span className="text-sm text-muted">{list === 'features' ? 'songs by others they appear on' : 'best first'}</span>
+          <Link to={where('tracks')} className="ml-auto text-xs text-muted hover:text-fg hover:underline" title="Search these tracks">Search them</Link>
+        </div>
+        <div className="card overflow-hidden"><TrackTable tracks={shownList.slice(0, trackChunks.shown)} queue={shownList} source="search" covers /></div>
         {trackChunks.left > 0 && <div ref={trackChunks.sentinel} className="mt-3 text-center"><button className="btn" onClick={trackChunks.more}>Show more ({trackChunks.left} left)</button></div>}</section>
       {menu.element}
     </DetailLayout>
