@@ -26,6 +26,7 @@ export function AlbumPage() {
   const edit = useEditor((s) => s.open);
   const menu = useMenu();
   const itemsFor = useAlbumMenuItems();
+  const searchingImport = useImportSearching((st) => !!id && st.ids.has(id)); // a hook: it stays above the early return for a missing album
   const [params, setParams] = useSearchParams();
   const [arranging, setArranging] = useState(false);
   const album = id ? lib.albumById.get(id) : undefined;
@@ -42,7 +43,6 @@ export function AlbumPage() {
   const tracks = ids.map((t) => lib.trackById.get(t)!);
   const playable = tracks.filter(canPlay).map((t) => t.id);
   const cover = release?.cover || album.cover;
-  const searchingImport = useImportSearching((st) => st.ids.has(album.id));
   // the header keeps only what you do while listening; everything that edits or imports is in this menu (the ⋯ button and a right-click)
   const fullMenu: MenuItem[] = [
     ...itemsFor(album, ids), { separator: true },

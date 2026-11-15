@@ -9,6 +9,7 @@ import { heardTrackIds, onlyHeard } from '../lib/heard.ts';
 import { useEditor } from '../lib/editor.ts';
 import { pairLacksAudio, pickPair, rankPool, tierPool, TIERS, type Tier, type TierChoice } from '../lib/pairing.ts';
 import { useStore } from '../lib/store.ts';
+import { EloQuestions } from '../components/EloQuestions.tsx';
 import { fadeOut, loadPreview, middle, release, SNIPPET_MS, type Preview } from '../lib/preview.ts';
 import { usePlayer } from '../lib/player.ts';
 import { Cover } from '../components/Cover.tsx';
@@ -60,7 +61,7 @@ function useCompact(height: number | undefined) {
 
 let keptPair: [string, string] | null = null;
 
-export function VotePage() {
+function DuelRank() {
   const lib = useLibraryLive();
   const edit = useEditor((s) => s.open);
   const put = useStore((s) => s.put);
@@ -288,6 +289,31 @@ export function VotePage() {
         </div>
         <div className={cn('min-h-4 text-center text-xs text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap a card to preview, swipe it right to pick it. </span>Equal records a draw. Skip records nothing.</span>}</div>
       </div>
+    </div>
+  );
+}
+
+const MODE_KEY = 'turbomusic.rankMode';
+type Mode = 'duel' | 'triple' | 'benchmark' | 'love';
+const MODES: { id: Mode; label: string; hint: string }[] = [
+  { id: 'duel', label: 'Head to head', hint: 'Two songs: which is better?' },
+  { id: 'triple', label: 'Best of three', hint: 'Three close songs: pick your favourite, which settles two matches at once.' },
+  { id: 'benchmark', label: 'Against your top 10%', hint: 'A song against the one at your top-10% line.' },
+  { id: 'love', label: 'Gut check', hint: 'One song with almost no votes: love it or meh?' },
+];
+const loadMode = (): Mode => { try { const m = localStorage.getItem(MODE_KEY); return MODES.some((x) => x.id === m) ? (m as Mode) : 'duel'; } catch { return 'duel'; } };
+
+/** The Rank page: choose how to rank (remembered), then answer. Head to head is the classic page; the others are the questions Home offers a taste of. */
+export function VotePage() {
+  const [mode, setModeState] = useState<Mode>(loadMode);
+  const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* private mode */ } };
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-center gap-1.5 text-sm" role="tablist" aria-label="How to rank">
+        <span className="mr-1 text-muted">Rank by</span>
+        {MODES.map((m) => <button key={m.id} role="tab" aria-selected={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={cn('chip cursor-pointer', mode === m.id ? 'bg-accent text-accent-fg' : 'hover:brightness-125')}>{m.label}</button>)}
+      </div>
+      {mode === 'duel' ? <DuelRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
     </div>
   );
 }

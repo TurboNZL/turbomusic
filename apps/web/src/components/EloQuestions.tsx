@@ -4,7 +4,7 @@ import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
 import { heardTrackIds, onlyHeard } from '../lib/heard.ts';
 import { useStore } from '../lib/store.ts';
-import { nextQuestion, votesFor, type Question } from '../lib/questions.ts';
+import { makeQuestion, nextQuestion, votesFor, type Q, type Question } from '../lib/questions.ts';
 import { usePreviews } from '../lib/usePreviews.ts';
 import { PreviewCard } from './PreviewCard.tsx';
 import { cn } from '../lib/cn.ts';
@@ -19,24 +19,26 @@ const wasOpen = () => { try { return localStorage.getItem(OPEN_KEY) === '1'; } c
  * Home: a question about the ranking that is worth answering (lib/questions.ts), kept closed until asked for so it never takes over
  * the page. Open, it shows the tracks the way the Rank page does: tap a cover to hear 15 s, then answer.
  */
-export function EloQuestions() {
+export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Question['kind']; embedded?: boolean } = {}) {
   const lib = useLibraryLive();
   const put = useStore((s) => s.put);
-  const [open, setOpen] = useState(wasOpen);
+  const [open, setOpen] = useState(embedded ? true : wasOpen);
+  // one kind only (the Rank page's modes) or a mix (home): the question to ask next
+  const ask = (pool: Q[], prev?: Question['kind']) => (fixedKind ? makeQuestion(pool, fixedKind) ?? nextQuestion(pool, prev) : nextQuestion(pool, prev));
   // only tracks that were played at least once get asked about (the rest are on the home page's "Try something new")
   const pool = useMemo(() => onlyHeard(lib.tracks.filter((t) => t.file), heardTrackIds(buildListens(lib))).pool.map((t) => ({ id: t.id, elo: t.elo, comparisons: t.comparisons, rating: t.rating })), [lib]);
-  const [q, setQ] = useState<Question | null>(() => kept ?? nextQuestion(pool));
-  useEffect(() => { kept = q; }, [q]);
+  const [q, setQ] = useState<Question | null>(() => (!fixedKind && kept) || ask(pool));
+  useEffect(() => { if (!fixedKind) kept = q; }, [q, fixedKind]);
   const [answered, setAnswered] = useState(0);
   // the library may still be loading when this mounts: ask again once there is something to ask about
-  useEffect(() => { if (!q && pool.length >= 2) setQ(nextQuestion(pool)); }, [q, pool]);
+  useEffect(() => { if (!q && pool.length >= 2) setQ(ask(pool)); }, [q, pool]); // eslint-disable-line react-hooks/exhaustive-deps
   const T = (id: string) => lib.trackById.get(id);
   const tracks = (!q ? [] : q.kind === 'duel' ? [T(q.a), T(q.b)] : q.kind === 'triple' ? q.ids.map(T) : q.kind === 'benchmark' ? [T(q.ref), T(q.id)] : [T(q.id)]).filter((t): t is Track => !!t);
   const preview = usePreviews(tracks, open && !!q);
   const toggle = () => { setOpen((o) => { try { localStorage.setItem(OPEN_KEY, o ? '0' : '1'); } catch { /* ignore */ } return !o; }); preview.stop(); };
   if (!q || tracks.length === 0) return null;
 
-  const next = (prev?: Question['kind']) => { preview.stop(); setQ(nextQuestion(pool, prev)); };
+  const next = (prev?: Question['kind']) => { preview.stop(); setQ(ask(pool, prev)); };
   const answer = (a: string) => {
     for (const v of votesFor(q, a)) put('votes', v);
     if (a !== 'skip') setAnswered((n) => n + 1);
@@ -46,11 +48,11 @@ export function EloQuestions() {
 
   return (
     <section className="card" aria-label="Ranking question">
-      <button type="button" className="flex w-full items-center gap-2 px-4 py-3 text-left" aria-expanded={open} onClick={toggle}>
+      <button type="button" className={cn('flex w-full items-center gap-2 px-4 py-3 text-left', embedded && 'pointer-events-none')} aria-expanded={open} onClick={embedded ? undefined : toggle}>
         <h2 className="font-semibold">Sharpen your ranking</h2>
         <span className="chip">{LABEL[q.kind]}</span>
         <span className="ml-auto text-xs text-muted">{answered ? `${answered} answered` : open ? '' : 'one quick question'}</span>
-        <ChevronDown size={16} className={cn('shrink-0 text-muted transition-transform', open && 'rotate-180')} />
+        {!embedded && <ChevronDown size={16} className={cn('shrink-0 text-muted transition-transform', open && 'rotate-180')} />}
       </button>
       {open && <div className="space-y-3 px-4 pb-4">
         <p className="text-sm text-muted">{q.why}</p>
@@ -69,7 +71,8 @@ export function EloQuestions() {
         <div className="flex flex-wrap gap-2">
           {q.kind === 'duel' && <button className="btn btn-ghost" onClick={() => answer('equal')}><Equal size={14} />Equal</button>}
           <button className="btn btn-ghost" onClick={() => answer('skip')}><SkipForward size={14} />Skip</button>
-          <button className="btn btn-ghost" onClick={() => next(q.kind)}><RefreshCw size={14} />Another kind</button>
+          {!fixedKind && <button className="btn btn-ghost" onClick={() => next(q.kind)}><RefreshCw size={14} />Another kind</button>}
+          {fixedKind && <button className="btn btn-ghost" onClick={() => next(q.kind)}><RefreshCw size={14} />Another one</button>}
         </div>
       </div>}
     </section>
