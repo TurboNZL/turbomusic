@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Cover } from './Cover.tsx';
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/cn.ts';
 
@@ -120,7 +121,7 @@ export function Donut({ slices, size = 120 }: { slices: { label: string; value: 
 }
 
 /** Ranked rows with a proportional bar behind each. */
-export function RankList({ rows, unit, onPick }: { rows: { key: string; label: string; sub?: string; value: number; extra?: string; to?: string }[]; unit?: (n: number) => string; onPick?: (key: string) => void }) {
+export function RankList({ rows, unit, onPick }: { rows: { key: string; label: string; sub?: string; value: number; extra?: string; to?: string; /** a small picture before the name */ img?: { hash: string | null | undefined; seed: string; kind?: 'album' | 'artist' } }[]; unit?: (n: number) => string; onPick?: (key: string) => void }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <ol className="space-y-1">
@@ -129,6 +130,7 @@ export function RankList({ rows, unit, onPick }: { rows: { key: string; label: s
           <div className="absolute inset-y-0 left-0 bg-accent/12" style={{ width: `${(r.value / max) * 100}%` }} aria-hidden />
           <div className="relative flex items-center gap-3 px-2.5 py-1.5 text-sm">
             <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted">{i + 1}</span>
+            {r.img && <Cover hash={r.img.hash} seed={r.img.seed} kind={r.img.kind} className="h-9 w-9 shrink-0" />}
             {r.to
               ? <Link to={r.to} className="min-w-0 flex-1 no-underline after:absolute after:inset-0 hover:[&_.rl]:underline"><span className="rl block truncate font-medium">{r.label}</span>{r.sub && <span className="block truncate text-xs text-muted">{r.sub}</span>}</Link>
               : <span className="min-w-0 flex-1"><span className="block truncate font-medium">{r.label}</span>{r.sub && <span className="block truncate text-xs text-muted">{r.sub}</span>}</span>}

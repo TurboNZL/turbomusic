@@ -8,13 +8,13 @@ export function withoutKey(notes: Record<string, string> | undefined, key: strin
 }
 
 /** "Playlist note": why this track is in this playlist, written under its row. Empty notes show a quiet prompt on hover. */
-export function PlaylistNote({ playlistId, trackId, notes }: { playlistId: string; trackId: string; notes: Record<string, string> | undefined }) {
+export function PlaylistNote({ playlistId, trackId, notes, field = 'trackNotes' }: { playlistId: string; trackId: string; notes: Record<string, string> | undefined; /** where the notes live on the playlist: per track, or per album in an album playlist */ field?: 'trackNotes' | 'albumNotes' }) {
   const patch = useStore((s) => s.patch);
   const text = notes?.[trackId] ?? '';
   const [draft, setDraft] = useState<string | null>(null);
   const save = (v: string) => {
     const t = v.trim();
-    if (t !== text) patch('playlists', playlistId, { trackNotes: t ? { ...(notes ?? {}), [trackId]: t } : withoutKey(notes, trackId) });
+    if (t !== text) patch('playlists', playlistId, { [field]: t ? { ...(notes ?? {}), [trackId]: t } : withoutKey(notes, trackId) });
     setDraft(null);
   };
   if (draft !== null) {

@@ -117,6 +117,8 @@ export interface PlaylistData {
   trackIds: string[];
   /** "Playlist note": why a track is in this playlist, or anything else about it there (track id -> text) */
   trackNotes?: Record<string, string>;
+  /** the same for an album playlist: album (or release) id -> why it is there */
+  albumNotes?: Record<string, string>;
   /** set when the playlist is kept in step with a Spotify playlist of the owner's account */
   spotify?: SpotifyLinkData;
 }
