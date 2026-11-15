@@ -75,11 +75,20 @@ export interface EntityStats {
 }
 
 /** Everything a stats page shows about a set of tracks. Pure. */
-export function entityStats(lib: Library, trackIds: string[], minMs = 0, combinePre = false): EntityStats {
+/** The play that is happening right now as a Listen (so a stats page can count it while it is still going); null when nothing is playing. */
+export function liveListen(lib: Library, trackId: string | null | undefined, seconds: number, now = Date.now()): Listen | null {
+  const t = trackId ? lib.trackById.get(trackId) : undefined;
+  if (!t || seconds <= 0) return null;
+  return { id: `live-${t.id}`, ts: now, ms: Math.round(seconds * 1000), trackId: t.id, artistId: t.leads[0]?.id ?? null, albumId: t.albumId ?? null, title: t.title, artist: t.leads[0]?.name ?? t.artistName, album: t.albumTitle ?? '',
+    uri: null, skipped: false, shuffle: null, platform: 'TurboMusic', reasonEnd: null, source: 'turbomusic' };
+}
+
+export function entityStats(lib: Library, trackIds: string[], minMs = 0, combinePre = false, live: Listen | null = null): EntityStats {
   const set = new Set(trackIds);
   const tracks = trackIds.flatMap((id) => lib.trackById.get(id) ?? []);
   // with `combinePre` the plays of tied pre-release versions count as plays of the released track
-  const listens = (combinePre ? combinePreReleases(lib, buildListens(lib)) : buildListens(lib)).filter((l) => l.trackId && set.has(l.trackId) && l.ms >= minMs);
+  const all = live ? [...buildListens(lib), live] : buildListens(lib); // the play in progress counts once it passes the minimum, and stops counting if it is cut back
+  const listens = (combinePre ? combinePreReleases(lib, all) : all).filter((l) => l.trackId && set.has(l.trackId) && l.ms >= minMs);
   const playsByTrack = new Map<string, { plays: number; ms: number }>();
   for (const l of listens) {
     const r = playsByTrack.get(l.trackId!) ?? { plays: 0, ms: 0 };

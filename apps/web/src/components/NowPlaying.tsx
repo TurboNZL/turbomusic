@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Maximize2, Minimize2, Moon, Pause, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus } from 'lucide-react';
+import { Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus } from 'lucide-react';
+import { desktop } from '../lib/settings.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { usePlaybackView } from '../lib/connect.ts';
 import { usePopups } from '../lib/popups.ts';
@@ -16,6 +17,10 @@ import { ArtistLinks } from './ArtistLinks.tsx';
  * mouse pointer hide after a few seconds without movement; any movement or key brings them back. Esc closes.
  */
 const OFFSET_KEY = 'turbomusic.lyricsOffset';
+const PIN_KEY = 'turbomusic.nowControlsPinned';
+const loadPinned = () => { try { return localStorage.getItem(PIN_KEY) === '1'; } catch { return false; } };
+/** the page is full screen: the Fullscreen API, or the window itself (F11 in the desktop app) */
+const isFullscreen = () => !!document.fullscreenElement || (typeof matchMedia === 'function' && matchMedia('(display-mode: fullscreen)').matches);
 const loadOffset = () => { try { const n = Number(localStorage.getItem(OFFSET_KEY)); return Number.isFinite(n) ? Math.max(-5, Math.min(5, n)) : 0; } catch { return 0; } };
 
 /**
@@ -44,7 +49,9 @@ export function NowPlaying() {
   const [saver, setSaver] = useState(false);
   const [showLyrics, setShowLyrics] = useState(true);
   const [idle, setIdle] = useState(false);
-  const [full, setFull] = useState(!!document.fullscreenElement);
+  const [full, setFull] = useState(isFullscreen);
+  const [pinned, setPinnedState] = useState(loadPinned);
+  const setPinned = (v: boolean) => { setPinnedState(v); try { localStorage.setItem(PIN_KEY, v ? '1' : '0'); } catch { /* private mode */ } };
   const cover = useFileUrl(track?.cover);
   const lyrics = useLyrics(track ? { id: track.id, title: track.title, artist: track.leads[0]?.name ?? track.artistName, album: track.albumTitle } : undefined, v.duration, open && showLyrics && !saver);
   const lines = lyrics.state === 'ready' ? lyrics.synced : null;
@@ -62,7 +69,8 @@ export function NowPlaying() {
   // On a touch screen the controls stay until the screensaver is on (there is no pointer to bring them back, and a tap on invisible buttons used to do nothing).
   const touch = useRef(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
   const saverRef = useRef(saver); saverRef.current = saver;
-  const wake = () => { setIdle(false); window.clearTimeout(idleTimer.current); if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
+  const pinnedRef = useRef(pinned); pinnedRef.current = pinned;
+  const wake = () => { setIdle(false); window.clearTimeout(idleTimer.current); if (pinnedRef.current && !saverRef.current) return; if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
   useEffect(() => {
     if (!open) return;
     wake();
@@ -72,14 +80,15 @@ export function NowPlaying() {
       else if (e.key.toLowerCase() === 's') setSaver((x) => !x);
       wake();
     };
-    const fs = () => setFull(!!document.fullscreenElement);
-    window.addEventListener('keydown', key); document.addEventListener('fullscreenchange', fs);
+    const fs = () => setFull(isFullscreen());
+    const mq = typeof matchMedia === 'function' ? matchMedia('(display-mode: fullscreen)') : null;
+    window.addEventListener('keydown', key); document.addEventListener('fullscreenchange', fs); window.addEventListener('resize', fs); mq?.addEventListener('change', fs);
     // keep the screen on while it is a screensaver (not supported everywhere)
     let lock: { release(): Promise<void> } | null = null;
     (navigator as unknown as { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prevOverflow; window.removeEventListener('keydown', key); document.removeEventListener('fullscreenchange', fs); window.clearTimeout(idleTimer.current); void lock?.release(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); };
+    return () => { document.body.style.overflow = prevOverflow; window.removeEventListener('keydown', key); document.removeEventListener('fullscreenchange', fs); window.removeEventListener('resize', fs); mq?.removeEventListener('change', fs); window.clearTimeout(idleTimer.current); void lock?.release(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); };
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the sung line stays in the middle of the lyrics
@@ -88,6 +97,8 @@ export function NowPlaying() {
     if (el && listRef.current) listRef.current.scrollTo({ top: el.offsetTop - listRef.current.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
   }, [active]);
   useEffect(() => { if (open && !track) setNow(false); }, [open, track, setNow]);
+  // in full screen the desktop app's drawn title bar is covered but its drag area (an OS-level region) would still take clicks: switch it off
+  useEffect(() => { const on = open && full; document.documentElement.classList.toggle('bt-now-fs', on); return () => document.documentElement.classList.remove('bt-now-fs'); }, [open, full]);
 
   const toggleFull = () => { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen().catch(() => undefined); };
   const plain = useMemo(() => (lyrics.state === 'ready' && !lines ? lyrics.plain : null), [lyrics, lines]);
@@ -95,52 +106,55 @@ export function NowPlaying() {
   const hidden = idle;
   const canFull = !!document.documentElement.requestFullscreen; // not on iPhones; the view already fills the screen there
 
+  // a drawn title bar stays usable (and draggable) above the player unless the window is full screen
+  const frame = desktop()?.customFrame && !full ? '2.25rem' : '0px';
   return (
-    <div className={cn('bt-now fixed inset-x-0 top-0 z-[90] flex h-[100dvh] flex-col overflow-hidden bg-black text-white', hidden && 'cursor-none')} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={wake} onTouchStart={wake} onClick={() => { if (saver) setSaver(false); else if (idle) wake(); }}>
-      {cover && <div className="absolute inset-0 scale-125 bg-cover bg-center opacity-60 blur-3xl" style={{ backgroundImage: `url(${cover})` }} aria-hidden />}
-      <div className="absolute inset-0 bg-black/40" aria-hidden />
+    <div className={cn('bt-now fixed inset-x-0 z-[90] flex flex-col overflow-hidden bg-bg text-fg', hidden && 'cursor-none')} style={{ top: frame, height: `calc(100dvh - ${frame})` }} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={wake} onTouchStart={wake} onClick={() => { if (saver) setSaver(false); else if (idle) wake(); }}>
+      {cover && <div className="absolute inset-0 scale-125 bg-cover bg-center opacity-50 blur-3xl" style={{ backgroundImage: `url(${cover})` }} aria-hidden />}
+      <div className="absolute inset-0 bg-bg/55" aria-hidden />
       <header className={cn('relative z-10 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
-        <button className="btn !border-0 !bg-white/10 !text-white" onClick={() => setNow(false)} aria-label="Close"><X size={18} /></button>
+        <button className="btn" onClick={() => setNow(false)} aria-label="Close"><X size={18} /></button>
         <div className="ml-auto flex gap-2">
-          <button className={cn('btn !border-0 !text-white', showLyrics && !saver ? '!bg-white/25' : '!bg-white/10')} aria-pressed={showLyrics} title="Lyrics (L)" onClick={pickLyrics}><Mic2 size={16} /><span className="max-sm:hidden">Lyrics</span></button>
-          <button className={cn('btn !border-0 !text-white', saver ? '!bg-white/25' : '!bg-white/10')} aria-pressed={saver} title="Screensaver (S)" onClick={() => setSaver((x) => !x)}><Moon size={16} /><span className="max-sm:hidden">Screensaver</span></button>
-          {canFull && <button className="btn !border-0 !bg-white/10 !text-white" title="Full screen" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
+          <button className={cn('btn', showLyrics && !saver && 'btn-accent')} aria-pressed={showLyrics} title="Lyrics (L)" onClick={pickLyrics}><Mic2 size={16} /><span className="max-sm:hidden">Lyrics</span></button>
+          <button className={cn('btn', saver && 'btn-accent')} aria-pressed={saver} title="Screensaver (S)" onClick={() => setSaver((x) => !x)}><Moon size={16} /><span className="max-sm:hidden">Screensaver</span></button>
+          <button className={cn('btn', pinned && 'btn-accent')} aria-pressed={pinned} title={pinned ? 'Controls stay on screen (click to let them hide)' : 'Keep the controls on screen'} aria-label="Pin the controls" onClick={() => setPinned(!pinned)}>{pinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
+          {canFull && <button className="btn" title="Full screen (F11 also works)" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
         </div>
       </header>
-      <main className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:gap-3 max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center')}>
+      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:gap-3 max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center')}>
         <div className={cn('shrink-0', saver ? 'bt-drift w-[min(78vmin,44rem)]' : showLyrics ? 'w-[min(30vh,62vw,22rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
-          {cover ? <img src={cover} alt="" className="aspect-square w-full rounded-2xl object-cover shadow-2xl" draggable={false} /> : <div className="aspect-square w-full rounded-2xl bg-white/10" />}
+          {cover ? <img src={cover} alt="" className="aspect-square w-full rounded-theme object-cover shadow-2xl" draggable={false} /> : <div className="aspect-square w-full rounded-theme bg-raised" />}
           {!saver && <div className="mt-2 min-w-0 text-center md:mt-4 md:text-left"><div className="truncate text-2xl font-bold md:text-3xl">{track.title}</div>
-            <div className="truncate text-base text-white/70"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}
+            <div className="truncate text-base text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}
         </div>
         {showLyrics && !saver && (
           <div ref={listRef} className="relative min-h-0 w-full max-w-2xl flex-1 overflow-y-auto scroll-smooth py-[20vh] md:h-full md:py-[30vh] [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)]" aria-label="Lyrics">
-            {lyrics.state === 'loading' && <p className="text-center text-white/60">Looking for lyrics…</p>}
-            {(lyrics.state === 'none' || lyrics.state === 'error') && <p className="text-center text-white/60">{lyrics.message ?? 'No lyrics found for this track.'}</p>}
-            {lyrics.state === 'ready' && lyrics.instrumental && !lines && !plain && <p className="text-center text-white/60">Instrumental.</p>}
+            {lyrics.state === 'loading' && <p className="text-center text-muted">Looking for lyrics…</p>}
+            {(lyrics.state === 'none' || lyrics.state === 'error') && <p className="text-center text-muted">{lyrics.message ?? 'No lyrics found for this track.'}</p>}
+            {lyrics.state === 'ready' && lyrics.instrumental && !lines && !plain && <p className="text-center text-muted">Instrumental.</p>}
             {lines && lines.map((l, i) => (
-              <button key={i} data-line={i} className={cn('block w-full px-2 py-2 text-left text-2xl font-bold leading-[1.35] [overflow-wrap:anywhere] transition-all duration-300 md:text-4xl', i === active ? 'text-white' : i < active ? 'text-white/30' : 'text-white/45', !l.text && 'opacity-60')} onClick={() => v.seek(l.time)}>{l.text || '♪'}</button>))}
-            {plain && <p className="whitespace-pre-wrap px-2 text-xl font-semibold leading-relaxed text-white/85 md:text-2xl">{plain}</p>}
-            {lyrics.state === 'ready' && <p className="mt-8 text-center text-xs text-white/40">Lyrics from {lyrics.source}{lines ? ' · tap a line to jump to it' : ''}</p>}
-            {lines && <div className="mt-2 flex items-center justify-center gap-2 text-xs text-white/60">
+              <button key={i} data-line={i} className={cn('block w-full px-2 py-2 text-left text-2xl font-bold leading-[1.35] [overflow-wrap:anywhere] transition-all duration-300 md:text-4xl', i === active ? 'text-fg' : i < active ? 'text-fg/30' : 'text-fg/45', !l.text && 'opacity-60')} onClick={() => v.seek(l.time)}>{l.text || '♪'}</button>))}
+            {plain && <p className="whitespace-pre-wrap px-2 text-xl font-semibold leading-relaxed text-fg/85 md:text-2xl">{plain}</p>}
+            {lyrics.state === 'ready' && <p className="mt-8 text-center text-xs text-muted/70">Lyrics from {lyrics.source}{lines ? ' · tap a line to jump to it' : ''}</p>}
+            {lines && <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted">
               <span>Timing</span>
-              <button className="btn !border-0 !bg-white/10 !p-1 !text-white" aria-label="Lyrics later" title="Show lines later" onClick={() => setOffset(offset - 0.1)}><Minus size={12} /></button>
+              <button className="btn !p-1" aria-label="Lyrics later" title="Show lines later" onClick={() => setOffset(offset - 0.1)}><Minus size={12} /></button>
               <span className="w-12 text-center tabular-nums">{offset > 0 ? '+' : ''}{offset.toFixed(1)} s</span>
-              <button className="btn !border-0 !bg-white/10 !p-1 !text-white" aria-label="Lyrics earlier" title="Show lines earlier" onClick={() => setOffset(offset + 0.1)}><Plus size={12} /></button>
+              <button className="btn !p-1" aria-label="Lyrics earlier" title="Show lines earlier" onClick={() => setOffset(offset + 0.1)}><Plus size={12} /></button>
             </div>}
           </div>)}
-      </main>
-      {saver && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[60vw] opacity-80"><div className="truncate text-lg font-semibold">{track.title}</div><div className="truncate text-sm text-white/70">{track.artistName}</div></div>}
+      </div>
+      {saver && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[60vw] opacity-80"><div className="truncate text-lg font-semibold">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
       <footer className={cn('relative z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', (hidden || saver) && 'pointer-events-none opacity-0')}>
-        <div className="flex items-center gap-2 text-xs tabular-nums text-white/70">
+        <div className="flex items-center gap-2 text-xs tabular-nums text-muted">
           <span className="w-10 text-right">{fmtTime(v.time)}</span>
           <input type="range" aria-label="Seek" className="bt-range bt-hit flex-1" style={{ '--p': `${v.duration > 0 ? Math.min(100, (v.time / v.duration) * 100) : 0}%` } as React.CSSProperties} min={0} max={v.duration || 1} step={0.1} value={v.time} onChange={(e) => v.seek(Number(e.target.value))} />
           <span className="w-10">{fmtTime(v.duration)}</span>
         </div>
         <div className="flex items-center justify-center gap-3">
-          <button className="btn !border-0 !bg-white/10 !text-white" title="Previous" onClick={v.prev}><SkipBack size={20} /></button>
-          <button className="btn !rounded-full !border-0 !bg-white !p-3.5 !text-black" title={v.playing ? 'Pause' : 'Play'} onClick={v.toggle}>{v.loading ? <Loader2 size={22} className="animate-spin" /> : v.playing ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}</button>
-          <button className="btn !border-0 !bg-white/10 !text-white" title="Next" onClick={v.next}><SkipForward size={20} /></button>
+          <button className="btn" title="Previous" onClick={v.prev}><SkipBack size={20} /></button>
+          <button className="btn btn-accent !rounded-full !p-3.5" title={v.playing ? 'Pause' : 'Play'} onClick={v.toggle}>{v.loading ? <Loader2 size={22} className="animate-spin" /> : v.playing ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}</button>
+          <button className="btn" title="Next" onClick={v.next}><SkipForward size={20} /></button>
         </div>
       </footer>
     </div>

@@ -79,7 +79,7 @@ export function computeHealth(lib: Library): HealthCheck[] {
   const noLinkAlbums = new Set(lib.albums.filter((a) => (a as { noYoutube?: boolean }).noYoutube).map((a) => a.id));
   const waiting = lib.albums.filter((a) => (a as { needsSource?: boolean }).needsSource);
   return [
-    { id: 'needs-source', title: 'Albums waiting for a YouTube album link', why: 'These came from a Spotify import and only hold the songs you picked. Paste a YouTube Music link of the whole album: it fills in the real tracklist, the cover and the audio, and keeps the songs you already have.', albumLinks: true,
+    { id: 'needs-source', title: 'Albums to link to YouTube Music', why: 'Open this to see your best-rated albums with no link yet (already searched for you), and below them the albums that came from a Spotify import and only hold the songs you picked. A YouTube Music link fills in the real tracklist, the cover and the audio, and keeps the songs you already have.', albumLinks: true,
       items: waiting.map((a) => ({ kind: 'album-source' as const, id: a.id, label: `${a.title} · ${a.artistName}`, detail: `${a.trackIds.length} track${a.trackIds.length === 1 ? '' : 's'}` })) },
     { id: 'fake-quality', view: 'meter', title: 'Audio that is not what it claims', why: 'The file claims a high bit rate but its sound stops where a lower one would (re-encoded from a worse source), or its stored bit rate is not what the file measures. Run “Check audio quality” above first.',
       items: fakes.map((x) => t(x, qualityOf(x) === 'transcode' ? `claims ${x.audioCheck?.kbps} kbps, content like ${x.audioCheck?.looksLike} (cuts off at ${((x.audioCheck?.cutoffHz ?? 0) / 1000).toFixed(1)} kHz)` : `stored ${x.bitrate}, measures ${x.audioCheck?.kbps} kbps`)) },

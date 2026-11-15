@@ -4,17 +4,18 @@ import { useLibrary } from '../lib/derive.ts';
 import { api, useStore } from '../lib/store.ts';
 import { cacheBytes } from '../lib/files.ts';
 import { fmtBytes } from '../lib/cn.ts';
+import { fresh, peek } from '../lib/swr.ts';
 
 /** How big the catalogue is: what it holds, and how much room the library's files take on the server and on this device. */
 export function CatalogueCard() {
   const lib = useLibrary();
   const configured = useStore((s) => !!s.settings.token);
-  const [server, setServer] = useState<{ files: { count: number; bytes: number }; disk: { free?: number; total?: number } } | null | 'error'>(null);
+  const [server, setServer] = useState<{ files: { count: number; bytes: number }; disk: { free?: number; total?: number } } | null | 'error'>(() => peek('server-status') ?? null);
   const audioCache = useStore((s) => s.audioCache);
   const local = cacheBytes(audioCache);
   useEffect(() => {
     let live = true;
-    if (configured) api().status().then((s) => live && setServer(s as never)).catch(() => live && setServer('error'));
+    if (configured) fresh('server-status', 60_000, () => api().status()).then((s) => live && setServer(s as never)).catch(() => live && setServer('error'));
     return () => { live = false; };
   }, [configured]);
   const withAudio = lib.tracks.filter((t) => t.file).length;

@@ -1,7 +1,8 @@
 import { WindowFrame } from './WindowFrame.tsx';
 import { NavLink, Outlet, useLocation, useMatch, useNavigate, useNavigationType } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BarChart3, Compass, Stethoscope, Disc, Disc3, Download, FileAudio, Home, Layers, ListMusic, MoreHorizontal, Network, ListOrdered, Music2, Plus, Search, Settings, Swords, User, Users } from 'lucide-react';
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { orderNav, phoneTabs } from '../lib/navOrder.ts';
 import { effectiveUi } from 'turbothemes';
 import { usePlayer } from '../lib/player.ts';
 import { togglePlayback } from '../lib/connect.ts';
@@ -18,7 +19,7 @@ import { VolumeButton } from './VolumeButton.tsx';
 import { NowPlaying } from './NowPlaying.tsx';
 import { DevicesMenu } from './Devices.tsx';
 
-const NAV = [
+export const NAV_BASE = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/albums', label: 'Albums', icon: Disc3 },
   { to: '/singles', label: 'Singles', icon: Disc },
@@ -86,11 +87,8 @@ function SyncDot() {
 const LIBRARY = ['/artists', '/albums', '/singles', '/eras', '/tracks', '/playlists'];
 const TOOLBAR_LABEL: Record<string, string> = { '/': 'Journal' };
 
-const MOBILE_HIDDEN = ['/discover', '/singles', '/eras', '/playlists', '/stats', '/queue', '/notes', '/health', '/settings'];
 
 const ADD: { label: string; icon: typeof Plus; target: EditTarget }[] = [
-  { label: 'YouTube Music: search or paste a link', icon: Download, target: { kind: 'import', id: '' } },
-  { label: 'Import from Spotify', icon: ListMusic, target: { kind: 'import-spotify', id: '' } },
   { label: 'Add audio files', icon: FileAudio, target: { kind: 'upload', id: '' } },
   { label: 'New album', icon: Disc3, target: { kind: 'new-album', id: '' } },
   { label: 'New track', icon: Music2, target: { kind: 'new-track', id: '' } },
@@ -122,7 +120,7 @@ function AddMenu() {
 }
 
 /** Phone-only: the pages that do not fit in the bottom bar. */
-function MoreMenu({ dock }: { dock: boolean }) {
+function MoreMenu({ dock, items }: { dock: boolean; items: typeof NAV_BASE }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={cn('relative flex flex-1', dock && 'md:hidden')}>
@@ -130,7 +128,7 @@ function MoreMenu({ dock }: { dock: boolean }) {
       {open && <>
         <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
         <div role="menu" className="bt-menu absolute bottom-full right-0 z-30 mb-2 w-48 origin-bottom-right overflow-hidden py-1">
-          {NAV.filter((n) => MOBILE_HIDDEN.includes(n.to)).map(({ to, label, icon: Icon }) => (
+          {items.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} role="menuitem" onClick={() => setOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm"><Icon size={16} />{label}</NavLink>))}
         </div></>}
     </div>
@@ -185,6 +183,10 @@ export function Layout() {
   const toolbar = layout === 'toolbar', topbar = layout === 'topbar', dock = layout === 'dock';
   const noSide = topbar || dock; // these layouts have no side bar at all
   const logo = ui === 'lgux' ? '/icon-lg.svg' : '/icon.svg'; // LG UX 5.0 has its own (candy) logo
+  // the user's order (Settings > Appearance > Pages), and which pages are tabs on a phone
+  const savedOrder = useStore((s) => s.settings.navOrder), savedTabs = useStore((s) => s.settings.phoneTabs);
+  const NAV = useMemo(() => orderNav(NAV_BASE, savedOrder), [savedOrder]);
+  const tabSet = useMemo(() => phoneTabs(NAV_BASE.map((n) => n.to), savedTabs), [savedTabs]);
   const sideNav = toolbar ? LIBRARY.map((to) => NAV.find((n) => n.to === to)!) : NAV;
   const topNav = toolbar ? NAV.filter((n) => !LIBRARY.includes(n.to) && n.to !== '/settings') : topbar ? NAV : [];
   // a page slides in from the side it sits on in the navigation (TurboKeep's tab switch, the engine's `motion` module); pages outside the nav (search...) keep the previous position
@@ -258,13 +260,13 @@ export function Layout() {
       <NowPlaying />
       <nav ref={tabRef} className={cn('bt-tabbar bt-shell relative flex', !dock && 'md:hidden')}>
         <span className="bt-ind" aria-hidden />
-        {NAV.filter((n) => dock || !MOBILE_HIDDEN.includes(n.to)).map(({ to, label, icon: Icon, ...rest }) => (
+        {NAV.filter((n) => dock || tabSet.has(n.to)).map(({ to, label, icon: Icon, ...rest }) => (
           // the dock lists every page on a wide window; on a phone only the usual tabs plus Settings (the rest sit under More)
-          <NavLink key={to} to={to} end={'end' in rest} className={cn('bt-tab flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]', dock && MOBILE_HIDDEN.includes(to) && 'max-md:hidden')}>
+          <NavLink key={to} to={to} end={'end' in rest} className={cn('bt-tab flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]', dock && !tabSet.has(to) && 'max-md:hidden')}>
             <Icon size={20} />{label}
           </NavLink>
         ))}
-        <MoreMenu dock={dock} />
+        <MoreMenu dock={dock} items={NAV.filter((n) => !tabSet.has(n.to))} />
       </nav>
     </div>
   );

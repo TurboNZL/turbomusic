@@ -1,3 +1,4 @@
+import { useEditor } from '../lib/editor.ts';
 import { Select, albumOptions } from './Select.tsx';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -54,6 +55,9 @@ export function PlaylistDialog({ playlistId, onClose }: { playlistId?: string; o
     <Modal title={existing ? 'Edit playlist' : 'New playlist'} onClose={onClose} footer={<>
       {existing && <button className="btn text-bad" onClick={() => { if (confirm(`Delete “${existing.name}”? The tracks stay in your library.`)) { remove('playlists', existing.id); onClose(); leaveRemoved(nav, 'playlist', existing.id, { fallback: '/playlists' }); } }}>Delete</button>}
       <div className="ml-auto flex gap-2"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-accent" disabled={!name.trim()} onClick={save}>{existing ? 'Save' : 'Create'}</button></div></>}>
+      {!existing && <div className="flex flex-wrap items-center gap-2 rounded-theme border border-line p-2 text-sm"><span className="mr-auto text-muted">Start from a Spotify playlist?</span>
+        <button type="button" className="btn !py-1 text-xs" onClick={() => useEditor.getState().open({ kind: 'import-spotify', id: '' })}>Import from Spotify…</button>
+        <button type="button" className="btn !py-1 text-xs" title="Keep a playlist in step with one on your Spotify account" onClick={() => useEditor.getState().open({ kind: 'new-synced-playlist', id: '' })}>Synced playlist…</button></div>}
       <ImagePicker hash={cover} onChange={setCover} seed={name || 'playlist'} />
       <p className="-mt-2 text-xs text-muted">Leave the picture empty and the playlist shows a mosaic of the covers of its first four {kind === 'albums' ? 'albums' : 'tracks'}.</p>
       {!existing && <Field label="What does it hold?"><div className="flex gap-2" role="group" aria-label="Playlist type">

@@ -178,6 +178,40 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
 
+  # the TurboMusic Server app (apps/android-server): the server in its own screen-less Android app (Node as a library). The Android app installs it
+  # from the release (turbomusic-<version>-android-server.apk; the name must NOT end in "-android.apk", which is how the app finds itself).
+  android-server:
+    needs: version
+    if: needs.version.outputs.reuse == ''
+    name: Android server app
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - run: pnpm install --ignore-scripts --filter @turbomusic/web --filter @turbomusic/core --filter @turbomusic/server --filter @turbomusic/electron
+      - run: apps/android-server/scripts/make-bundle.sh
+      - run: apps/android-server/scripts/fetch-libnode.sh arm64-v8a
+      - name: Build the APK
+        run: |
+          VERSION='${{ needs.version.outputs.version }}'
+          gradle -p apps/android-server -PserverAbis=arm64-v8a -PappVersion="$VERSION" :app:assembleRelease
+          mkdir out
+          cp apps/android-server/app/build/outputs/apk/release/app-release.apk "out/turbomusic-$VERSION-android-server.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-android-server
+          path: out/*
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(env.KEEP_DAYS) }}
+
   # the server for the Android app's server module (it runs in Termux on the phone) and for the self-contained server install
   # (scripts/install-server.sh and the app's "Update server" both read it)
   server-bundle:
@@ -212,7 +246,7 @@ jobs:
 
   release:
     name: Publish release
-    needs: [version, desktop, windows-server, android, server-bundle]
+    needs: [version, desktop, windows-server, android, android-server, server-bundle]
     # Runs when the builds succeeded, or were skipped because a pull request's files are reused. Only for main.
     if: ${{ !cancelled() && !failure() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -240,7 +274,7 @@ jobs:
           ls -lh files
           VERSION='${{ needs.version.outputs.version }}'
           # an incomplete release would leave the installed apps without an update feed, so refuse rather than publish part of one
-          for f in "turbomusic-$VERSION-android.apk" latest.yml latest-linux.yml app.yml app-linux.yml server.yml server-linux.yml "turbomusic-server-$VERSION-node.tar.gz"; do
+          for f in "turbomusic-$VERSION-android.apk" "turbomusic-$VERSION-android-server.apk" latest.yml latest-linux.yml app.yml app-linux.yml server.yml server-linux.yml "turbomusic-server-$VERSION-node.tar.gz"; do
             [ -f "files/$f" ] || { echo "missing: $f"; exit 1; }
           done
           grep -q "version: $VERSION" files/latest.yml || { echo "files/latest.yml is not version $VERSION"; exit 1; }

@@ -8,11 +8,14 @@ import { usePlayer } from '../lib/player.ts';
 import { addMemory, removeMemory } from '../lib/memories.ts';
 import { trackPath } from '../lib/trackPath.ts';
 import type { MenuItem } from './Menu.tsx';
+import { useLibrary } from '../lib/derive.ts';
+import { makeSingleRelease } from '../lib/singleRelease.ts';
 
 /** The per-track menu (the old right-click menu) as menu items; shown by useMenu()/ContextMenu. */
 export function useTrackMenuItems() {
   const edit = useEditor((s) => s.open);
   const enqueue = usePlayer((s) => s.enqueue);
+  const lib = useLibrary();
   return (t: Track, onPlay: () => void): MenuItem[] => {
     const memories = t.memories ?? 0;
     const open = (target: EditTarget) => () => edit(target);
@@ -21,6 +24,7 @@ export function useTrackMenuItems() {
       { label: 'Play next', icon: <ListStart size={15} />, run: () => enqueue(t.id, 'next'), disabled: !canPlay(t) },
       { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => enqueue(t.id, 'last'), disabled: !canPlay(t) },
       { label: 'Add to playlist…', icon: <ListPlus size={15} />, run: open({ kind: 'add-to-playlist', id: t.id }) },
+      ...(t.albumId ? [{ label: 'Make a single release (looks up its date)', icon: <Disc3 size={15} />, run: () => { void makeSingleRelease(lib, t).then((id) => id && edit({ kind: 'release', id })); } }] : []),
       ...(t.albumId ? [] : [{ label: 'Add to album…', icon: <Disc3 size={15} />, run: open({ kind: 'add-to-album', id: t.id }) }]),
       { separator: true },
       { label: `Add memory (${memories})`, icon: <Plus size={15} />, run: () => addMemory(t.id) },

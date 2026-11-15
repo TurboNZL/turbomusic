@@ -88,20 +88,20 @@ export function SoloistPanel() {
       <p className="text-muted">Spotify’s own headless Spotify Connect player. It runs on your Raspberry Pi (the server), never in this app or on a desktop, and plays through the Pi’s sound output. Turn on “Send the sound to the apps” below to hear it on this device instead. It shows up in the device list as “{info.deviceName}”. It needs Spotify Premium and PipeWire or PulseAudio audio. Soloist is Spotify’s software, downloaded from Spotify’s server, under Spotify’s terms; builds expire after 90 days and TurboMusic replaces them by itself.</p>
 
       <ol className="space-y-3">
-        <li className="space-y-1.5"><div className="font-medium">1. Install</div>
+        <li className="space-y-1.5"><div className="font-medium">Install</div>
           <button className="btn" disabled={working} onClick={() => void act('Installing…', () => api().soloistInstall())}>{busy === 'Installing…' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{info.installed ? 'Update Soloist' : 'Download and install Soloist'}</button></li>
-        <li className="space-y-1.5"><div className="font-medium">2. API key and name</div>
+        <li className="space-y-1.5"><div className="font-medium">API key and name</div>
           <p className="text-xs text-muted">Make the key on <a className="text-accent underline" href={info.downloadsUrl.replace('/reference/downloads-and-updates', '')} target="_blank" rel="noreferrer">Spotify for Developers › Soloist</a> (a Premium account). It is kept on your server only and never shown again.</p>
           <div className="grid gap-2 sm:grid-cols-2">
             <Field label="Device name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="TurboMusic" /></Field>
             <Field label={info.hasKey ? 'API key (saved; type to replace)' : 'API key'}><input className="input font-mono" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={info.hasKey ? '••••••••' : 'paste the key'} /></Field></div>
           <button className="btn" disabled={working || (!key.trim() && name.trim() === info.deviceName)} onClick={() => void act('Saving…', async () => { const i = await api().soloistConfig({ deviceName: name.trim(), apiKey: key.trim() || undefined }); setKey(''); return i; })}>Save</button></li>
-        <li className="space-y-1.5"><div className="font-medium">3. Sound</div>
+        <li className="space-y-1.5"><div className="font-medium">Sound</div>
           {info.audio.ok ? <p className="text-xs text-good">Found {info.audio.server === 'pipewire' ? 'PipeWire' : 'PulseAudio'} for the account that runs the server.</p>
             : <div className="rounded-theme bg-warn/15 p-3 text-xs text-warn" role="alert">{info.audio.hint}</div>}
           <Field label="Output (optional)"><input className="input font-mono" value={out ?? info.outputDevice} onChange={(e) => setOut(e.target.value)} placeholder="the system default; or a PipeWire output name or id" /></Field>
           <button className="btn" disabled={working || (out ?? info.outputDevice) === info.outputDevice} onClick={() => void act('Saving…', async () => { const i = await api().soloistConfig({ outputDevice: (out ?? '').trim() }); setOut(null); return i; })}>Save output</button></li>
-        <li className="space-y-1.5"><div className="font-medium">4. Where the sound goes</div>
+        <li className="space-y-1.5"><div className="font-medium">Where the sound goes</div>
           <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={info.beam.enabled} disabled={working}
             onChange={(e) => void act('Saving…', async () => { const i = await api().soloistConfig({ beam: e.target.checked }); forgetBeamInfo(); return i; })} />
             <span>Send the sound to the apps <span className="text-muted">(instead of this machine’s speakers). The server captures Soloist’s output and streams it live; the Android app, the browser and the desktop app play that stream. Needs ffmpeg and <code>pactl</code> on the server. The sound is a few seconds behind the screen, and only works while the app has the server’s Spotify device chosen.</span></span></label>
@@ -111,7 +111,7 @@ export function SoloistPanel() {
           {info.beam.enabled && <label className="flex items-center gap-2 text-muted"><input type="checkbox" checked={spotifyBeam} onChange={(e) => updateSettings({ spotifyBeam: e.target.checked })} />Hear it on this device</label>}
           {info.beam.enabled && <label className="flex items-start gap-2 text-muted"><input type="checkbox" className="mt-0.5" checked={spotifyMirror} onChange={(e) => updateSettings({ spotifyMirror: e.target.checked })} /><span>Count my plays on Spotify <span className="text-warn">(silent mirror)</span>: while a song plays from its file here and has a Spotify link, Soloist plays it silently so Spotify counts the stream for Wrapped. Works only when this device uses this Soloist. Spotify’s terms forbid artificially inflating streams and can flag an account for it: use at your own risk.</span></label>}
         </li>
-        <li className="space-y-1.5"><div className="font-medium">5. Run</div>
+        <li className="space-y-1.5"><div className="font-medium">Run</div>
           <div className="flex flex-wrap items-center gap-2">
             {info.running ? <button className="btn" disabled={working} onClick={() => void act('Stopping…', () => api().soloistStop())}><Square size={14} />Stop</button>
               : <button className="btn btn-accent" disabled={working || !info.installed || !info.hasKey} onClick={() => void act('Starting…', () => api().soloistStart())}><Play size={14} />Start</button>}

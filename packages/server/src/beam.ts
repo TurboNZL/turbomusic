@@ -12,8 +12,11 @@ import { join } from 'node:path';
 export const SINK = 'turbomusic_spotify';
 
 export function ffmpegArgs(source = `${SINK}.monitor`): string[] {
-  return ['-hide_banner', '-loglevel', 'error', '-nostdin', '-fflags', 'nobuffer', '-flags', 'low_delay', '-f', 'pulse', '-i', source,
-    '-ac', '2', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '192k', '-flush_packets', '1', '-f', 'mp3', 'pipe:1'];
+  // Latency: no input probing (it waits for data before starting), small sound-server fragments, no MP3 bit reservoir or Xing header (the
+  // reservoir holds frames back), and a rate a phone on mobile data or a tunnel can keep up with (128 kbps is plenty for a stream of a stream).
+  return ['-hide_banner', '-loglevel', 'error', '-nostdin', '-fflags', 'nobuffer', '-flags', 'low_delay', '-probesize', '32', '-analyzeduration', '0',
+    '-fragment_size', '2048', '-f', 'pulse', '-i', source,
+    '-ac', '2', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '128k', '-reservoir', '0', '-write_xing', '0', '-flush_packets', '1', '-f', 'mp3', 'pipe:1'];
 }
 
 export interface BeamDeps {

@@ -10,6 +10,7 @@ import { startConnect } from './lib/connect.ts';
 import { startSpotifySdkIfWanted } from './lib/spotifySdk.ts';
 import { startSpotifyMirror } from './lib/spotifyMirror.ts';
 import { startTermuxServerIfWanted } from './lib/termux.ts';
+import { startServerAppIfWanted } from './lib/serverApp.ts';
 import { startPresence } from './lib/discordPresence.ts';
 import { useStore } from './lib/store.ts';
 import { startHaptics } from './lib/haptics.ts';
@@ -22,6 +23,7 @@ startConnect();
 startSpotifySdkIfWanted();
 startSpotifyMirror();
 startTermuxServerIfWanted();
+startServerAppIfWanted();
 startHaptics();
 startPresence();
 // the Android app's car interface needs the server address too; the app's own page is served from a private address, so a blank URL means "this origin"

@@ -1,5 +1,6 @@
 import { getLibrary } from '../lib/derive.ts';
 import { speedTest, type SpeedLine } from '../lib/speedTest.ts';
+import { Select } from '../components/Select.tsx';
 import { haptic } from '../lib/haptics.ts';
 import { EqualizerCard } from '../components/EqualizerCard.tsx';
 import { CrossfadeCard } from '../components/CrossfadeCard.tsx';
@@ -15,11 +16,14 @@ import { cacheBytes, removeAudio } from '../lib/files.ts';
 import { AliasesManager, DefaultImages, PlaybackRules, ReleaseNamesManager, Vocabulary } from '../components/SettingsExtras.tsx';
 import { AppearanceLayout, WallpaperCard } from '../components/AppearanceCard.tsx';
 import { Section } from '../components/Section.tsx';
+import { ServerAppCard } from '../components/ServerAppCard.tsx';
 import { TermuxServerCard } from '../components/TermuxServerCard.tsx';
 import { SpotifyCard } from '../components/SpotifyCard.tsx';
 import { BackupCard } from '../components/BackupCard.tsx';
 import { RecapDismissals } from '../components/RecapDismissals.tsx';
 import { LibraryFilesCard } from '../components/LibraryFilesCard.tsx';
+import { WidgetCard } from '../components/WidgetCard.tsx';
+import { NavOrderCard } from '../components/NavOrderCard.tsx';
 import { GuidesTab } from '../components/GuidesTab.tsx';
 import { ServerUpdateCard } from '../components/ServerUpdate.tsx';
 import { ConnectionTokens, PairDevice, ServerHealthCard } from '../components/ServerHealthCard.tsx';
@@ -77,6 +81,7 @@ export function SettingsPage() {
 
       {tab === 'look' && <>
       <AppearanceLayout />
+      <Section title="Pages: order and phone tabs"><NavOrderCard /></Section>
 
       <Section title="Wallpaper"><WallpaperCard /></Section>
       </>}
@@ -110,6 +115,8 @@ export function SettingsPage() {
       </Section>
 
       <ServerHealthCard />
+
+      <Section title="Now playing widget (OBS, second screen)"><WidgetCard /></Section>
 
       <Section title="Backup: export and import"><BackupCard /></Section>
       <Section title="Library as files: browse it, take it with you"><LibraryFilesCard /></Section>
@@ -153,6 +160,7 @@ export function SettingsPage() {
         <p className="text-xs text-muted">Version {desktop()!.version}. {!desktop()!.serverModule ? '' : "Changing the folder restarts the app and starts with an empty library there, unless you copy the old folder's contents over first."}</p>
       </Section>}
       <MigrateCard />
+      <ServerAppCard />
       <TermuxServerCard />
       <DiscordCard />
       </>}
@@ -163,6 +171,14 @@ export function SettingsPage() {
       <Section title="Crossfade"><CrossfadeCard /></Section>
 
       <Section title="Playback rules"><PlaybackRules /></Section>
+
+      <Section title="Offline copies and streaming">
+        <label className="block space-y-1 text-sm">Quality of tracks saved offline
+          <Select value={String(settings.offlineKbps)} onChange={(v) => updateSettings({ offlineKbps: Number(v) })} options={[['0', 'Original file (biggest)'], ['320', '320 kbps MP3'], ['256', '256 kbps MP3'], ['192', '192 kbps MP3'], ['128', '128 kbps MP3'], ['96', '96 kbps MP3'], ['64', '64 kbps MP3 (smallest)']].map(([value, label]) => ({ value, label }))} /></label>
+        <p className="text-xs text-muted">The server makes the smaller copy once (it needs ffmpeg) and keeps it, so saving the same song on a second device costs no extra work. Songs already saved keep the quality they were saved at: remove them and keep them again to change it.</p>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 shrink-0" checked={settings.preferLocalCopy} onChange={(e) => updateSettings({ preferLocalCopy: e.target.checked })} /><span>Play the saved copy when this device has one <span className="text-muted">(off = always stream from the server, even for songs saved here; a copy that has not reached the server yet is still played)</span></span></label>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 shrink-0" checked={settings.searchPlaysAll} onChange={(e) => updateSettings({ searchPlaysAll: e.target.checked })} /><span>Playing a song from search results also queues the other results <span className="text-muted">(off = only that song plays and your queue stays as it was)</span></span></label>
+      </Section>
 
       <Section title="Storage limiter">
         <p className="text-sm text-muted">Off by default: nothing is capped. Turn it on to stop offline audio on this device from growing past a size you choose (any app, browser, desktop or phone). With “Make room automatically” the tracks played longest ago are removed instead of stopping.</p>

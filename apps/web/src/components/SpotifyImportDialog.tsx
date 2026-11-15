@@ -9,18 +9,18 @@ import { useLibraryLive } from '../lib/derive.ts';
 import { logJournal } from '../lib/journal.ts';
 import { api, useStore } from '../lib/store.ts';
 import { createFromPlan } from '../lib/spotifyCreate.ts';
-import { parseAccountData, parseTextList, planImport, type ImportPlan } from '../lib/spotifyImport.ts';
+import { parseAccountData, planImport, type ImportPlan } from '../lib/spotifyImport.ts';
 import { readZip } from '../lib/zipRead.ts';
 import { cn } from '../lib/cn.ts';
 import { Field, Modal } from './forms.tsx';
 import { SpotifyAccountPanel } from './SpotifyAccountPanel.tsx';
 
-type Source = 'link' | 'account' | 'file' | 'text';
+type Source = 'link' | 'account' | 'file';
 const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 /**
- * Import Spotify playlists. Four ways in, because Spotify keeps closing doors: a public playlist link, your own account (sign-in), the
- * "Account data" file from Spotify's privacy page, or a typed list. Whatever the way, the result is the same review screen: the playlist,
+ * Import Spotify playlists. Three ways in, because Spotify keeps closing doors: a public playlist link, your own account (sign-in), the
+ * "Account data" file from Spotify's privacy page. Whatever the way, the result is the same review screen: the playlist,
  * and an album for each new track that you complete later with a YouTube album link (Library health).
  */
 function PlaylistPicker({ onPick, busy }: { onPick: (id: string) => void; busy: boolean }) {
@@ -57,7 +57,10 @@ export function SpotifyImportDialog({ onClose }: { onClose: () => void }) {
 
   // ---- sources ----
   const [url, setUrl] = useState('');
-  const [text, setText] = useState('');
+  const [fromId, setFromId] = useState<string | null>(null);
+  const [keepSynced, setKeepSynced] = useState(false);
+  const [canWrite, setCanWrite] = useState(false);
+  useEffect(() => { api().spotifyStatus().then((st) => setCanWrite(!!st.canWrite)).catch(() => undefined); }, []);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const guard = async (what: string, f: () => Promise<void>) => {
@@ -93,6 +96,8 @@ export function SpotifyImportDialog({ onClose }: { onClose: () => void }) {
       if (makePlaylist) {
         const ids = plan.tracks.map((t) => trackIdOf.get(t.src.uri)).filter((x): x is string => !!x);
         playlistId = put('playlists', { name: name.trim() || list.name, description: list.description, cover: null, createdAt: Date.now(), trackIds: ids });
+        // tie it to the Spotify playlist it came from: what is on both sides now is the starting point of the sync
+        if (keepSynced && fromId) patch('playlists', playlistId, { spotify: { id: fromId, mode: canWrite ? 'both' : 'from-spotify', syncedAt: Date.now(), base: plan.tracks.map((t) => t.src.uri) } });
       }
       logJournal('add', `Imported from Spotify: ${name.trim() || list.name}`, `${tracksMade} new tracks, ${albumsMade} albums, ${plan.reused} already in the library`);
       // covers last: they need the network and one slow link must not lose the import
@@ -113,7 +118,7 @@ export function SpotifyImportDialog({ onClose }: { onClose: () => void }) {
     finally { setBusy(null); }
   }
 
-  const tabs: { id: Source; label: string; icon: typeof Link2 }[] = [{ id: 'link', label: 'Playlist link', icon: Link2 }, { id: 'account', label: 'My account', icon: User }, { id: 'file', label: 'Account data file', icon: FileUp }, { id: 'text', label: 'Typed list', icon: ListMusic }];
+  const tabs: { id: Source; label: string; icon: typeof Link2 }[] = [{ id: 'link', label: 'Playlist link', icon: Link2 }, { id: 'account', label: 'My account', icon: User }, { id: 'file', label: 'Account data file', icon: FileUp }];
   const newAlbums = plan?.albums.filter((a) => !skipped.has(a.key)) ?? [];
   const footer = result ? <div className="ml-auto flex gap-2">{result.playlistId && <button className="btn" onClick={() => { onClose(); nav(`/playlists/${result.playlistId}`); }}>Open the playlist</button>}<button className="btn btn-accent" onClick={() => { onClose(); nav('/health'); }}>Complete the albums in Health</button></div>
     : list ? <div className="ml-auto flex gap-2"><button className="btn btn-ghost" disabled={!!busy} onClick={() => setList(null)}>Back</button>
@@ -137,17 +142,15 @@ export function SpotifyImportDialog({ onClose }: { onClose: () => void }) {
 
         {source === 'link' && <div className="space-y-2">
           <Field label="Spotify playlist link" hint="Any public playlist. Spotify's public page lists the tracks but not their albums, so the albums are made from your Spotify history when it knows them, otherwise from the track titles. For your own playlists, “My account” gives full details."><input autoFocus className="input" placeholder="https://open.spotify.com/playlist/…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url.trim() && !busy && configured && void guard('Reading the playlist…', async () => open(await api().spotifyResolve(url.trim())))} /></Field>
-          <button className="btn btn-accent" disabled={!url.trim() || !!busy || !configured} onClick={() => void guard('Reading the playlist…', async () => open(await api().spotifyResolve(url.trim())))}>Look up</button>
+          <button className="btn btn-accent" disabled={!url.trim() || !!busy || !configured} onClick={() => void guard('Reading the playlist…', async () => { open(await api().spotifyResolve(url.trim())); setFromId(/playlist[/:]([A-Za-z0-9]{10,})/.exec(url)?.[1] ?? null); })}>Look up</button>
         </div>}
 
-        {source === 'account' && <SpotifyAccountPanel>{() => <PlaylistPicker busy={!!busy} onPick={(id) => void guard('Reading the playlist…', async () => open(await api().spotifyPlaylist(id)))} />}</SpotifyAccountPanel>}
+        {source === 'account' && <SpotifyAccountPanel>{() => <PlaylistPicker busy={!!busy} onPick={(id) => void guard('Reading the playlist…', async () => { open(await api().spotifyPlaylist(id)); setFromId(id); })} />}</SpotifyAccountPanel>}
 
         {source === 'file' && <div className="space-y-2 text-sm"><p className="text-muted">The most reliable way: on spotify.com/account/privacy request <b>Account data</b> (arrives in a day or so), then choose the .zip, or <code>Playlist1.json</code> / <code>YourLibrary.json</code> from it. No server needed.</p>
           <button className="btn btn-accent" disabled={!!busy} onClick={() => fileInput.current?.click()}><FileUp size={15} />Choose file…</button>
           <input ref={fileInput} type="file" multiple hidden accept=".zip,.json" onChange={(e) => void readFiles(e.target.files)} /></div>}
 
-        {source === 'text' && <div className="space-y-2"><Field label="One song per line: Artist - Title" hint="Lines starting with # are ignored."><textarea className="input font-mono" rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Drake - Get It Together\nSOB X RBE - Paramedic!'} /></Field>
-          <button className="btn btn-accent" disabled={!parseTextList(text).length} onClick={() => open({ kind: 'playlist', name: 'My list', description: null, cover: null, owner: null, source: 'file', tracks: parseTextList(text) })}>Continue with {parseTextList(text).length} songs</button></div>}
 
         {choices && <div className="space-y-1 rounded-theme bg-raised p-2"><div className="px-1 text-xs text-muted">Which playlist?</div>{choices.map((c, i) => <button key={i} className="flex w-full items-center gap-2 rounded-theme px-2 py-1.5 text-left text-sm hover:bg-hover" onClick={() => open(c)}><ListMusic size={14} className="text-muted" /><span className="flex-1 truncate">{c.name}</span><span className="text-xs text-muted">{c.tracks.length} tracks</span></button>)}</div>}
       </>) : (<>
@@ -155,6 +158,7 @@ export function SpotifyImportDialog({ onClose }: { onClose: () => void }) {
           <Field label="Playlist name"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <div className="space-y-1.5 pt-5 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={makePlaylist} onChange={(e) => setMakePlaylist(e.target.checked)} />Create the playlist ({list.tracks.length} tracks)</label>
+            {fromId && makePlaylist && <label className="flex items-start gap-2" title="Later changes on either side reach the other (Settings > Spotify must allow changing your playlists to send yours to Spotify)"><input type="checkbox" className="mt-0.5" checked={keepSynced} onChange={(e) => setKeepSynced(e.target.checked)} />Keep it in step with this Spotify playlist{canWrite ? ' (both ways)' : ' (Spotify → TurboMusic; allow changing your playlists in Settings > Spotify for both ways)'}</label>}
             <label className="flex items-center gap-2"><input type="checkbox" checked={makeAlbums} onChange={(e) => setMakeAlbums(e.target.checked)} />Add tracks I do not have, each in its album</label>
             <label className="flex items-start gap-2" title="One request to Spotify per album: slower, optional"><input type="checkbox" className="mt-0.5" checked={covers} disabled={!configured} onChange={(e) => setCovers(e.target.checked)} />Fetch the album covers from Spotify <span className="text-muted">(a YouTube album link later brings better ones)</span></label>
           </div>

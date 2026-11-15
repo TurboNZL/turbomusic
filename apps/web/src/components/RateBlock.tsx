@@ -10,6 +10,9 @@ import { cn } from '../lib/cn.ts';
  * Thumbs up / down (a half-weight Elo vote on this track alone) over a memories counter. The two rows are the same
  * width, so together they form one rectangle.
  */
+/** run after the next paint, so a press shows its effect before the library is rebuilt */
+const later = (fn: () => void) => requestAnimationFrame(() => setTimeout(fn, 0));
+
 export function RateBlock({ track, className }: { track: Track; className?: string }) {
   const put = useStore((s) => s.put);
   const [pulse, setPulse] = useState<{ n: number; dir: 1 | -1; id: string } | null>(null);
@@ -18,8 +21,9 @@ export function RateBlock({ track, className }: { track: Track; className?: stri
   const memories = track.memories ?? 0;
   const thumb = (boost: 1 | -1) => {
     const data: VoteData = { trackAId: track.id, trackBId: '', winnerId: null, isEqual: false, boost, timestamp: Date.now() };
-    put('votes', data);
     setPulse((p) => ({ n: (p?.n ?? 0) + 1, dir: boost, id: track.id }));
+    // the vote rebuilds the whole library (ratings are replayed from every vote): let the thumb react and paint first, then do that work
+    requestAnimationFrame(() => setTimeout(() => put('votes', data), 0));
   };
   return (
     <div className={cn('grid w-[5.5rem] shrink-0 grid-cols-2 gap-1', className)}>
@@ -30,9 +34,9 @@ export function RateBlock({ track, className }: { track: Track; className?: stri
         <ThumbsDown key={mine?.dir === -1 ? mine.n : 'd'} size={15} className={mine?.dir === -1 ? 'bt-thumb-pulse' : undefined} />
       </button>
       <div className="col-span-2 grid grid-cols-[1.6rem_1fr_1.6rem] items-center rounded-theme border border-line/70 bg-raised/40 text-xs">
-        <button type="button" className="btn btn-ghost !p-1" title="Remove a memory" aria-label="Remove a memory" disabled={memories < 1} onClick={() => removeMemory(track.id)}><Minus size={12} /></button>
+        <button type="button" className="btn btn-ghost !p-1" title="Remove a memory" aria-label="Remove a memory" disabled={memories < 1} onClick={() => later(() => removeMemory(track.id))}><Minus size={12} /></button>
         <span className="text-center font-semibold tabular-nums" title="Memories">{memories}</span>
-        <button type="button" className="btn btn-ghost !p-1" title="Add a memory" aria-label="Add a memory" onClick={() => addMemory(track.id)}><Plus size={12} /></button>
+        <button type="button" className="btn btn-ghost !p-1" title="Add a memory" aria-label="Add a memory" onClick={() => later(() => addMemory(track.id))}><Plus size={12} /></button>
       </div>
     </div>
   );

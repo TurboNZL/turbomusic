@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { desktop, type DiscordInfo, type MigrationInfo } from '../lib/settings.ts';
 import { appVersion, nativeUpdates, type UpdateState } from '../lib/native.ts';
 import { Section } from './Section.tsx';
@@ -110,10 +111,10 @@ export function GraphicsLine() {
       {gpu && d?.setGpu && <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="gpu-mode" className="text-muted">Graphics start-up</label>
-          <select id="gpu-mode" className="input !w-auto" value={gpu.mode} onChange={(e) => { if (confirm('The app restarts to apply this. Continue?')) void d.setGpu!(e.target.value); }}>
+          <ThemedSelect id="gpu-mode" className="input !w-auto" value={gpu.mode} onChange={(e) => { if (confirm('The app restarts to apply this. Continue?')) void d.setGpu!(e.target.value); }}>
             <option value="auto">Automatic (tries the options below until the GPU works)</option>
             {gpu.modes.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
+          </ThemedSelect>
           {gpu.mode === 'auto' && !g.hardware && gpu.auto.done && <button className="btn" onClick={() => void d.setGpu!('auto')}>Search again</button>}
           {d.openGpuPage && <button className="btn" onClick={() => d.openGpuPage!()}>Open Chromium's GPU report</button>}
           {d.gpuReport && <button className="btn" onClick={() => void d.gpuReport!().then((t) => navigator.clipboard?.writeText(t))}>Copy graphics report</button>}

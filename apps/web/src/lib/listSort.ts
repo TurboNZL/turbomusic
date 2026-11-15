@@ -1,4 +1,4 @@
-import type { Library, Track } from './library.ts';
+import { ratingStrength, type Library, type Track } from './library.ts';
 import type { SortDir } from './trackSort.ts';
 
 /** One sortable column of a list page: what it is called and which way a first click should go. */
@@ -23,7 +23,7 @@ export function sortAlbums(lib: Library, albums: Album[], key: AlbumSort, dir: S
     switch (key) {
       case 'title': return s * text(a.title, b.title);
       case 'artist': return s * (text(a.artistName, b.artistName) || text(a.title, b.title));
-      case 'rating': return s * ((a.rating ?? 0) - (b.rating ?? 0));
+      case 'rating': return s * (a.strength - b.strength || (a.rating ?? 0) - (b.rating ?? 0)); // by how many good tracks, then by the average
       case 'tracks': return s * (a.trackIds.length - b.trackIds.length);
       case 'memories': return s * (memoriesOf(lib, a.trackIds) - memoriesOf(lib, b.trackIds));
       case 'released': return s * (a.releaseDate ?? '').localeCompare(b.releaseDate ?? '');
@@ -31,7 +31,7 @@ export function sortAlbums(lib: Library, albums: Album[], key: AlbumSort, dir: S
   });
 }
 
-export interface ArtistRow { id: string; name: string; image: string | null | undefined; tracks: number; albums: number; memories: number; rating: number | null }
+export interface ArtistRow { id: string; name: string; image: string | null | undefined; tracks: number; albums: number; memories: number; rating: number | null; /** ratingStrength of their tracks: what Rating sorts by */ strength: number }
 export type ArtistSort = 'name' | 'tracks' | 'albums' | 'rating' | 'memories';
 export const ARTIST_SORTS: SortOption<ArtistSort>[] = [
   { value: 'tracks', label: 'Track count', dir: 'desc' }, { value: 'name', label: 'Name', dir: 'asc' }, { value: 'albums', label: 'Album count', dir: 'desc' },
@@ -45,7 +45,7 @@ export function artistRows(lib: Library): ArtistRow[] {
     const rated = ts.filter((t) => t.effectiveRating > 0.001);
     return {
       id: a.id, name: a.name, image: a.image, tracks: ts.length, albums: new Set(ts.flatMap((t) => (t.albumId ? [t.albumId] : []))).size,
-      memories: ts.reduce((n, t) => n + (t.memories ?? 0), 0), rating: rated.length ? rated.reduce((n, t) => n + t.effectiveRating, 0) / rated.length : null,
+      memories: ts.reduce((n, t) => n + (t.memories ?? 0), 0), rating: rated.length ? rated.reduce((n, t) => n + t.effectiveRating, 0) / rated.length : null, strength: ratingStrength(rated.map((t) => t.effectiveRating)),
     };
   });
 }
@@ -53,7 +53,7 @@ export function sortArtists(rows: ArtistRow[], key: ArtistSort, dir: SortDir): A
   const s = sign(dir);
   return [...rows].sort((a, b) => {
     if (key === 'rating' && (a.rating == null) !== (b.rating == null)) return a.rating == null ? 1 : -1;
-    const n = key === 'name' ? s * text(a.name, b.name) : s * ((key === 'rating' ? (a.rating ?? 0) - (b.rating ?? 0) : a[key] - b[key]));
+    const n = key === 'name' ? s * text(a.name, b.name) : s * ((key === 'rating' ? a.strength - b.strength || (a.rating ?? 0) - (b.rating ?? 0) : a[key] - b[key]));
     return n || text(a.name, b.name);
   });
 }
@@ -93,6 +93,7 @@ const eraItem = {
   artist: (i: EraItem) => (i.kind === 'album' ? i.album.artistName : i.track.artistName),
   date: (i: EraItem) => (i.kind === 'album' ? i.album.releaseDate : i.track.releaseDate) ?? '',
   rating: (i: EraItem) => (i.kind === 'album' ? i.album.rating : (i.track.effectiveRating > 0.001 ? i.track.effectiveRating : null)),
+  strength: (i: EraItem) => (i.kind === 'album' ? i.album.strength : ratingStrength([i.track.effectiveRating])),
   memories: (lib: Library, i: EraItem) => (i.kind === 'album' ? memoriesOf(lib, i.album.trackIds) : i.track.memories ?? 0),
   tracks: (i: EraItem) => (i.kind === 'album' ? i.album.trackIds.length : 1),
 };
@@ -107,7 +108,7 @@ export function sortEraItems(lib: Library, items: EraItem[], key: EraItemSort, d
       case 'released': n = s * eraItem.date(a.x).localeCompare(eraItem.date(b.x)); break; // "2019" < "2019-05" < "2019-05-02"
       case 'title': n = s * text(eraItem.title(a.x), eraItem.title(b.x)); break;
       case 'artist': n = s * text(eraItem.artist(a.x), eraItem.artist(b.x)); break;
-      case 'rating': n = s * ((eraItem.rating(a.x) ?? 0) - (eraItem.rating(b.x) ?? 0)); break;
+      case 'rating': n = s * (eraItem.strength(a.x) - eraItem.strength(b.x) || (eraItem.rating(a.x) ?? 0) - (eraItem.rating(b.x) ?? 0)); break;
       case 'memories': n = s * (eraItem.memories(lib, a.x) - eraItem.memories(lib, b.x)); break;
       case 'tracks': n = s * (eraItem.tracks(a.x) - eraItem.tracks(b.x)); break;
     }

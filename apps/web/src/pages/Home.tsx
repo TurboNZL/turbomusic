@@ -18,6 +18,7 @@ import { useMenu } from '../components/Menu.tsx';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 import { useTrackMenuItems } from '../components/TrackMenu.tsx';
 import { RecapPrompt } from '../components/RecapPrompt.tsx';
+import { addedTimes } from '../lib/addedAt.ts';
 import { Journal } from '../components/Journal.tsx';
 
 const ago = (ts: number) => { const m = Math.max(1, Math.round((Date.now() - ts) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -50,16 +51,24 @@ export function HomePage() {
   const done = lib.tracks.filter((t) => t.comparisons >= 3 || (t.initialRating ?? 0) > 0).length;
   const pct = lib.tracks.length ? Math.round((done / lib.tracks.length) * 100) : 0;
 
-  // pick up where you left off: the last thing played here that can be played again, with the rest of its album after it
+  // pick up where you left off: only when the LAST thing you played here was cut short (skipped, or stopped before ~90% of the track)
   const last = useMemo(() => {
-    for (let i = listens.length - 1; i >= 0; i--) { const t = listens[i].trackId ? lib.trackById.get(listens[i].trackId!) : undefined; if (t?.file && listens[i].source === 'turbomusic') return { t, at: listens[i].ts }; }
+    for (let i = listens.length - 1; i >= 0; i--) {
+      const l = listens[i];
+      if (l.source !== 'turbomusic') continue;
+      const t = l.trackId ? lib.trackById.get(l.trackId) : undefined;
+      if (!t || !canPlay(t)) continue; // the last play that can be played again; anything older is not "where you left off"
+      const heard = l.ms / 1000;
+      const finished = l.length ? heard >= 0.9 * l.length : !l.skipped;
+      return finished || heard < 1 ? null : { t, at: l.ts, pos: heard };
+    }
     return null;
   }, [listens, lib]);
   const resume = () => {
     if (!last) return;
     const album = last.t.albumId ? lib.albumById.get(last.t.albumId) : undefined;
     const ids = album ? album.trackIds.filter((id) => canPlay(lib.trackById.get(id))) : [last.t.id];
-    play(last.t.id, ids.length ? ids : [last.t.id], album ? { type: 'album', id: album.id } : { type: 'track', id: last.t.id });
+    play(last.t.id, ids.length ? ids : [last.t.id], album ? { type: 'album', id: album.id } : { type: 'track', id: last.t.id }, last.pos);
   };
   // albums heard lately, newest first
   const recentAlbums = useMemo(() => {
@@ -78,7 +87,7 @@ export function HomePage() {
   const [shuffleSeed, setShuffleSeed] = useState(0);
   const unheardCount = useMemo(() => { const h = heardTrackIds(listens); return lib.tracks.filter((t) => !h.has(t.id) && canPlay(t)).length; }, [listens, lib]);
   const tryNew = useMemo(() => tryNewPlaylist(lib.tracks, heardTrackIds(listens), canPlay), [listens, lib, shuffleSeed]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newest = useMemo(() => [...lib.albums].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 12), [lib]);
+  const newest = useMemo(() => { const at = addedTimes(lib.albums, lib.timeline); return [...lib.albums].sort((a, b) => (at.get(b.id) ?? 0) - (at.get(a.id) ?? 0)).slice(0, 12); }, [lib]);
   const month = useMemo(() => computeListenStats(listens, { from: Date.now() - 30 * 86_400_000 }), [listens]);
   const days = useMemo(() => Array.from({ length: 30 }, (_, i) => { const d = new Date(Date.now() - (29 - i) * 86_400_000); return { label: i % 5 === 0 || i === 29 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '', full: d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }), value: month.byDay.get(dayKey(d.getTime())) ?? 0 }; }), [month]);
   const score = healthScore(lib);
@@ -96,10 +105,10 @@ export function HomePage() {
               <div className="text-xs uppercase tracking-wider text-muted">Pick up where you left off</div>
               <div className="truncate text-2xl font-bold">{last.t.title}</div>
               <div className="truncate text-sm text-muted">{last.t.artistName}{last.t.albumTitle ? ` · ${last.t.albumTitle}` : ''} · {ago(last.at)}</div>
-              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume</button>
+              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(last.pos / 60)}:{String(Math.floor(last.pos % 60)).padStart(2, '0')}</button>
                 <Link to="/vote" className="btn"><Swords size={16} />Keep ranking · {lib.tracks.length - done} to go</Link></div>
             </div></>
-          : <div className="min-w-0 flex-1 space-y-2"><h1 className="text-2xl font-bold">Welcome back</h1><p className="text-sm text-muted">Play something and it will be waiting for you here.</p>
+          : <div className="min-w-0 flex-1 space-y-2"><h1 className="text-2xl font-bold">Welcome back</h1><p className="text-sm text-muted">If you stop a song part-way, it will be waiting for you here.</p>
               <div className="flex flex-wrap gap-2"><Link to="/vote" className="btn btn-accent"><Swords size={16} />Keep ranking · {lib.tracks.length - done} to go</Link><Link to="/albums" className="btn">Browse albums</Link></div></div>}
         </div>
       </section>
@@ -116,9 +125,9 @@ export function HomePage() {
           {month.plays ? <><Bars data={days} format={fmtHours} height={110} /><p className="text-sm text-muted"><b className="text-fg">{fmtHours(month.ms)}</b> across {month.plays.toLocaleString()} plays{month.currentStreak ? ` · ${month.currentStreak}-day streak` : ''}{month.topArtists[0] ? ` · most played ${month.topArtists[0].label}` : ''}</p></>
             : <p className="py-6 text-sm text-muted">No listening in the last 30 days. <Link to="/stats" className="underline">Import your Spotify history</Link> to fill this in.</p>}
         </section>
-        <section className="card space-y-2 p-5"><h2 className="font-semibold">Back in rotation</h2>
+        <section className="card space-y-2 p-5"><div><h2 className="font-semibold">Rediscover</h2><p className="text-xs text-muted">Songs you rated 8 or higher that you have not played for a month.</p></div>
           {comeback.length ? <ul className="space-y-1">{comeback.map((t) => <li key={t.id}><button className="flex w-full items-center gap-2 rounded-theme px-1 py-1 text-left text-sm hover:bg-raised" onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, comeback.map((x) => x.id), { type: 'search', id: null })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, comeback.map((x) => x.id), { type: 'search', id: null })}><Play size={12} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{t.title}<span className="text-muted"> · {t.artistName}</span></span><span className="text-xs tabular-nums text-muted">{t.effectiveRating.toFixed(1)}</span></button></li>)}</ul>
-            : <p className="text-sm text-muted">Tracks you rated 8 or higher and have not played for a month will show up here.</p>}
+            : <p className="text-sm text-muted">Nothing yet: your favourites have all been played lately.</p>}
         </section>
       </div>
       {tryNew.length > 0 && <section className="card space-y-3 p-5">

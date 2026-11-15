@@ -54,6 +54,15 @@ export interface DeviceSettings {
   spotifyBeam: boolean;
   /** silently play the song on the server's Soloist while it plays from a file here, so Spotify counts the stream (lib/spotifyMirror.ts) */
   spotifyMirror: boolean;
+  /** bit rate (kbps) of audio saved for offline use; 0 = keep the original file. The server makes the smaller copy once (ffmpeg) */
+  offlineKbps: number;
+  /** play the copy kept on this device when there is one (true), or always stream from the server (false) */
+  preferLocalCopy: boolean;
+  /** playing a track from search results queues every other result after it; off = only that track is played and the queue stays as it was */
+  searchPlaysAll: boolean;
+  /** the order of the pages in the navigation (their addresses), and which of them are tabs on a phone (lib/navOrder.ts); unset = the defaults */
+  navOrder?: string[];
+  phoneTabs?: string[];
   /** vibration feedback on presses (the Android app and phones that support it) */
   haptics: boolean;
 }
@@ -110,7 +119,7 @@ export function loadSettings(): DeviceSettings {
   let saved: Partial<DeviceSettings> = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { /* storage blocked */ }
   const s: DeviceSettings = {
-    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, ...saved,
+    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, ...saved,
   };
   s.eqBands = cleanBands(s.eqBands);
   s.eqPreamp = Math.min(12, Math.max(-12, Number(s.eqPreamp) || 0));

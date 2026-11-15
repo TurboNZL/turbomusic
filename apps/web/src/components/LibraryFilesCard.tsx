@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { Download, FileSpreadsheet, FileJson, FolderTree, Loader2, RefreshCw } from 'lucide-react';
 import { api, useStore } from '../lib/store.ts';
 import type { MirrorInfo } from '../lib/api.ts';
@@ -38,7 +39,7 @@ export function LibraryFilesCard() {
           <label className="flex items-center gap-2"><input type="checkbox" checked={m.enabled} disabled={!!busy} onChange={(e) => void change('toggle', { enabled: e.target.checked })} />Keep a browsable copy of the library</label>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="How files are placed" hint={MODES.find((x) => x.id === m.mode)?.hint}>
-              <select className="input" value={m.mode} disabled={!!busy} onChange={(e) => void change('mode', { mode: e.target.value })}>{MODES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></Field>
+              <ThemedSelect className="input" value={m.mode} disabled={!!busy} onChange={(e) => void change('mode', { mode: e.target.value })}>{MODES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</ThemedSelect></Field>
             <Field label="Folder on the server" hint={`Empty = ${m.defaultDir}. A folder of your own must be empty.`}>
               <div className="flex gap-2"><input className="input font-mono" value={dir} placeholder={m.defaultDir} onChange={(e) => setDir(e.target.value)} />
                 <button className="btn" disabled={!!busy || dir === (m.dir ?? '')} onClick={() => void change('dir', { dir: dir.trim() || null })}>Use</button></div></Field>

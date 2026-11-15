@@ -25,7 +25,8 @@ export function TermuxServerCard() {
   const [asked, setAsked] = useState(false);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!termuxSupported() || !status) return null;
+  // the TurboMusic Server app replaces this route: the card only stays for a phone that already has the Termux module installed
+  if (!termuxSupported() || !status || !status.module) return null;
 
   const url = termuxUrl(status.port);
   const usingIt = settings.serverUrl === url && settings.token === status.token && !!status.token;

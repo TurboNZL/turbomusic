@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CalendarDays, Gift, Clock, Download, Flame, History, LayoutGrid, List, Upload, Users, SkipForward, Shuffle } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
@@ -20,6 +21,13 @@ type Tab = (typeof TABS)[number]['id'];
 
 
 
+/** the picture of a library artist, album or track (the track's own cover, else its album's) for the lists */
+const pic = (lib: ReturnType<typeof useLibraryLive>, kind: 'artist' | 'album' | 'track', id: string | null | undefined, seed: string) => {
+  if (!id) return { hash: null, seed, kind: kind === 'artist' ? 'artist' as const : 'album' as const };
+  const hash = kind === 'artist' ? lib.artistById.get(id)?.image : kind === 'album' ? lib.albumById.get(id)?.cover : lib.trackById.get(id)?.cover;
+  return { hash, seed, kind: kind === 'artist' ? 'artist' as const : 'album' as const };
+};
+
 function Overview({ s, lib, range }: { s: ListenStats; lib: ReturnType<typeof useLibraryLive>; range: Range }) {
   const months = lastMonths(s.byMonth, (m) => m.newArtists, 12);
   const { unit, points: series } = useMemo(() => timeSeries(s, range), [s, range]);
@@ -38,9 +46,9 @@ function Overview({ s, lib, range }: { s: ListenStats; lib: ReturnType<typeof us
         {feature && <p className="text-sm text-muted">Most played: <b className="text-fg">{feature.label}</b> ({feature.plays.toLocaleString()} plays). Longest session {fmtHours(s.sessions.longestMs)}, {s.daysActive.toLocaleString()} active days.</p>}
       </Panel>
       <div className="grid gap-4 lg:grid-cols-3">
-        <Panel title="Top artists"><RankList rows={s.topArtists.slice(0, 6).map((r) => ({ key: r.key, label: r.label, value: r.plays, to: r.id ? statsPath('artist', r.id) : undefined }))} unit={(n) => `${n.toLocaleString()}`} /></Panel>
-        <Panel title="Top tracks"><RankList rows={s.topTracks.slice(0, 6).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: r.plays, to: r.id ? statsPath('track', r.id) : undefined }))} /></Panel>
-        <Panel title="Top albums"><RankList rows={s.topAlbums.slice(0, 6).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: r.plays, to: r.id ? statsPath('album', r.id) : undefined }))} /></Panel>
+        <Panel title="Top artists"><RankList rows={s.topArtists.slice(0, 6).map((r) => ({ key: r.key, label: r.label, value: r.plays, img: pic(lib, 'artist', r.id, r.label), to: r.id ? statsPath('artist', r.id) : undefined }))} unit={(n) => `${n.toLocaleString()}`} /></Panel>
+        <Panel title="Top tracks"><RankList rows={s.topTracks.slice(0, 6).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: r.plays, img: pic(lib, 'track', r.id, r.label), to: r.id ? statsPath('track', r.id) : undefined }))} /></Panel>
+        <Panel title="Top albums"><RankList rows={s.topAlbums.slice(0, 6).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: r.plays, img: pic(lib, 'album', r.id, r.label), to: r.id ? statsPath('album', r.id) : undefined }))} /></Panel>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {s.onThisDay.length > 0 && <Panel title="On this day"><ul className="space-y-1.5 text-sm">{s.onThisDay.map((d) => <li key={d.year} className="flex gap-3"><b className="w-12 shrink-0 tabular-nums">{d.year}</b><span className="min-w-0 truncate text-muted">{d.plays} play{d.plays === 1 ? '' : 's'}{d.top ? ` · ${d.top}` : ''}</span></li>)}</ul></Panel>}
@@ -52,10 +60,9 @@ function Overview({ s, lib, range }: { s: ListenStats; lib: ReturnType<typeof us
 }
 
 function Top({ s, byTime, lib }: { s: ListenStats; byTime: boolean; lib: ReturnType<typeof useLibraryLive> }) {
-  void lib;
   const [view, setView] = useState<'grid' | 'list'>(() => { try { return localStorage.getItem('turbomusic.statsTopView') === 'list' ? 'list' : 'grid'; } catch { return 'grid'; } });
   const choose = (v: 'grid' | 'list') => { setView(v); try { localStorage.setItem('turbomusic.statsTopView', v); } catch { /* private window */ } };
-  const rows = (list: TopRow[], kind: 'artist' | 'album' | 'track') => [...list].sort((a, b) => (byTime ? b.ms - a.ms : b.plays - a.plays)).slice(0, 25).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: byTime ? r.ms : r.plays, extra: byTime ? `${r.plays.toLocaleString()} plays` : fmtHours(r.ms), to: r.id ? statsPath(kind, r.id) : undefined }));
+  const rows = (list: TopRow[], kind: 'artist' | 'album' | 'track') => [...list].sort((a, b) => (byTime ? b.ms - a.ms : b.plays - a.plays)).slice(0, 25).map((r) => ({ key: r.key, label: r.label, sub: r.sub, img: pic(lib, kind, r.id, r.label), value: byTime ? r.ms : r.plays, extra: byTime ? `${r.plays.toLocaleString()} plays` : fmtHours(r.ms), to: r.id ? statsPath(kind, r.id) : undefined }));
   const unit = byTime ? fmtHours : (n: number) => n.toLocaleString();
   return (
     <div className="space-y-4">
@@ -134,8 +141,8 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
         <input className="input !w-64 max-w-full" placeholder="Search your history…" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE); }} />
         <input className="input !w-auto" type="date" aria-label="Jump to a day" value={on} onChange={(e) => { setOn(e.target.value); setShown(PAGE); }} />
         {on && <button className="btn btn-ghost" onClick={() => setOn('')}>All days</button>}
-        <select className="input !w-auto" value={source} onChange={(e) => { setSource(e.target.value as typeof source); setShown(PAGE); }}><option value="all">All sources</option><option value="turbomusic">Played in TurboMusic</option><option value="spotify">From Spotify</option></select>
-        <select className="input !w-auto" value={skips} onChange={(e) => { setSkips(e.target.value as typeof skips); setShown(PAGE); }}><option value="all">Plays and skips</option><option value="played">Played through</option><option value="skipped">Skipped only</option></select>
+        <ThemedSelect className="input !w-auto" value={source} onChange={(e) => { setSource(e.target.value as typeof source); setShown(PAGE); }}><option value="all">All sources</option><option value="turbomusic">Played in TurboMusic</option><option value="spotify">From Spotify</option></ThemedSelect>
+        <ThemedSelect className="input !w-auto" value={skips} onChange={(e) => { setSkips(e.target.value as typeof skips); setShown(PAGE); }}><option value="all">Plays and skips</option><option value="played">Played through</option><option value="skipped">Skipped only</option></ThemedSelect>
         <span className="ml-auto text-xs text-muted">{rows.length.toLocaleString()} plays</span>
       </div>
       {!rows.length && <div className="card p-6 text-center text-sm text-muted">{listens.length ? 'No plays match.' : 'No plays yet. Play something, or import your Spotify history.'}</div>}
@@ -175,6 +182,24 @@ const fmtDuration = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math
 function LibraryTab() {
   const lib = useLibraryLive();
   const s = computeStats(lib);
+  // library-only charts: tracks by release decade, average rating per genre, and who you have ranked most
+  const decades = (() => {
+    const by = new Map<number, number>(); let dated = 0;
+    for (const t of lib.tracks) { const y = Number((t.releaseDate ?? '').slice(0, 4)); if (!y) continue; dated++; const d = Math.floor(y / 10) * 10; by.set(d, (by.get(d) ?? 0) + 1); }
+    const ks = [...by.keys()].sort((a, b) => a - b);
+    const bars = ks.length ? Array.from({ length: (ks[ks.length - 1] - ks[0]) / 10 + 1 }, (_, i) => { const d = ks[0] + i * 10; return { label: `${d}s`, value: by.get(d) ?? 0 }; }) : [];
+    return { dated, bars };
+  })();
+  const genreAvg = (() => {
+    const by = new Map<string, { sum: number; n: number; label: string }>();
+    for (const t of lib.tracks) { if (t.effectiveRating <= 0.001) continue; for (const g of t.allGenres) { const e = by.get(g.toLowerCase()) ?? { sum: 0, n: 0, label: g }; e.sum += t.effectiveRating; e.n++; by.set(g.toLowerCase(), e); } }
+    return [...by.entries()].filter(([, e]) => e.n >= 5).map(([k, e]) => ({ key: k, label: e.label, value: e.sum / e.n })).sort((a, b) => b.value - a.value).slice(0, 10);
+  })();
+  const artistRated = (() => {
+    const by = new Map<string, { n: number; name: string; id: string }>();
+    for (const t of lib.tracks) { if (t.effectiveRating <= 0.001 || t.comparisons < 1) continue; const l = t.leads[0]; if (!l) continue; const e = by.get(l.id) ?? { n: 0, name: l.name, id: l.id }; e.n++; by.set(l.id, e); }
+    return [...by.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((e) => ({ key: e.id, label: e.name, value: e.n, img: pic(lib, 'artist', e.id, e.name), to: statsPath('artist', e.id) }));
+  })();
   const maxBand = Math.max(1, ...s.ratingBands);
   return (
     <div className="space-y-4">
@@ -187,6 +212,12 @@ function LibraryTab() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Rating distribution"><Bars height={140} data={s.ratingBands.map((n, i) => ({ label: i === 9 ? '9+' : String(i), value: n }))} format={(n) => `${n} tracks`} highlight={s.ratingBands.indexOf(maxBand)} /></Panel>
         <Panel title="Genres"><RankList rows={s.topGenres.map((g) => ({ key: g.name, label: g.name, value: g.tracks }))} unit={(n) => `${n} tracks`} /></Panel>
+        <Panel title="Tracks by decade" right={<span className="text-xs text-muted">{decades.dated} of {lib.tracks.length} have a release date</span>}>
+          {decades.bars.length ? <Bars height={140} data={decades.bars} format={(n) => `${n} tracks`} /> : <p className="text-sm text-muted">No release dates yet: Library health can find them.</p>}</Panel>
+        <Panel title="Average rating by genre" right={<span className="text-xs text-muted">genres with 5+ rated tracks</span>}>
+          {genreAvg.length ? <RankList rows={genreAvg} unit={(n) => n.toFixed(1)} /> : <p className="text-sm text-muted">Rate more tracks to see this.</p>}</Panel>
+        <Panel title="Rated tracks per artist" right={<span className="text-xs text-muted">the artists you have ranked most</span>}>
+          {artistRated.length ? <RankList rows={artistRated} unit={(n) => `${n} rated`} /> : <p className="text-sm text-muted">Rank some tracks to see this.</p>}</Panel>
       </div>
     </div>
   );

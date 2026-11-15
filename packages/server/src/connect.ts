@@ -23,6 +23,19 @@ export class ConnectHub {
     return [...this.devices.values()].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   }
 
+  /**
+   * What is playing anywhere, for the OBS widget and the KDE panel: the device that is playing (the one that reported last when several
+   * are), else the one that stopped most recently. `position` is moved on by the time since that device last reported.
+   */
+  nowPlaying(now = Date.now()): { playing: boolean; deviceId: string; trackId: string; meta: PlaybackSnapshot['meta'] | null; position: number; duration: number; device: string; updatedAt: number } | null {
+    const live = [...this.devices.values()].filter((d) => d.state?.trackId);
+    const pick = live.filter((d) => d.state!.playing).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? live.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    if (!pick?.state) return null;
+    const st = pick.state;
+    const position = st.playing ? Math.min(st.duration || Infinity, st.position + (now - pick.updatedAt) / 1000) : st.position;
+    return { playing: st.playing, deviceId: pick.id, trackId: st.trackId!, meta: st.meta ?? null, position, duration: st.duration, device: pick.name, updatedAt: pick.updatedAt };
+  }
+
   /** A device opens its event stream. Returns the function that closes it. */
   connect(info: { id: string; name: string; kind: string }, sink: Sink): () => void {
     const id = str(info.id, 64);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { hourLabel, lastMonths } from '../src/lib/listenStats.ts';
 
 describe('hourLabel', () => {
-  it('reads as a clock', () => expect([0, 3, 12, 15, 23].map(hourLabel)).toEqual(['12a', '3a', '12p', '3p', '11p']));
+  it('reads as a clock', () => expect([0, 3, 12, 15, 23].map(hourLabel)).toEqual(['12am', '3am', '12pm', '3pm', '11pm']));
 });
 
 describe('lastMonths', () => {

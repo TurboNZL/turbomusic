@@ -15,10 +15,12 @@ export interface Q { id: string; elo: number; comparisons: number; rating: numbe
 export type Question =
   | { kind: 'duel'; a: string; b: string; why: string }
   | { kind: 'triple'; ids: [string, string, string]; why: string }
+  | { kind: 'quad'; ids: [string, string, string, string]; why: string }
+  | { kind: 'odd'; ids: [string, string, string]; why: string }
   | { kind: 'benchmark'; id: string; ref: string; why: string }
   | { kind: 'love'; id: string; why: string };
 
-export const FORMATS: Question['kind'][] = ['duel', 'triple', 'benchmark', 'love'];
+export const FORMATS: Question['kind'][] = ['duel', 'triple', 'quad', 'odd', 'benchmark', 'love'];
 
 export function makeQuestion(tracks: Q[], kind: Question['kind'], rnd: () => number = Math.random): Question | null {
   if (tracks.length < 2) return null;
@@ -37,6 +39,18 @@ export function makeQuestion(tracks: Q[], kind: Question['kind'], rnd: () => num
     const ids = [a, ...picks].sort(() => rnd() - 0.5).map((t) => t.id) as [string, string, string];
     return { kind, ids, why: 'Three at about the same level. Your favourite beats both others, which settles two matches at once.' };
   }
+  if (kind === 'quad' && tracks.length >= 4) {
+    const a = pickLeast();
+    const near = tracks.filter((t) => t.id !== a.id).sort((x, y) => Math.abs(x.elo - a.elo) - Math.abs(y.elo - a.elo)).slice(0, 10);
+    const ids = [a, ...[...near].sort(() => rnd() - 0.5).slice(0, 3)].sort(() => rnd() - 0.5).map((t) => t.id) as [string, string, string, string];
+    return { kind, ids, why: 'Four at about the same level. Your favourite beats the other three: three matches in one answer.' };
+  }
+  if (kind === 'odd' && tracks.length >= 3) {
+    const a = pickLeast();
+    const near = tracks.filter((t) => t.id !== a.id).sort((x, y) => Math.abs(x.elo - a.elo) - Math.abs(y.elo - a.elo)).slice(0, 8);
+    const ids = [a, ...[...near].sort(() => rnd() - 0.5).slice(0, 2)].sort(() => rnd() - 0.5).map((t) => t.id) as [string, string, string];
+    return { kind, ids, why: 'Odd one out: which of these three do you like least? The other two each beat it.' };
+  }
   if (kind === 'benchmark') {
     const ranked = [...tracks].filter((t) => t.comparisons > 0).sort((x, y) => y.elo - x.elo);
     if (ranked.length < 10) return null;
@@ -44,7 +58,7 @@ export function makeQuestion(tracks: Q[], kind: Question['kind'], rnd: () => num
     // the track nearest the line, so the answer actually tells something: rated 7-9, few comparisons
     const cand = tracks.filter((t) => t.id !== ref.id && t.comparisons <= 4).sort((x, y) => Math.abs(x.elo - ref.elo) - Math.abs(y.elo - ref.elo)).slice(0, 6);
     const t = cand[Math.floor(rnd() * cand.length)];
-    return t ? { kind, id: t.id, ref: ref.id, why: `The line for your top 10% is ${ref.rating.toFixed(1)}. Does this one clear it?` } : null;
+    return t ? { kind, id: t.id, ref: ref.id, why: `Which is better? The track on the left sits at your top-10% line (${ref.rating.toFixed(1)}); picking the challenger says it belongs up there too.` } : null;
   }
   if (kind === 'love') {
     const t = least.find((x, i) => x.comparisons <= 1 && i >= Math.floor(rnd() * 10)) ?? least[0];
@@ -67,6 +81,8 @@ const boost = (id: string, b: 1 | -1): VoteData => ({ trackAId: id, trackBId: ''
 export function votesFor(q: Question, answer: string): VoteData[] {
   if (answer === 'skip') return [];
   if (q.kind === 'duel') return answer === 'equal' ? [vote(null, q.a, q.b, true)] : [vote(answer, q.a, q.b)];
+  if (q.kind === 'quad') return q.ids.includes(answer) ? q.ids.filter((id) => id !== answer).map((o) => vote(answer, answer, o)) : [];
+  if (q.kind === 'odd') return q.ids.includes(answer) ? q.ids.filter((id) => id !== answer).map((o) => vote(o, o, answer)) : [];
   if (q.kind === 'triple') return q.ids.includes(answer) ? q.ids.filter((id) => id !== answer).map((o) => vote(answer, answer, o)) : [];
   if (q.kind === 'benchmark') return answer === 'yes' ? [vote(q.id, q.id, q.ref)] : answer === 'no' ? [vote(q.ref, q.id, q.ref)] : [vote(null, q.id, q.ref, true)];
   return answer === 'yes' ? [boost(q.id, 1)] : answer === 'no' ? [boost(q.id, -1)] : [];

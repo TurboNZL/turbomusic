@@ -1,4 +1,5 @@
 import { haptic } from '../lib/haptics.ts';
+import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Check, Loader2, Pause, Play, Equal, SkipForward, Volume2 } from 'lucide-react';
 import type { VoteData } from '@turbomusic/core';
@@ -8,7 +9,8 @@ import { heardTrackIds, onlyHeard } from '../lib/heard.ts';
 import { useEditor } from '../lib/editor.ts';
 import { pairLacksAudio, pickPair, rankPool, tierPool, TIERS, type Tier, type TierChoice } from '../lib/pairing.ts';
 import { useStore } from '../lib/store.ts';
-import { loadPreview, middle, release, SNIPPET_MS, type Preview } from '../lib/preview.ts';
+import { EloQuestions } from '../components/EloQuestions.tsx';
+import { fadeOut, loadPreview, middle, release, SNIPPET_MS, type Preview } from '../lib/preview.ts';
 import { usePlayer } from '../lib/player.ts';
 import { Cover } from '../components/Cover.tsx';
 import { Rating } from '../components/Rating.tsx';
@@ -57,11 +59,15 @@ function useCompact(height: number | undefined) {
   return w < 360 || (height !== undefined && height < 440);
 }
 
-export function VotePage() {
+let keptPair: [string, string] | null = null;
+
+function DuelRank() {
   const lib = useLibraryLive();
   const edit = useEditor((s) => s.open);
   const put = useStore((s) => s.put);
-  const [pair, setPair] = useState<[string, string] | null>(null);
+  // the pair survives leaving the tab and coming back (kept in `keptPair`), so a visit does not hand out a new one
+  const [pair, setPair] = useState<[string, string] | null>(() => (keptPair && lib.trackById.has(keptPair[0]) && lib.trackById.has(keptPair[1]) ? keptPair : null));
+  useEffect(() => { keptPair = pair; }, [pair]);
   // ranking is about listening, so tracks with audio come first by default
   const [onlyPlayable, setOnlyPlayable] = useState(true);
   /** the tracks of the pair on screen whose preview is buffered and can start at once */
@@ -83,7 +89,8 @@ export function VotePage() {
   const compact = useCompact(fit.height);
   // which class of track both sides come from ("top 10% against top 10%"); kept for next time
   const [tier, setTierState] = useState<TierChoice>(() => { try { return { tier: 'any' as Tier, min: 7, max: 10, ...JSON.parse(localStorage.getItem('turbomusic.rankTier') ?? '{}') }; } catch { return { tier: 'any', min: 7, max: 10 }; } });
-  const setTier = (t: TierChoice) => { setTierState(t); setPair(null); try { localStorage.setItem('turbomusic.rankTier', JSON.stringify(t)); } catch { /* ignore */ } };
+  // changing the band does not throw the pair on screen away: it applies from the next pair
+  const setTier = (t: TierChoice) => { setTierState(t); try { localStorage.setItem('turbomusic.rankTier', JSON.stringify(t)); } catch { /* ignore */ } };
   // only tracks that were played at least once are ranked: ranking is about songs you know (the "Try something new" list on the home page is for the rest)
   const heard = useMemo(() => heardTrackIds(buildListens(lib)), [lib]);
   const { pool: knownPool, fellBack: noHistory } = useMemo(() => onlyHeard(lib.tracks, heard), [lib, heard]);
@@ -98,7 +105,7 @@ export function VotePage() {
   const stop = useCallback(() => {
     clearTimeout(timer.current);
     loadSeq.current++; // a preview still resolving its source must not start after this
-    previews.current.forEach((p) => void p.then((v) => v?.el.pause()));
+    previews.current.forEach((p) => void p.then((v) => { if (v) void fadeOut(v.el); }));
     setPlaying(null);
   }, []);
   const next = useCallback(() => {
@@ -232,7 +239,7 @@ export function VotePage() {
         <span className="text-sm text-muted tabular-nums">{lib.votes.length} votes</span>
         {noHistory && !compact && <span className="basis-full text-xs text-warn">Fewer than two tracks have been played yet, so every track is used. Ranking normally covers only tracks you have heard.</span>}
       </div>
-      {compact ? <select className="input mb-1 shrink-0 !py-0.5 text-xs" aria-label="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
+      {compact ? <ThemedSelect className="input mb-1 shrink-0 !py-0.5 text-xs" aria-label="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</ThemedSelect>
       : <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 text-sm" role="group" aria-label="Which tracks to compare">
         <span className="mr-1 text-muted">Compare</span>
         {TIERS.map((x) => <button key={x.id} type="button" title={x.hint} aria-pressed={tier.tier === x.id} onClick={() => setTier({ ...tier, tier: x.id })}
@@ -282,6 +289,62 @@ export function VotePage() {
         </div>
         <div className={cn('min-h-4 text-center text-xs text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap a card to preview, swipe it right to pick it. </span>Equal records a draw. Skip records nothing.</span>}</div>
       </div>
+    </div>
+  );
+}
+
+const MODE_KEY = 'turbomusic.rankMode';
+type Mode = 'duel' | 'albums' | 'triple' | 'quad' | 'odd' | 'benchmark' | 'love';
+const MODES: { id: Mode; label: string; hint: string }[] = [
+  { id: 'duel', label: 'Head to head', hint: 'Two songs: which is better?' },
+  { id: 'albums', label: 'Albums', hint: 'Two albums: which is better? A ranked album lifts the starting Elo of its tracks.' },
+  { id: 'triple', label: 'Best of three', hint: 'Three close songs: pick your favourite, which settles two matches at once.' },
+  { id: 'quad', label: 'Best of four', hint: 'Four close songs: pick your favourite, which settles three matches at once.' },
+  { id: 'odd', label: 'Odd one out', hint: 'Three songs: which do you like least?' },
+  { id: 'benchmark', label: 'Against your top 10%', hint: 'A song against the one at your top-10% line.' },
+  { id: 'love', label: 'Gut check', hint: 'One song with almost no votes: love it or meh?' },
+];
+const loadMode = (): Mode => { try { const m = localStorage.getItem(MODE_KEY); return MODES.some((x) => x.id === m) ? (m as Mode) : 'duel'; } catch { return 'duel'; } };
+
+/** The Rank page: choose how to rank (remembered), then answer. Head to head is the classic page; the others are the questions Home offers a taste of. */
+export function VotePage() {
+  const [mode, setModeState] = useState<Mode>(loadMode);
+  const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* private mode */ } };
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-center gap-1.5 text-sm" role="tablist" aria-label="How to rank">
+        <span className="mr-1 text-muted">Rank by</span>
+        {MODES.map((m) => <button key={m.id} role="tab" aria-selected={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={cn('chip cursor-pointer', mode === m.id ? 'bg-accent text-accent-fg' : 'hover:brightness-125')}>{m.label}</button>)}
+      </div>
+      {mode === 'duel' ? <DuelRank /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
+    </div>
+  );
+}
+
+/** Albums head to head. Votes are stored like track votes with `album: true`; the library ranks the albums with them and a ranked album lifts the starting Elo of its tracks. */
+function AlbumRank() {
+  const lib = useLibraryLive();
+  const put = useStore((s) => s.put);
+  const pool = useMemo(() => lib.albums.filter((a) => a.trackIds.length >= 3).map((a) => ({ id: a.id, elo: lib.albumRank.get(a.id)?.elo ?? 1000, comparisons: lib.albumRank.get(a.id)?.comparisons ?? 0, rating: a.rating ?? 0 })), [lib]);
+  const [pair, setPair] = useState<[string, string] | null>(() => { const p = pickPair(pool, Math.random); return p ? [p[0].id, p[1].id] : null; });
+  const next = (prev?: [string, string] | null) => { const p = pickPair(pool, Math.random, prev ?? undefined); setPair(p ? [p[0].id, p[1].id] : null); };
+  if (!pair) return <p className="text-sm text-muted">You need at least two albums with three or more tracks to rank albums.</p>;
+  const albums = pair.map((id) => lib.albumById.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
+  if (albums.length < 2) { queueMicrotask(() => next()); return null; }
+  const answer = (winner: string | null) => { put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); next(pair); };
+  const ranked = [...lib.albums].filter((a) => (lib.albumRank.get(a.id)?.comparisons ?? 0) > 0).sort((a, b) => (lib.albumRank.get(b.id)!.elo) - (lib.albumRank.get(a.id)!.elo)).slice(0, 8);
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div><h2 className="text-xl font-bold">Which album is better?</h2><p className="text-sm text-muted">The winner is ranked above the other. An album you rank high gives its tracks a slightly higher starting Elo; votes on the tracks themselves still decide where they end up.</p></div>
+      <div className="grid grid-cols-2 gap-3">{albums.map((a) => (
+        <div key={a.id} className="card flex flex-col items-center gap-2 p-3 text-center">
+          <Cover hash={a.cover} seed={a.title} className="w-full max-w-[14rem]" />
+          <div className="min-w-0"><div className="truncate font-semibold">{a.title}</div><div className="truncate text-xs text-muted">{a.artistName} · {a.trackIds.length} tracks{a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}</div></div>
+          <button className="btn btn-accent w-full" onClick={() => answer(a.id)}>This one</button>
+        </div>))}</div>
+      <div className="flex gap-2"><button className="btn" onClick={() => answer(null)}>They are equal</button><button className="btn btn-ghost" onClick={() => next(pair)}>Skip</button></div>
+      {ranked.length > 0 && <div className="space-y-1"><div className="text-xs uppercase tracking-wider text-muted">Your album ranking so far</div>
+        <ol className="space-y-0.5 text-sm">{ranked.map((a, i) => <li key={a.id} className="flex gap-2"><span className="w-5 text-right text-muted">{i + 1}</span><span className="min-w-0 flex-1 truncate">{a.title} <span className="text-muted">· {a.artistName}</span></span><span className="tabular-nums text-muted">{Math.round(lib.albumRank.get(a.id)!.elo)}</span></li>)}</ol></div>}
     </div>
   );
 }

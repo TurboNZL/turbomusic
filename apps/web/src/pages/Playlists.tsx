@@ -142,12 +142,15 @@ export function PlaylistsPage() {
           {albumMode
             ? <div className="card divide-y divide-line/50 overflow-hidden">
                 {shownAlbums.slice(0, albumRows.shown).map((a, i) => (
-                  <div key={a.id} className="flex items-center gap-3 px-3 py-2">
+                  <div key={a.id}>
+                  <div className="flex items-center gap-3 px-3 py-2">
                     <Link to={a.to} className="flex min-w-0 flex-1 items-center gap-3"><Cover hash={a.cover} seed={a.title} className="h-12 w-12 shrink-0" />
                       <span className="min-w-0"><span className="block truncate text-sm font-medium">{a.title}</span><span className="block truncate text-xs text-muted"><ArtistLinks leads={a.leads} /> · {plural(a.trackIds.length, 'track')}</span></span></Link>
                     <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${a.title} up`} disabled={i === 0} onClick={() => patch('playlists', open.id, { albumIds: moveTrack(albums.map((x) => x.id), i, i - 1) })}><ArrowUp size={15} /></button>
                     <button className={cn('p-1 text-muted hover:text-fg disabled:opacity-30', (filtering || readOnly) && 'hidden')} aria-label={`Move ${a.title} down`} disabled={i === albums.length - 1} onClick={() => patch('playlists', open.id, { albumIds: moveTrack(albums.map((x) => x.id), i, i + 1) })}><ArrowDown size={15} /></button>
                     <button className="p-1 text-muted hover:text-bad" aria-label={`Remove ${a.title} from the playlist`} onClick={() => patch('playlists', open.id, { albumIds: removeTrack(ids, a.id) })}><X size={15} /></button>
+                  </div>
+                  {!readOnly && <PlaylistNote playlistId={open.id} trackId={a.id} field="albumNotes" notes={open.albumNotes} />}
                   </div>))}
                 {!shownAlbums.length && <div className="px-3 py-4 text-sm text-muted">{filtering ? 'No album matches.' : 'No albums yet. Search above, or use “Add to an album playlist…” in an album’s menu.'}</div>}
               </div>

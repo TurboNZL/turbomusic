@@ -29,7 +29,8 @@ interface PlayerState {
   error: string | null;
   /** the chosen track is not making sound yet (fetching, or stalled to buffer): the play button shows a spinner */
   loading: boolean;
-  play(trackId: string, list: string[], source?: Source): void;
+  /** `at` = seconds to start from ("pick up where you left off") */
+  play(trackId: string, list: string[], source?: Source, at?: number): void;
   toggle(): void;
   /** pause without losing the position (a ranking preview does this) */
   pause(): void;
@@ -38,7 +39,9 @@ interface PlayerState {
   seek(t: number): void;
   setVolume(v: number): void;
   /** put at the front of the user queue ("play next") or the back ("add to queue") */
-  enqueue(trackId: string, where?: 'next' | 'last'): void;
+  /** `label` names what the track was added with (an album, a playlist): the queue page groups the queued tracks by it */
+  enqueue(trackId: string, where?: 'next' | 'last', label?: string): void;
+  queueLabels: Record<string, string>;
   dequeue(index: number): void;
   /** reorder the user queue */
   moveQueued(from: number, to: number): void;
@@ -67,6 +70,9 @@ export const remoteHooks: {
   play?: (trackId: string, list: string[], source: Source) => boolean;
   enqueue?: (trackId: string, where: 'next' | 'last') => boolean;
 } = {};
+
+/** lib/spotifyMirror.ts: was the silent Spotify mirror playing this track while it was heard for `seconds`? (Spotify counted that play as well) */
+export const mirrorProbe: { counted?: (trackId: string, seconds: number) => boolean } = {};
 
 let audio: HTMLAudioElement | null = null;
 /** crossfade (see lib/crossfadeMath.ts): the second <audio> element, the next track loaded into it, and the fade in progress */
@@ -251,7 +257,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const dur = position();
     if (!playLog.claim(id, dur)) return; // once per play, and only for what was heard (lib/playLog.ts)
     const s = get().source;
-    const data: PlaybackLogData = { trackId: id, timestamp: Date.now(), duration: dur, sourceType: s.type, sourceId: s.id, isSkip };
+    const len = get().duration; const data: PlaybackLogData = { trackId: id, timestamp: Date.now(), duration: dur, length: len > 0 ? Math.round(len) : null, ...(mirrorProbe.counted?.(id, dur) ? { mirrored: true } : {}), sourceType: s.type, sourceId: s.id, isSkip };
     useStore.getState().put('playbackLogs', data);
   }
 
@@ -505,7 +511,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     queue: { user: [], active: [], currentId: null }, history: [], source: { type: 'track', id: null },
     playing: false, time: 0, duration: 0, volume: Number(localStorage.getItem('turbomusic.volume') ?? 0.8), engine: 'web', error: null, loading: false,
 
-    play(trackId, list, source = { type: 'track', id: null }) {
+    play(trackId, list, source = { type: 'track', id: null }, at) {
       const track = lib().trackById.get(trackId);
       if (!track || (!track.file && !spotifyCan(track))) { set({ error: 'This track has no audio file yet', source }); return; }
       if (remoteHooks.play?.(trackId, list, source)) return;
@@ -513,6 +519,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const prev = get().queue.currentId;
       if (prev) logPlay(true);
       set({ source, history: pushHistory(get().history, prev) });
+      pendingSeek = at && at > 1 ? at : null;
       go(startTrack(get().queue, trackId, ordered, rules(), source.type));
     },
 
@@ -546,10 +553,12 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     seek(t) { if (spotifyEngine.active()) void spotifyEngine.seek(t * 1000); else if (native) nativeAudio.seek(t); else el().currentTime = t; set({ time: t }); },
     setVolume(v) { setBeamVolume(v); if (!fade) el().volume = v; /* while fading, the fade sets both volumes from this one */ if (spotifyEngine.active() && !beamActive()) void spotifyEngine.volume(v); /* a beamed stream is turned down here at once; Soloist's own volume is set in Settings > Spotify */ nativeAudio.volume(v); try { localStorage.setItem('turbomusic.volume', String(v)); } catch { /* ignore */ } set({ volume: v }); },
-    enqueue(trackId, where = 'last') {
+    queueLabels: {},
+    enqueue(trackId, where = 'last', label) {
       if (remoteHooks.enqueue?.(trackId, where)) return;
       const q = get().queue;
-      set({ queue: { ...q, user: where === 'next' ? [trackId, ...q.user] : [...q.user, trackId] } });
+      const labels = { ...get().queueLabels }; if (label) labels[trackId] = label; else delete labels[trackId];
+      set({ queueLabels: labels, queue: { ...q, user: where === 'next' ? [trackId, ...q.user] : [...q.user, trackId] } });
     },
     dequeue(index) {
       const q = get().queue;

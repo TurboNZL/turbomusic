@@ -1,4 +1,5 @@
 import { CandidateArt } from './CandidateArt.tsx';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, Loader2, Search } from 'lucide-react';
 import { newTrackData, inheritFromAlbum } from '../lib/defaults.ts';
@@ -83,7 +84,7 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
     } catch (e) { setError((e as Error).message === 'Failed to fetch' ? 'Cannot reach the server.' : (e as Error).message); }
     finally { setBusy(null); searching.current = false; }
   }
-  const go = () => { const v = url.trim(); if (!v) return; if (isLink(v)) void lookUp(v); else void search(v); };
+  const go = () => { const v = url.trim(); if (!v) { void search('', true); return; } if (isLink(v)) void lookUp(v); else void search(v); };
   useEffect(() => { if (initialUrl) void lookUp(initialUrl); else if (configured) void search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!album) return <Modal title="Import into album" onClose={onClose}><p className="text-sm text-muted">That album no longer exists.</p></Modal>;
 
@@ -151,7 +152,7 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
   const footer = done ? <button className="btn btn-accent ml-auto" onClick={onClose}>Close</button>
     : pv ? <div className="ml-auto flex gap-2"><button className="btn btn-ghost" onClick={() => setPv(null)} disabled={!!busy}>Back</button>
       <button className="btn btn-accent" disabled={!!busy || !included.length} onClick={() => void run()}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}Import {included.length} tracks ({fresh} new)</button></div>
-    : <div className="ml-auto flex gap-2"><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-accent" disabled={!url.trim() || !!busy} onClick={go}>{busy ? <Loader2 size={15} className="animate-spin" /> : null}{isLink(url) || !url.trim() ? 'Look up' : 'Search'}</button></div>;
+    : <div className="ml-auto"><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div>;
 
   return (
     <Modal title={`Import a release into “${album.title}” from YouTube Music`} onClose={onClose} wide footer={footer}>
@@ -159,7 +160,7 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
         <div className="space-y-3">
           <Field label="Search YouTube Music, or paste a link" hint="Songs the album already has are recognised and not added again. The link becomes a release with its own track order. Searching starts with this album's own name.">
             <div className="flex gap-2"><input autoFocus className="input" placeholder={`${album.leads[0]?.name ?? album.artistName} ${album.title}  ·  or  https://music.youtube.com/playlist?list=…`} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !busy && go()} />
-              <button className="btn shrink-0" disabled={!!busy || !configured} title="Search again for this album" onClick={() => { setUrl(''); void search('', true); }}><Search size={15} />Search again</button></div></Field>
+              <button className="btn btn-accent shrink-0" disabled={!!busy || (!configured && !isLink(url))} title={url.trim() ? (isLink(url) ? 'Look this link up' : 'Search YouTube Music for what you typed') : 'Search again for this album'} onClick={go}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}{isLink(url) ? 'Look up' : 'Search'}</button></div></Field>
           {!configured && <div className="rounded-theme bg-warn/15 p-3 text-sm text-warn">Searching runs on your server (it needs yt-dlp). Connect one in Settings, or paste a link.</div>}
           {busy && <div className="flex items-center gap-2 text-sm text-muted"><Loader2 size={15} className="animate-spin" />{busy}</div>}
           {hits && !hits.length && <div className="rounded-theme bg-warn/15 p-3 text-sm text-warn">No album found. Try other words, or paste its link.</div>}
@@ -202,10 +203,10 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
                 <span className="w-6 text-right text-xs text-muted">{i + 1}</span>
                 <div className="min-w-0 flex-1 basis-48">{t ? <div className="truncate text-sm">{r.entry.title}{t.title !== r.entry.title && <span className="text-muted"> = {t.title}</span>}</div>
                   : <input className="input !py-1" value={r.title} onChange={(e) => set({ title: e.target.value })} aria-label="New track title" />}</div>
-                <select className="input !w-auto !py-1 text-xs" value={r.trackId ?? ''} aria-label="Which track of the album this is" onChange={(e) => set({ trackId: e.target.value || null })}>
+                <ThemedSelect className="input !w-auto !py-1 text-xs" value={r.trackId ?? ''} aria-label="Which track of the album this is" onChange={(e) => set({ trackId: e.target.value || null })}>
                   <option value="">New track</option>
                   {have.filter((h) => h.id === r.trackId || !taken.has(h.id)).map((h) => <option key={h.id} value={h.id}>In album: {h.title}</option>)}
-                </select>
+                </ThemedSelect>
               </div>);
           })}
         </div>

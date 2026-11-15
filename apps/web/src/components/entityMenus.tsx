@@ -2,8 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { leaveRemoved } from '../lib/leave.ts';
 import { isQuickPlaylist, playlistTrackIds } from '../lib/playlists.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
+import { readShuffle, writeShuffle } from './PlayControls.tsx';
+import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
-import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search } from 'lucide-react';
+import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibrary, type Library } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
@@ -18,15 +20,17 @@ function useTrackListActions() {
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
   const enqueue = usePlayer((s) => s.enqueue);
-  return (ids: string[], source: Parameters<typeof play>[2]): MenuItem[] => {
+  return (ids: string[], source: Parameters<typeof play>[2], label?: string): MenuItem[] => {
     const playable = ids.filter((id) => canPlay(lib.trackById.get(id)));
     const none = !playable.length;
+    // the one Shuffle switch (the same one the Play button on playlists and artists uses): Play, Play next and Add to queue all follow it
+    const ordered = () => (readShuffle() ? shuffleWithRules(playable, lib.rules) : playable);
     return [
-      { label: 'Play', icon: <Play size={15} />, run: () => play(playable[0], playable, source), disabled: none },
-      { label: 'Shuffle', icon: <Shuffle size={15} />, run: () => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, source); }, disabled: none },
-      // each goes right after the one before it, so "next" keeps the list's order
-      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...playable].reverse().forEach((id) => enqueue(id, 'next')), disabled: none },
-      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => playable.forEach((id) => enqueue(id, 'last')), disabled: none },
+      { label: 'Play', icon: <Play size={15} />, run: () => { const o = ordered(); play(o[0], o, source); }, disabled: none },
+      { label: 'Shuffle', icon: <Shuffle size={15} />, checked: readShuffle(), keepOpen: true, run: () => writeShuffle(!readShuffle()) },
+      // each goes right after the one before it, so "next" keeps the order (the shuffled order when Shuffle is on)
+      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next', label)), disabled: none },
+      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last', label)), disabled: none },
     ];
   };
 }
@@ -70,17 +74,23 @@ export function useAlbumMenuItems() {
   const convert = useConvertToSingle();
   const patch = useStore((s) => s.patch);
   return (album: Album, ids: string[] = album.trackIds): MenuItem[] => [
-    ...actions(ids, { type: 'album', id: album.id }),
+    ...actions(ids, { type: 'album', id: album.id }, album.title),
     { separator: true },
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
     { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
     { label: 'Add to an album playlist…', icon: <ListPlus size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
     { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) },
     { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) },
-    { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => edit({ kind: 'import-into-album', id: album.id }) },
+    { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => void openImportIntoAlbum(album.id) },
     ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
     { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
     ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
+    (album as { complete?: boolean }).complete
+      ? { label: 'Not complete after all', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: false }) }
+      : { label: 'Mark as complete', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
+    (album as { hidden?: boolean }).hidden
+      ? { label: 'Show this album again', icon: <Eye size={15} />, run: () => patch('albums', album.id, { hidden: false }) }
+      : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
     (album as { noYoutube?: boolean }).noYoutube
       ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
       : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
@@ -98,7 +108,7 @@ export function useArtistMenuItems() {
   return (artistId: string): MenuItem[] => {
     const ids = lib.tracks.filter((t) => t.credits.some((c) => c.artistId === artistId)).sort((a, b) => b.effectiveRating - a.effectiveRating).map((t) => t.id);
     return [
-      ...actions(ids, { type: 'search', id: null }),
+      ...actions(ids, { type: 'search', id: null }, lib.artistById.get(artistId)?.name),
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
@@ -120,7 +130,7 @@ export function usePlaylistMenuItems() {
     const source = { type: 'playlist' as const, id: playlist.id };
     return [
       { label: 'Open', icon: <Play size={15} />, to: `/playlists/${playlist.id}` },
-      ...actions(playlistTrackIds(lib, playlist), source),
+      ...actions(playlistTrackIds(lib, playlist), source, playlist.name),
       ...(hasCurrent ? [
         { label: 'Then: replace what is coming next', icon: <ListStart size={15} />, run: () => replaceRest(playable, source), disabled: !playable.length },
         { label: 'Add to the end of what is coming next', icon: <ListEnd size={15} />, run: () => appendRest(playable), disabled: !playable.length },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Track } from './derive.ts';
-import { loadPreview, middle, release, SNIPPET_MS, type Preview } from './preview.ts';
+import { fadeOut, loadPreview, middle, release, SNIPPET_MS, type Preview } from './preview.ts';
 import { usePlayer } from './player.ts';
 
 /**
@@ -21,7 +21,7 @@ export function usePreviews(tracks: Track[], enabled = true) {
   const stop = useCallback(() => {
     clearTimeout(timer.current);
     seq.current++; // a preview still resolving its source must not start after this
-    map.current.forEach((p) => void p.then((v) => v?.el.pause()));
+    map.current.forEach((p) => void p.then((v) => { if (v) void fadeOut(v.el); }));
     setPlaying(null);
   }, []);
 

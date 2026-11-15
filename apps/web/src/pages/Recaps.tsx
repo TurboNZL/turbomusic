@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Gift } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
@@ -74,9 +75,9 @@ export function RecapsPage() {
       </div>
       <div className="flex items-center justify-between gap-2">
         <button className="btn" disabled={older === null} onClick={() => older !== null && go(older)} aria-label={monthly ? 'Older month' : 'Older week'}><ChevronLeft size={16} /></button>
-        <select className="input max-w-[14rem] flex-1 text-center" value={start} onChange={(e) => go(Number(e.target.value))} aria-label={monthly ? 'Pick a month' : 'Pick a week'}>
+        <ThemedSelect className="input max-w-[14rem] flex-1 text-center" value={start} onChange={(e) => go(Number(e.target.value))} aria-label={monthly ? 'Pick a month' : 'Pick a week'}>
           {[...new Set([start, ...list])].sort((a, b) => b - a).map((w) => <option key={w} value={w}>{label(w)}{w === thisOne ? (monthly ? ' (this month)' : ' (this week)') : ''}</option>)}
-        </select>
+        </ThemedSelect>
         <button className="btn" disabled={newer === null} onClick={() => newer !== null && go(newer)} aria-label={monthly ? 'Newer month' : 'Newer week'}><ChevronRight size={16} /></button>
       </div>
       <Stage key={`${monthly}-${start}`}>{monthly ? month && <MonthStage r={month} lib={lib} /> : week && <WeekStage r={week} lib={lib} />}</Stage>

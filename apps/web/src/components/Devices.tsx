@@ -119,9 +119,10 @@ export function DeviceList({ onPick }: { onPick?: () => void }) {
         })}
       </>}
       {!spotify.length && spotifyNote && <p className="border-t border-line/60 px-3 py-2 text-xs text-muted" role="status">{spotifyNote}</p>}
-      {notLocal && <div className="mt-1 border-t border-line/60 px-3 pb-1 pt-2.5">
+      {notLocal && <div className="mt-1 space-y-1.5 border-t border-line/60 px-3 pb-1 pt-2.5">
+        {remote && <button type="button" className="btn w-full justify-center" onClick={() => run(() => localOnly({ pauseRemote: true }))} title="Stop controlling the other device and pause it, then play on this one"><Unplug size={15} />Play here and pause {remote.name}</button>}
         <button type="button" className="btn w-full justify-center" onClick={() => run(() => localOnly())} title="Stop controlling other devices, pause Spotify and stop its stream, so the next track starts here at once"><Unplug size={15} />Play on this device only</button>
-        <p className="mt-1 text-[11px] leading-snug text-muted">Disconnects from other TurboMusic devices and from Spotify, so local tracks start straight away.</p>
+        <p className="text-[11px] leading-snug text-muted">Disconnects from other TurboMusic devices and from Spotify, so local tracks start straight away. The other device keeps playing unless you use the button above.</p>
       </div>}
       {err && <p className="px-3 pb-2 text-xs text-bad">{err}</p>}
     </div>

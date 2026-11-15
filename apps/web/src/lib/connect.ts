@@ -8,8 +8,8 @@ export { positionNow };
 import { api, useStore } from './store.ts';
 import { spotifyEngine } from './spotifyPlayer.ts';
 import { stopBeam } from './beam.ts';
-import { resyncMirror } from './spotifyMirror.ts';
 import { getLibrary } from './derive.ts';
+import { resyncMirror } from './spotifyMirror.ts';
 import { HeaderEventSource, type EventSourceLike } from './sse.ts';
 
 /**
@@ -55,12 +55,18 @@ async function send(to: string, command: Command) {
   catch { if (useConnect.getState().remoteId === to) useConnect.setState({ remoteId: null }); }
 }
 
+/** the title, artist, album and cover of the playing track ride along, so the server can show "now playing" (the OBS widget, the KDE panel) without the library */
+function withMeta(snap: PlaybackSnapshot): PlaybackSnapshot {
+  const t = snap.trackId ? getLibrary().trackById.get(snap.trackId) : undefined;
+  return t ? { ...snap, meta: { title: t.title, artist: t.artistName, album: t.albumTitle ?? '', cover: t.cover ?? null } } : snap;
+}
+
 /** Publish what this device is doing. */
 let lastPub = { t: 0, at: 0 };
 function publish() {
   const { live } = useConnect.getState();
   if (!live) return;
-  const snap = usePlayer.getState().snapshot();
+  const snap = withMeta(usePlayer.getState().snapshot());
   lastPub = { t: snap.position, at: Date.now() };
   // while this device is only a remote it plays nothing; its state is the idle one
   void api().connectState(myId(), myName(), snap.trackId ? snap : null).catch(() => undefined);
@@ -84,12 +90,21 @@ function currentSnapshot(): PlaybackSnapshot | null {
  *  - disconnect()    drop the link: the device that was being controlled keeps playing, this one is its own player again.
  * Playback is always whole: the track, the position and the queue travel together, so nothing restarts or skips.
  */
+/** Tell a device to pause and make sure it did: a command can be lost on a bad connection, so ask again if its next reports still say it is playing. */
+async function pauseUntilQuiet(id: string) {
+  for (let i = 0; i < 3; i++) {
+    void send(id, { type: 'pause' });
+    await new Promise((r) => setTimeout(r, 1500));
+    if (!useConnect.getState().devices.find((x) => x.id === id)?.state?.playing) return;
+  }
+}
+
 export async function pullFrom(id: string) {
   const d = useConnect.getState().devices.find((x) => x.id === id);
   if (!d?.state?.trackId) throw new Error('That device is not playing anything');
   const snap = { ...d.state, position: positionNow(d, useConnect.getState().receivedAt) };
   const wasPlaying = snap.playing;
-  void send(id, { type: 'pause' });
+  void pauseUntilQuiet(id);
   useConnect.setState({ remoteId: null });
   usePlayer.getState().restore(snap, { play: wasPlaying });
   publish();
@@ -115,8 +130,10 @@ export function disconnect() { useConnect.setState({ remoteId: null }); publish(
  * Spotify and stops the stream of the server's Soloist, and forgets the chosen Spotify device so that the next local track starts at once,
  * without anything still tied to Spotify. A Spotify-only track needs a Spotify device chosen again to play.
  */
-export async function localOnly() {
+export async function localOnly(opts: { pauseRemote?: boolean } = {}) {
+  const was = useConnect.getState().remoteId;
   useConnect.setState({ remoteId: null });
+  if (opts.pauseRemote && was) void pauseUntilQuiet(was);
   const st = useStore.getState();
   // a track Spotify was playing continues from the same spot on this device when it has a file here by now (a download may have finished meanwhile)
   const p = usePlayer.getState();

@@ -23,6 +23,21 @@ beforeEach(() => {
 });
 afterEach(() => { store.close(); rmSync(dir, { recursive: true, force: true }); });
 
+describe('now playing widget', () => {
+  it('serves the page only with the token, and the API says nothing is playing', async () => {
+    expect((await app.request('/widget')).status).toBe(401);
+    expect((await app.request('/widget?token=wrong')).status).toBe(401);
+    const page = await app.request(`/widget?token=${TOKEN}`);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain('/api/nowplaying');
+    expect((await app.request('/api/nowplaying')).status).toBe(401);
+    expect(await (await app.request(`/api/nowplaying?token=${TOKEN}`)).json()).toEqual({ track: null });
+    const post = (type: string) => app.request('/api/nowplaying/command', { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) });
+    expect((await post('toggle')).status).toBe(404); // nothing connected
+    expect((await post('volume')).status).toBe(400);
+  });
+});
+
 describe('config', () => {
   it('defaults to an obscure port and generates a persisted token', () => {
     const d = mkdtempSync(join(tmpdir(), 'turbomusic-cfg-'));

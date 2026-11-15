@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SyncRecord } from '@turbomusic/core';
 import { buildLibrary } from '../src/lib/library.ts';
-import { entityStats, entityTrackIds, summarizeRatings, tallyVotes } from '../src/lib/entityStats.ts';
+import { entityStats, entityTrackIds, liveListen, summarizeRatings, tallyVotes } from '../src/lib/entityStats.ts';
 
 const rec = (table: string, id: string, data: object): SyncRecord => ({ table: table as never, id, updatedAt: 1, deviceId: 'd', deleted: false, data: data as never });
 const rows = (...rs: SyncRecord[]) => {
@@ -55,5 +55,18 @@ describe('collection numbers', () => {
     const r = summarizeRatings(lib.tracks);
     expect(r.rated).toBe(r.histogram.reduce((a, b) => a + b, 0));
     expect(summarizeRatings([]).avg).toBeNull();
+  });
+});
+
+describe('the play in progress', () => {
+  it('counts once it passes the minimum and stops counting when it is cut back', () => {
+    const base = entityStats(lib, ['t2'], 30_000).listen.plays;
+    expect(entityStats(lib, ['t2'], 30_000, false, liveListen(lib, 't2', 12)).listen.plays).toBe(base);
+    expect(entityStats(lib, ['t2'], 30_000, false, liveListen(lib, 't2', 45)).listen.plays).toBe(base + 1);
+    expect(entityStats(lib, ['t2'], 30_000, false, liveListen(lib, 't2', 4)).listen.plays).toBe(base);
+  });
+  it('is nothing when no track plays', () => {
+    expect(liveListen(lib, null, 50)).toBeNull();
+    expect(liveListen(lib, 'gone', 50)).toBeNull();
   });
 });

@@ -43,6 +43,10 @@ export interface AlbumData {
   needsSource?: boolean;
   /** the user marked that this album is not on YouTube Music: Health keeps it out of the main "missing YouTube link" list and shows it in its own */
   noYoutube?: boolean;
+  /** the user says nothing more is missing from this album (no tracks to add, no links to find): it is left out of the "to do" lists */
+  complete?: boolean;
+  /** kept out of the Albums list and of search (unless nothing else matches); still there for the tracks that belong to it */
+  hidden?: boolean;
   /** explicit track order (ids); wins over the release tracklist. Set when the user reorders or adds tracks by hand. */
   trackOrder?: string[];
 }
@@ -113,6 +117,8 @@ export interface PlaylistData {
   trackIds: string[];
   /** "Playlist note": why a track is in this playlist, or anything else about it there (track id -> text) */
   trackNotes?: Record<string, string>;
+  /** the same for an album playlist: album (or release) id -> why it is there */
+  albumNotes?: Record<string, string>;
   /** set when the playlist is kept in step with a Spotify playlist of the owner's account */
   spotify?: SpotifyLinkData;
 }
@@ -165,6 +171,8 @@ export interface VoteData {
   winnerId: string | null; isEqual: boolean;
   /** thumbs up/down on trackAId alone (trackBId is ''); see elo.ts */
   boost?: 1 | -1;
+  /** a head-to-head between two ALBUMS (trackAId/trackBId are album ids): it ranks albums, and a ranked album lifts the starting Elo of its tracks */
+  album?: boolean;
   timestamp: number;
 }
 /** One memory added to a track (the track's `memories` counter holds the total, including memories from before these were recorded). Deleted when that memory is removed. */
@@ -172,6 +180,10 @@ export interface MemoryLogData { trackId: string; timestamp: number }
 export interface PlaybackLogData {
   /** '' for a play imported from another service whose track is not in the library (it is matched again whenever the library changes) */
   trackId: string; timestamp: number; duration: number | null;
+  /** the track's length in seconds when it was played (lets "pick up where you left off" tell a finished play from a partial one); absent on older plays */
+  length?: number | null;
+  /** the silent Spotify mirror was streaming this song meanwhile, so Spotify counted this play too: an imported Spotify play of the same song just after it is the same play */
+  mirrored?: boolean;
   sourceType: string | null; sourceId: string | null; isSkip: boolean;
   /** set on plays imported from a service's history (Spotify's extended streaming history); `timestamp` is when the play ended, like Spotify's `ts` */
   imported?: 'spotify';

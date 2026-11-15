@@ -1,8 +1,8 @@
 import { api, useStore } from './store.ts';
 import { getLibrary } from './derive.ts';
-import { usePlayer } from './player.ts';
+import { mirrorProbe, usePlayer } from './player.ts';
 import { useSpotifyLink, spotifyUriOf, spotifyEngine } from './spotifyPlayer.ts';
-import { refreshSoloistInfo } from './beam.ts';
+import { refreshSoloistInfo, stopBeam } from './beam.ts';
 import { mirrorWanted } from './spotifyMirrorPure.ts';
 
 /**
@@ -53,6 +53,7 @@ async function apply() {
     if (mirrored === uri && running) return;
     if (mirrored === uri) { running = true; await api().spotifyCommand('resume', device!); return; }
     mirrored = uri; running = true;
+    stopBeam(); // a beam still running from an earlier Spotify track would carry this silent stream into the speakers: the song would play twice
     await api().spotifyPlay([uri], device!, Math.round(p.time * 1000));
   } catch { running = false; mirrored = null; /* the next change tries again */ }
 }
@@ -69,6 +70,12 @@ export function resyncMirror(): void { running = false; mirrored = null; schedul
 
 /** Called once at start-up. */
 export function startSpotifyMirror(): void {
+  // plays heard while the mirror was streaming the same song are marked, so a later import of Spotify's own history can tell they are the same plays
+  mirrorProbe.counted = (trackId, seconds) => {
+    if (!running || !mirrored || seconds < 30) return false;
+    const t = getLibrary().trackById.get(trackId);
+    return !!t && spotifyUriOf(t) === mirrored;
+  };
   let key = '';
   usePlayer.subscribe((s) => {
     const k = `${s.queue.currentId}|${s.playing}|${s.loading}|${s.engine}`;

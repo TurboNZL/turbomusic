@@ -1,15 +1,13 @@
 import { useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, Disc, Download, FileAudio, Layers, ListOrdered, ListPlus, MoreHorizontal, Pencil, Play, Plus, Shuffle } from 'lucide-react';
+import { Layers, ListOrdered, ListPlus, MoreHorizontal, Loader2, Pencil, Play, Plus, Shuffle } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibrary } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
-import { initialView, singleTrackOf, viewTrackIds, type AlbumView } from '../lib/albumOps.ts';
-import { useStore } from '../lib/store.ts';
-import { cn, plural } from '../lib/cn.ts';
+import { initialView, viewTrackIds, type AlbumView } from '../lib/albumOps.ts';
+import { plural } from '../lib/cn.ts';
 import { Cover } from '../components/Cover.tsx';
 import { Notes } from '../components/Notes.tsx';
 import { KeepOffline } from '../components/KeepOffline.tsx';
@@ -17,18 +15,18 @@ import { TracklistEditor } from '../components/TracklistEditor.tsx';
 import { TrackTable } from '../components/TrackTable.tsx';
 import { DetailLayout } from '../components/DetailLayout.tsx';
 import { ArtistLinks } from '../components/ArtistLinks.tsx';
-import { useMenu } from '../components/Menu.tsx';
-import { useAlbumMenuItems, useConvertToSingle } from '../components/entityMenus.tsx';
+import { useMenu, type MenuItem } from '../components/Menu.tsx';
+import { useImportSearching } from '../lib/openImport.ts';
+import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 
 export function AlbumPage() {
   const { id } = useParams();
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
   const edit = useEditor((s) => s.open);
-  const patch = useStore((s) => s.patch);
   const menu = useMenu();
   const itemsFor = useAlbumMenuItems();
-  const convert = useConvertToSingle();
+  const searchingImport = useImportSearching((st) => !!id && st.ids.has(id)); // a hook: it stays above the early return for a missing album
   const [params, setParams] = useSearchParams();
   const [arranging, setArranging] = useState(false);
   const album = id ? lib.albumById.get(id) : undefined;
@@ -45,6 +43,12 @@ export function AlbumPage() {
   const tracks = ids.map((t) => lib.trackById.get(t)!);
   const playable = tracks.filter(canPlay).map((t) => t.id);
   const cover = release?.cover || album.cover;
+  // the header keeps only what you do while listening; everything that edits or imports is in this menu (the ⋯ button and a right-click)
+  const fullMenu: MenuItem[] = [
+    ...itemsFor(album, ids), { separator: true },
+    view.kind === 'all' ? { label: arranging ? 'Done editing tracks' : 'Edit tracks (order, add, remove)', icon: <ListOrdered size={15} />, run: () => setArranging(!arranging) }
+      : { label: 'Edit this release…', icon: <ListOrdered size={15} />, run: () => edit({ kind: 'release', id: view.id }) },
+  ];
 
   return (
     <DetailLayout
@@ -75,10 +79,10 @@ export function AlbumPage() {
       </section>}
       right={<Notes lib={lib} type="album" id={album.id} />}>
 
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-end" onContextMenu={menu.onContextMenu(itemsFor(album, ids), `Actions for ${album.title}`, 'album')}>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-end" onContextMenu={menu.onContextMenu(fullMenu, `Actions for ${album.title}`, 'album')}>
         <Cover hash={cover} seed={album.title} className="w-48 shrink-0 sm:w-56" />
         <div className="min-w-0 space-y-2">
-          <div className="text-xs uppercase tracking-wider text-muted">{release ? 'Release' : 'Album'}</div>
+          <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-muted">{release ? 'Release' : 'Album'}{(album as { complete?: boolean }).complete && <span className="chip !normal-case">Complete</span>}{(album as { hidden?: boolean }).hidden && <span className="chip !normal-case">Hidden</span>}</div>
           <h1 className="text-3xl font-bold leading-tight">{album.title}</h1>
           {release && release.title !== album.title && <div className="text-sm font-medium">{release.title}{release.releaseDate && <span className="text-muted"> · {release.releaseDate}</span>}</div>}
           <div className="text-sm">
@@ -90,16 +94,9 @@ export function AlbumPage() {
           <div className="flex flex-wrap gap-2 pt-2">
             <button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'album', id: album.id })}><Play size={16} fill="currentColor" />Play</button>
             <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'album', id: album.id }); }}><Shuffle size={16} />Shuffle</button>
-            <Link className="btn btn-ghost" to={statsPath('album', album.id)}><BarChart3 size={15} />Stats</Link>
-            <button className="btn btn-ghost" onClick={() => edit({ kind: 'album', id: album.id })}><Pencil size={15} />Edit</button>
-            {view.kind === 'all'
-              ? <button className={`btn ${arranging ? 'btn-accent' : 'btn-ghost'}`} onClick={() => setArranging(!arranging)}><ListOrdered size={15} />{arranging ? 'Done' : 'Edit tracks'}</button>
-              : <button className="btn btn-ghost" onClick={() => edit({ kind: 'release', id: view.id })}><ListOrdered size={15} />Edit release</button>}
-            <button className="btn btn-ghost" onClick={() => edit({ kind: 'upload', id: album.id })}><FileAudio size={15} />Add files</button>
-            <button className="btn btn-ghost" title="Find this album on YouTube Music (or paste a link) and import it as a release: songs the album already has are not added twice" onClick={() => edit({ kind: 'import-into-album', id: album.id })}><Download size={15} />Import a release from YouTube Music</button>
-            {singleTrackOf(lib, album) && <button className="btn btn-ghost" title="Every release holds just this one song" onClick={() => convert(album)}><Disc size={15} />Convert to single</button>}
             <KeepOffline hashes={tracks.flatMap((t) => (t.file ? [t.file] : []))} />
-            <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" onClick={(e) => menu.toggle(e.currentTarget, 'album', itemsFor(album, ids), `Actions for ${album.title}`)}><MoreHorizontal size={16} /></button>
+            <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, add files, import, merge…" onClick={(e) => menu.toggle(e.currentTarget, 'album', fullMenu, `Actions for ${album.title}`)}><MoreHorizontal size={16} /></button>
+            {searchingImport && <span className="flex items-center gap-1.5 text-xs text-muted" role="status"><Loader2 size={14} className="animate-spin" />Searching YouTube Music…</span>}
           </div>
           {!playable.length && <div className="text-xs text-muted">No audio on the server yet. Use Library health → Download missing audio.</div>}
         </div>

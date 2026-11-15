@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { ExternalLink, GitMerge, ListMusic, Loader2, RefreshCw, Unlink } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
@@ -103,11 +104,11 @@ export function SyncedPlaylistDialog({ onClose }: { onClose: () => void }) {
                 {merge.length > 0 && <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={deleteMerged} onChange={(e) => setDeleteMerged(e.target.checked)} />Delete those playlists afterwards (their songs live in the synced one)</label>}</fieldset>}
             </>) : (<>
               <p className="text-sm text-muted">Turn a playlist you made here into a Spotify playlist (private). Songs with no Spotify link stay only here.</p>
-              <Field label="Playlist"><select className="input" value={localId} onChange={(e) => setLocalId(e.target.value)}><option value="">Choose…</option>{trackLists.map((p) => <option key={p.id} value={p.id}>{p.name} ({plural(p.trackIds.length, 'track')})</option>)}</select></Field>
+              <Field label="Playlist"><ThemedSelect className="input" value={localId} onChange={(e) => setLocalId(e.target.value)}><option value="">Choose…</option>{trackLists.map((p) => <option key={p.id} value={p.id}>{p.name} ({plural(p.trackIds.length, 'track')})</option>)}</ThemedSelect></Field>
               {!canWrite && <p className="text-sm text-warn">Changing Spotify playlists needs the “Allow changing my playlists” permission: <Link to="/settings?tab=spotify" onClick={onClose} className="underline">Settings › Spotify</Link>.</p>}
             </>)}
             <Field label="Direction" hint={MODES.find((m) => m.id === effective)?.hint}>
-              <select className="input" value={effective} disabled={!canWrite} onChange={(e) => setMode(e.target.value as SyncMode)}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Field>
+              <ThemedSelect className="input" value={effective} disabled={!canWrite} onChange={(e) => setMode(e.target.value as SyncMode)}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</ThemedSelect></Field>
             {!canWrite && tab === 'from' && <p className="text-xs text-muted">Without that permission (<Link to="/settings?tab=spotify" onClick={onClose} className="underline">Settings › Spotify</Link>), changes can only come from Spotify to here.</p>}
           </>))()}
         </>))}
@@ -189,7 +190,7 @@ export function SyncBar({ playlistId }: { playlistId: string }) {
         <span className="chip"><RefreshCw size={12} />Synced with Spotify</span>
         <span className="text-xs text-muted">{link.syncedAt ? `Last synced ${new Date(link.syncedAt).toLocaleString()}` : 'Not synced yet'}</span>
         <button className="btn btn-accent !py-1" disabled={busy} onClick={() => void go()}>{busy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}Sync now</button>
-        <select className="input !w-auto !py-1 text-xs" aria-label="Direction" value={mode} onChange={(e) => patch('playlists', pl.id, { spotify: { ...link, mode: e.target.value as SyncMode } })}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
+        <ThemedSelect className="input !w-auto !py-1 text-xs" aria-label="Direction" value={mode} onChange={(e) => patch('playlists', pl.id, { spotify: { ...link, mode: e.target.value as SyncMode } })}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</ThemedSelect>
         <a className="btn btn-ghost !py-1" href={`https://open.spotify.com/playlist/${link.id}`} target="_blank" rel="noreferrer"><ExternalLink size={14} />Open in Spotify</a>
         <button className="btn btn-ghost !py-1" title="Stop syncing; both playlists stay as they are" onClick={() => { if (confirm('Stop syncing? Both playlists stay as they are.')) unlinkFromSpotify(pl.id); }}><Unlink size={14} />Unlink</button>
       </div>

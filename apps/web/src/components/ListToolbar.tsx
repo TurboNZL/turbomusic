@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, LayoutGrid, List } from 'lucide-react';
 import { FilterBar } from './FilterBar.tsx';
 import { Select } from './Select.tsx';
@@ -11,15 +12,18 @@ import type { SortDir } from '../lib/trackSort.ts';
  * The one row every list page (Tracks, Albums, Artists, Eras, Singles) puts under its title: the search box with its filter
  * chips, then Sort (column + direction) and the Covers/List switch, all on the same line so they line up from page to page.
  */
-export function ListToolbar<K extends string>({ scope, chips, onChips, text, onText, placeholder, sorts, sort, dir, onSort, onFlip, view, onView, views = ['grid', 'list'] }: {
+export function ListToolbar<K extends string>({ actions, scope, chips, onChips, text, onText, placeholder, sorts, sort, dir, onSort, onFlip, view, onView, views = ['grid', 'list'] }: {
   scope: FilterScope; chips: Chip[]; onChips: (c: Chip[]) => void; text: string; onText: (t: string) => void; placeholder?: string;
   sorts: SortOption<K>[]; sort: K; dir: SortDir; onSort: (k: K) => void; onFlip: () => void;
   view: ViewMode; onView: (v: ViewMode) => void; views?: ViewMode[];
+  /** the page's own buttons (play, shuffle, new…): they sit on this row, after the search box, so the title row stays a title */
+  actions?: ReactNode;
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-center gap-2" role="toolbar" aria-label="Search, sort and view">
       <FilterBar scope={scope} chips={chips} onChips={onChips} text={text} onText={onText} placeholder={placeholder} />
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        {actions}
         <Select className="!w-44" aria-label="Sort by" value={sort} onChange={(v) => v !== sort && onSort(v as K)} options={sorts.map((o) => ({ value: o.value, label: `Sort: ${o.label}` }))} />
         <button type="button" className="btn !px-2.5" onClick={onFlip} aria-label={dir === 'asc' ? 'Ascending: switch to descending' : 'Descending: switch to ascending'} title={dir === 'asc' ? 'Ascending' : 'Descending'}>
           {dir === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}

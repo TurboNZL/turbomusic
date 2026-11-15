@@ -42,3 +42,11 @@ What was NOT checked: the Kotlin that touches Android (`ServerService`, `BundleI
 3. **Integration in the TurboMusic app**: replace the Termux card with "Install the server app" (the same updater that installs the APK), start/stop with the explicit intent, hand over the token, show status. Until then the Termux module stays.
 4. **Where the library lives**: today the app's own external files folder (no permission needed, deleted on uninstall); a chosen folder needs the storage-access framework and Node cannot use `content://` paths.
 5. Updating: a new server version = a new APK (the in-app "Update server" bundle swap needs a writable, executable-free location and is not wired for this app).
+
+
+## Wired into the app (2026-11-15)
+- The Android SDK, NDK and CMake were installable in the sandbox this time: **both apps now compile here** (`gradle :app:testDebugUnitTest :app:assembleDebug` in `apps/android` and `apps/android-server`, and the server app's release APK, 72 MB, arm64). There is still no KVM, so nothing was run on an emulator or a phone.
+- The TurboMusic app drives the server app: `ServerApp.kt` (status, start, stop with an explicit intent carrying a token the app made, port and wake option), `update/ServerAppInstaller.kt` (downloads `turbomusic-<v>-android-server.apk` from the newest release, Android's installer confirms), bridge methods `serverApp*`, manifest `uses-permission app.turbomusic.server.permission.CONTROL` + `<queries>`, web `lib/serverApp.ts` and `components/ServerAppCard.tsx` (Settings > This app, above the Termux card), autostart at app start (`startServerAppIfWanted`).
+- A release now carries two APKs, so `Releases.newestWithApk` takes a suffix: the app looks for `-android.apk`, the installer for `-android-server.apk`. **Apps older than this change take the first `.apk` of a release**, which could be the server app: they should update before the next release (or the server APK should be uploaded after the app's).
+- `build.yml` has an `android-server` job (arm64 only) and the release check requires its file.
+- Not done: yt-dlp/ffmpeg inside the server app (the card says so), the library folder chooser, an emulator run, whether Android lets a background-started foreground service survive (battery optimisation settings are the owner's to test).

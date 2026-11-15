@@ -1,6 +1,6 @@
 import { leadArtistId, leadArtistIds, hasLead, isFeatured } from './defaults.ts';
 import { albumCover, coverPool } from './covers.ts';
-import { balancedRatings, replayVotes, type AlbumData, type Credit, type ArtistData, type PlaylistData, type PlaybackRule, type ReleaseData, type SyncRecord, type TrackData, type VoteData, type GenreData, type GroupData, type NoteData, type ProfileData, type PlaybackLogData, type RoleCategoryData, type TimelineData, type EraData, type NoteCategoryData, type ReleaseNameData, type MemoryLogData } from '@turbomusic/core';
+import { albumStartElo, balancedRatings, replayVotes, type AlbumData, type Credit, type ArtistData, type PlaylistData, type PlaybackRule, type ReleaseData, type SyncRecord, type TrackData, type VoteData, type GenreData, type GroupData, type NoteData, type ProfileData, type PlaybackLogData, type RoleCategoryData, type TimelineData, type EraData, type NoteCategoryData, type ReleaseNameData, type MemoryLogData } from '@turbomusic/core';
 
 export type Row<T> = T & { id: string };
 
@@ -52,7 +52,7 @@ export interface Library {
   eraById: Map<string, Era>;
   /** tracks that are not on any album */
   singles: Track[];
-  albums: (Omit<Row<AlbumData>, 'artistId'> & { artistId: string; leads: Lead[]; artistName: string; trackIds: string[]; rating: number | null; /** every era the album is in */ eraIds: string[]; /** the default release's date, else the earliest release date */ releaseDate: string | null; /** every image of the album: uploads, its picked cover and its releases' covers */ coverPool: string[] })[];
+  albums: (Omit<Row<AlbumData>, 'artistId'> & { artistId: string; leads: Lead[]; artistName: string; trackIds: string[]; rating: number | null; /** how much good music the album holds: Σ of each track's rating above 5.5 (see ratingStrength); what Rating sorts by */ strength: number; /** every era the album is in */ eraIds: string[]; /** the default release's date, else the earliest release date */ releaseDate: string | null; /** every image of the album: uploads, its picked cover and its releases' covers */ coverPool: string[] })[];
   albumById: Map<string, Library['albums'][number]>;
   /** `title` is the release's name, or the album's when it has none (`named` false) */
   releases: (Row<ReleaseData> & { named: boolean })[];
@@ -67,6 +67,8 @@ export interface Library {
   /** the old per-entity notes, kept only so they can be migrated */
   legacyNotes: Row<NoteData>[];
   votes: Row<VoteData>[];
+  /** how the albums ranked against each other (votes with `album: true`) */
+  albumRank: Map<string, { elo: number; comparisons: number }>;
   logs: Row<PlaybackLogData>[];
   /** when each memory was added (only memories added since this was recorded) */
   memoryLogs: Row<MemoryLogData>[];
@@ -95,6 +97,12 @@ const featuredOf = (credits: Credit[], leads: Lead[], artistById: Map<string, { 
   }
   return out;
 };
+/**
+ * How much highly rated music a set of tracks holds: each track adds how far its rating is above 5.5. An average alone puts a one-hit
+ * wonder (one 10 and nothing else) above a consistently good album; this rewards the number of good tracks, and a mediocre track adds nothing.
+ */
+export const ratingStrength = (ratings: number[]) => ratings.reduce((n, r) => n + Math.max(0, r - 5.5), 0);
+
 const namesOf = (leads: Lead[]) => (leads.length ? leads.map((l) => l.name).join(', ') : 'Unknown artist');
 
 /** Folds the legacy `eraId` of albums and singles into each era's lists, drops ids of things that no longer exist. */
@@ -123,7 +131,12 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const votes = live<VoteData>(rows.votes);
   const profile = live<ProfileData>(rows.profiles)[0] ?? null;
 
-  const ranked = replayVotes(votes.map((v) => ({ ...v })), rawTracks.map((t) => t.id));
+  // votes between albums rank the albums; a ranked album lifts the starting Elo of its tracks (a little: the tracks' own votes decide the rest)
+  const albumVotes = votes.filter((v) => v.album);
+  const albumRank = replayVotes(albumVotes.map((v) => ({ ...v })), rawAlbums.map((a) => a.id));
+  const starts = new Map<string, number>();
+  if (albumVotes.length) for (const t of rawTracks) { const al = (t.albums ?? [])[0]; const r = al ? albumRank.get(al.albumId) : undefined; if (r && r.comparisons > 0) starts.set(t.id, albumStartElo(r.elo)); }
+  const ranked = replayVotes(votes.filter((v) => !v.album).map((v) => ({ ...v })), rawTracks.map((t) => t.id), starts);
   const ratings = balancedRatings(ranked, new Map(rawTracks.map((t) => [t.id, t.initialRating])));
 
   const albumTitles = new Map(rawAlbums.map((a) => [a.id, a.title]));
@@ -219,7 +232,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     const raw = rawAlbums.find((x) => x.id === a.id)!;
     return { ...a, artistId, leads, artistName: namesOf(leads), trackIds: ids, eraIds: erasOfAlbum.get(a.id) ?? [], releaseDate: albumDate.get(a.id) ?? null, coverPool: coverPool(raw, releases.filter((r) => r.albumId === a.id)),
       // an unrated track counts as 0, so one great track does not make a whole album look great; an album with no rated track at all has no rating
-      rating: rated.length ? rated.reduce((s, x) => s + x, 0) / ids.length : null };
+      rating: rated.length ? rated.reduce((s, x) => s + x, 0) / ids.length : null, strength: ratingStrength(rated) };
   });
 
   return {
@@ -227,7 +240,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     eras: eras, eraById: by(eras), singles: tracks.filter((t) => !t.albumId),
     releases, releaseNames: live<ReleaseNameData>(rows.releaseNames), playlists: live<PlaylistData>(rows.playlists),
     genres: live<GenreData>(rows.genres), roles: live<RoleCategoryData>(rows.roleCategories), timeline: live<TimelineData>(rows.timeline), groups: live<GroupData>(rows.groups), noteCategories: live<NoteCategoryData>(rows.noteCategories), legacyNotes: live<NoteData>(rows.notes),
-    votes, logs: live<PlaybackLogData>(rows.playbackLogs), memoryLogs: live<MemoryLogData>(rows.memoryLogs), profile, rules: profile?.playbackRules ?? [],
+    votes: votes.filter((v) => !v.album), albumRank, logs: live<PlaybackLogData>(rows.playbackLogs), memoryLogs: live<MemoryLogData>(rows.memoryLogs), profile, rules: profile?.playbackRules ?? [],
   };
 }
 

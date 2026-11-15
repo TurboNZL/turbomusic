@@ -42,9 +42,8 @@ export function ErasPage() {
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Eras <span className="text-base font-normal text-muted">{rows.length}</span></h1>
-        <button className="btn" onClick={() => edit({ kind: 'new-era', id: '' })}><Plus size={15} />New era</button>
       </div>
-      <ListToolbar scope="eras" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search eras, or filter: artist, genre, before…" sorts={ERA_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={<><button className="btn" onClick={() => edit({ kind: 'new-era', id: '' })}><Plus size={15} />New era</button></>} scope="eras" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search eras, or filter: artist, genre, before…" sorts={ERA_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {!all.length && <p className="max-w-xl text-sm text-muted">An era groups albums and singles that belong to the same period (a phase of an artist, a scene). Make one here and fill it, or choose it in an album’s or single’s editor. Eras can overlap, and notes and playlists can belong to them.</p>}
       {all.length > 0 && !rows.length && <p className="text-sm text-muted">No eras match.</p>}
       {page.view === 'list'
@@ -108,9 +107,11 @@ export function EraPage() {
           <div className="flex gap-2 pt-1">
             <button className="btn btn-accent" disabled={!ids.length} onClick={() => play(ids[0], ids, { type: 'search', id: null })}><Play size={16} fill="currentColor" />Play</button>
             <button className="btn" disabled={!ids.length} onClick={() => { const s = shuffleWithRules(ids, lib.rules); play(s[0], s, { type: 'search', id: null }); }}><Shuffle size={15} />Shuffle</button>
-            <Link className="btn btn-ghost" to={where('tracks')}><Layers size={15} />Tracks in this era</Link>
-            <Link className="btn btn-ghost" to={statsPath('era', era.id)}><BarChart3 size={15} />Stats</Link>
-            <button className="btn btn-ghost" onClick={() => edit({ kind: 'era', id: era.id })}><Pencil size={15} />Edit</button></div></div>
+            <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, the tracks in this era…" onClick={(e) => menu.toggle(e.currentTarget, 'era', [
+              { label: 'Tracks in this era', icon: <Layers size={15} />, to: where('tracks') },
+              { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('era', era.id) },
+              { label: 'Edit era…', icon: <Pencil size={15} />, run: () => edit({ kind: 'era', id: era.id }) },
+            ], `Actions for ${era.name}`)}><MoreHorizontal size={16} /></button></div></div>
       </div>
       {total.albums + total.singles > 0 && <section className="space-y-3"><h2 className="text-lg font-semibold"><Link to={where('albums')} className="hover:underline" title="Search this era's albums">Albums</Link> and <Link to={where('singles')} className="hover:underline" title="Search this era's singles">singles</Link></h2>
         <ListToolbar scope="albums" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search this era, or filter: artist, genre, before…" sorts={ERA_ITEM_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />

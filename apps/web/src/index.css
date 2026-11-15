@@ -83,3 +83,7 @@ html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 .bt-tile .bt-cover { transition: filter 0.18s ease; }
 .bt-tile:hover .bt-cover, .bt-tile:focus-within .bt-cover { filter: brightness(0.62); }
 @media (hover: none) { .bt-tile:hover .bt-cover { filter: none; } }
+
+/* the full-screen now-playing view covers the desktop app's drawn title bar, but that bar's drag area is an OS-level region and would
+   keep taking the clicks meant for the player's own buttons: off while the page is full screen */
+html.bt-now-fs .bt-wf { display: none; -webkit-app-region: no-drag; }

@@ -175,7 +175,7 @@ export function timeSeries(s: Pick<ListenStats, 'byDay' | 'firstTs' | 'lastTs'>,
 }
 
 /** "12a", "3a", "12p", "3p"...: an hour of the day a person can read at a glance (the charts used bare numbers 0, 3, 6...) */
-export const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'a' : 'p'}`;
+export const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
 
 export interface MonthBar { month: string; label: string; full: string; value: number }
 /**

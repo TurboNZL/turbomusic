@@ -142,11 +142,9 @@ export function Journal({ lib }: { lib: Library }) {
               {streak > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-accent/20 px-3 py-1"><Flame size={13} className="text-accent" /><b className="tabular-nums">{streak}</b> day streak</span>}
             </div>
           </div>
-          <div className="max-w-full overflow-x-auto pb-1"><Heat entries={all} /></div>
+          <div className="max-w-full overflow-x-auto pb-1"><Heat entries={all} /><p className="mt-1.5 text-[11px] text-muted">Each square is a day (oldest left, today right); brighter means more entries that day.</p></div>
         </div>
       </div>
-
-      <Composer lib={lib} />
 
       {(today.length > 0 || heard.length > 0) && (
         <div className="card space-y-2 p-4" style={{ background: 'linear-gradient(135deg, hsl(var(--accent) / 0.14), transparent 60%)' }}>
@@ -154,6 +152,9 @@ export function Journal({ lib }: { lib: Library }) {
           {today.slice(0, 3).map((e) => <div key={e.id} className="text-sm"><span className="text-muted">{new Date(e.timestamp).getFullYear()}: </span><b>{e.title}</b>{e.description && <span className="text-muted"> — {e.description.slice(0, 120)}</span>}</div>)}
           {heard.map((h) => { const t = lib.trackById.get(h.trackId); return t ? <div key={h.year} className="text-sm"><span className="text-muted">{h.year}, you were playing </span><Link to={statsPath('track', t.id)} className="font-semibold hover:underline">{t.title}</Link><span className="text-muted"> by {t.artistName} ({h.plays} plays)</span></div> : null; })}
         </div>)}
+
+      <Composer lib={lib} />
+
 
       {all.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

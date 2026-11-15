@@ -21,6 +21,10 @@ export interface Listen {
   album: string;
   uri: string | null;
   skipped: boolean;
+  /** the track's length in seconds, when the play recorded it */
+  length?: number | null;
+  /** the silent mirror streamed it on Spotify too */
+  mirrored?: boolean;
   shuffle: boolean | null;
   platform: string | null;
   reasonEnd: string | null;
@@ -67,12 +71,25 @@ export function buildListens(lib: Library): Listen[] {
       const t = lib.trackById.get(l.trackId);
       if (!t) continue;
       out.push({ id: l.id, ts: l.timestamp, ms: Math.round((l.duration ?? 0) * 1000), trackId: t.id, artistId: t.leads[0]?.id ?? null, albumId: t.albumId ?? null, title: t.title, artist: t.leads[0]?.name ?? t.artistName, album: t.albumTitle ?? '',
-        uri: spotifyTrackId(t.spotifyUrl) ? `spotify:track:${spotifyTrackId(t.spotifyUrl)}` : null, skipped: !!l.isSkip, shuffle: null, platform: 'TurboMusic', reasonEnd: null, source: 'turbomusic' });
+        uri: spotifyTrackId(t.spotifyUrl) ? `spotify:track:${spotifyTrackId(t.spotifyUrl)}` : null, skipped: !!l.isSkip, length: l.length ?? null, ...(l.mirrored ? { mirrored: true } : {}), shuffle: null, platform: 'TurboMusic', reasonEnd: null, source: 'turbomusic' });
     }
   }
   out.sort((a, b) => a.ts - b.ts);
-  cache.set(lib, out);
-  return out;
+  const merged = dropMirrorTwins(out);
+  cache.set(lib, merged);
+  return merged;
+}
+
+/**
+ * Once Spotify's own history is imported it holds the plays the silent mirror made, so the TurboMusic play that the mirror accompanied
+ * (flagged `mirrored`) and an imported play of the same track ending within three minutes of it are one play: the import wins (it is
+ * Spotify's own record), the TurboMusic row is dropped. Without an import the mirrored plays count as the TurboMusic plays they are.
+ */
+export function dropMirrorTwins(listens: Listen[]): Listen[] {
+  const spotify = new Map<string, number[]>();
+  for (const l of listens) if (l.source === 'spotify' && l.trackId) spotify.set(l.trackId, [...(spotify.get(l.trackId) ?? []), l.ts]);
+  if (!spotify.size) return listens;
+  return listens.filter((l) => !(l.mirrored && l.trackId && (spotify.get(l.trackId) ?? []).some((ts) => Math.abs(ts - l.ts) <= 180_000)));
 }
 
 /**

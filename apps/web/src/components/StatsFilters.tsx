@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ThemedSelect } from './ThemedSelect.tsx';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { RANGES } from '../lib/listenStats.ts';
 import { DEFAULT_FILTER, activeCount, platformsOf, type DayPart, type StatsFilter } from '../lib/statsFilter.ts';
@@ -28,8 +29,8 @@ export function StatsFilters({ value, onChange, listens }: { value: StatsFilter;
           {RANGES.map((r) => <button key={r.id} className={cn('btn !py-1 !text-xs', value.range === r.id && 'btn-accent')} aria-pressed={value.range === r.id} onClick={() => set({ range: r.id })}>{r.label}</button>)}
           <button className={cn('btn !py-1 !text-xs', value.range === 'custom' && 'btn-accent')} aria-pressed={value.range === 'custom'} onClick={() => set({ range: 'custom' })}>Custom</button>
         </div>
-        <select className="input !w-auto !py-1 !text-xs" aria-label="Shortest play that counts" title="stats.fm only counts a play that lasted at least 30 seconds" value={value.minMs} onChange={(e) => set({ minMs: Number(e.target.value) })}>
-          {LENGTHS.map((l) => <option key={l.ms} value={l.ms}>{l.label}</option>)}</select>
+        <ThemedSelect className="input !w-auto !py-1 !text-xs" aria-label="Shortest play that counts" title="stats.fm only counts a play that lasted at least 30 seconds" value={value.minMs} onChange={(e) => set({ minMs: Number(e.target.value) })}>
+          {LENGTHS.map((l) => <option key={l.ms} value={l.ms}>{l.label}</option>)}</ThemedSelect>
         <button className={cn('btn !py-1 !text-xs', (more || n > 0) && 'btn-accent')} aria-expanded={more} onClick={() => setMore((m) => !m)}><SlidersHorizontal size={13} />More filters{n > 0 && ` (${n})`}</button>
         {(n > 0 || value.range !== DEFAULT_FILTER.range || value.minMs !== DEFAULT_FILTER.minMs) && <button className="btn btn-ghost !py-1 !text-xs" onClick={() => onChange({ ...DEFAULT_FILTER })}><X size={13} />Reset</button>}
       </div>
@@ -42,11 +43,11 @@ export function StatsFilters({ value, onChange, listens }: { value: StatsFilter;
       {more && (
         <div className="space-y-2 rounded-theme border border-line p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <select className="input !w-auto !py-1 !text-xs" aria-label="Source" value={value.source} onChange={(e) => set({ source: e.target.value as StatsFilter['source'] })}><option value="all">All sources</option><option value="turbomusic">Played in TurboMusic</option><option value="spotify">From Spotify</option></select>
-            <select className="input !w-auto !py-1 !text-xs" aria-label="Skips" value={value.skips} onChange={(e) => set({ skips: e.target.value as StatsFilter['skips'] })}><option value="all">Plays and skips</option><option value="played">Played through</option><option value="skipped">Skipped only</option></select>
-            <select className="input !w-auto !py-1 !text-xs" aria-label="Platform" value={value.platform} onChange={(e) => set({ platform: e.target.value })}><option value="">Any platform</option>{platforms.map((p) => <option key={p} value={p}>{p}</option>)}</select>
-            <select className="input !w-auto !py-1 !text-xs" aria-label="Time of day" value={value.dayPart} onChange={(e) => set({ dayPart: e.target.value as DayPart })}>{PARTS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
-            <select className="input !w-auto !py-1 !text-xs" aria-label="Days" value={value.days} onChange={(e) => set({ days: e.target.value as StatsFilter['days'] })}><option value="all">Every day</option><option value="weekdays">Weekdays</option><option value="weekends">Weekends</option></select>
+            <ThemedSelect className="input !w-auto !py-1 !text-xs" aria-label="Source" value={value.source} onChange={(e) => set({ source: e.target.value as StatsFilter['source'] })}><option value="all">All sources</option><option value="turbomusic">Played in TurboMusic</option><option value="spotify">From Spotify</option></ThemedSelect>
+            <ThemedSelect className="input !w-auto !py-1 !text-xs" aria-label="Skips" value={value.skips} onChange={(e) => set({ skips: e.target.value as StatsFilter['skips'] })}><option value="all">Plays and skips</option><option value="played">Played through</option><option value="skipped">Skipped only</option></ThemedSelect>
+            <ThemedSelect className="input !w-auto !py-1 !text-xs" aria-label="Platform" value={value.platform} onChange={(e) => set({ platform: e.target.value })}><option value="">Any platform</option>{platforms.map((p) => <option key={p} value={p}>{p}</option>)}</ThemedSelect>
+            <ThemedSelect className="input !w-auto !py-1 !text-xs" aria-label="Time of day" value={value.dayPart} onChange={(e) => set({ dayPart: e.target.value as DayPart })}>{PARTS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</ThemedSelect>
+            <ThemedSelect className="input !w-auto !py-1 !text-xs" aria-label="Days" value={value.days} onChange={(e) => set({ days: e.target.value as StatsFilter['days'] })}><option value="all">Every day</option><option value="weekdays">Weekdays</option><option value="weekends">Weekends</option></ThemedSelect>
             {hasPre && <label className="flex items-center gap-1.5 text-xs text-muted" title="Plays of pre-release versions (marked [U]) count as plays of the released track"><input type="checkbox" checked={!!value.combinePre} onChange={(e) => set({ combinePre: e.target.checked })} />Combine pre-release versions with the released track</label>}
             <label className="flex items-center gap-1.5 text-xs text-muted"><input type="checkbox" checked={value.libraryOnly} onChange={(e) => set({ libraryOnly: e.target.checked })} />Only tracks in my library</label>
           </div>

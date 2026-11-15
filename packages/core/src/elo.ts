@@ -39,11 +39,11 @@ export function applyVote(ra: number, rb: number, outcome: 'a' | 'b' | 'equal', 
  * that opponent. Verified against a real library: replaying every vote (ghosts included)
  * reproduces the legacy stored Elo and comparison counts exactly. Ghosts are not returned.
  */
-export function replayVotes(votes: Vote[], trackIds: Iterable<string>): Map<string, RankedTrack> {
+export function replayVotes(votes: Vote[], trackIds: Iterable<string>, starts?: ReadonlyMap<string, number>): Map<string, RankedTrack> {
   const all = new Map<string, RankedTrack>();
   const get = (id: string) => {
     let r = all.get(id);
-    if (!r) all.set(id, (r = { elo: ELO_START, comparisons: 0 }));
+    if (!r) all.set(id, (r = { elo: starts?.get(id) ?? ELO_START, comparisons: 0 }));
     return r;
   };
   const ordered = [...votes].sort((x, y) => x.timestamp - y.timestamp || (x.id < y.id ? -1 : 1));
@@ -62,7 +62,7 @@ export function replayVotes(votes: Vote[], trackIds: Iterable<string>): Map<stri
     a.comparisons++; b.comparisons++;
   }
   const out = new Map<string, RankedTrack>();
-  for (const id of trackIds) out.set(id, all.get(id) ?? { elo: ELO_START, comparisons: 0 });
+  for (const id of trackIds) out.set(id, all.get(id) ?? { elo: starts?.get(id) ?? ELO_START, comparisons: 0 });
   return out;
 }
 
@@ -84,3 +84,10 @@ export function balancedRatings(
   }
   return out;
 }
+
+/**
+ * Where a track starts when its album has been ranked against other albums: half of the album's lead over (or distance under) the
+ * starting Elo, at most 150 either way, so a loved album lifts its tracks a little before any of them is voted on, and the votes on the
+ * tracks themselves still decide the rest.
+ */
+export const albumStartElo = (albumElo: number): number => ELO_START + Math.max(-150, Math.min(150, (albumElo - ELO_START) * 0.5));
