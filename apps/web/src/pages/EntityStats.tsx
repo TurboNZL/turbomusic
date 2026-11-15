@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Clock, ExternalLink, Pencil, Play, Shuffle, SkipForward, Star, Swords, Music2, StickyNote } from 'lucide-react';
+import { Clock, ExternalLink, MoreHorizontal, Pencil, Play, Shuffle, SkipForward, Star, Swords, Music2, StickyNote } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
 import { useStore } from '../lib/store.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
-import { entityStats, entityTrackIds, isStatsKind, type StatsKind } from '../lib/entityStats.ts';
+import { entityStats, entityTrackIds, isStatsKind, liveListen, type StatsKind } from '../lib/entityStats.ts';
 import { loadFilter } from '../lib/statsFilter.ts';
 import { hourLabel, timeSeries } from '../lib/listenStats.ts';
 import { trackInfo } from '../lib/trackinfo.ts';
@@ -21,6 +21,9 @@ import { Area, Bars, Calendar, fmtHours, Heatgrid, Kpi, Panel, RankList } from '
 import { EditorFor } from '../components/EditorHost.tsx';
 import { InlineModals } from '../components/forms.tsx';
 import { TrackHistory, fmtListened } from '../components/TrackHistory.tsx';
+import { useMenu } from '../components/Menu.tsx';
+import { useTrackMenuItems } from '../components/TrackMenu.tsx';
+import { useAlbumMenuItems, useArtistMenuItems, usePlaylistMenuItems } from '../components/entityMenus.tsx';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = Array.from({ length: 24 }, (_, h) => hourLabel(h));
@@ -45,7 +48,13 @@ export function EntityStatsPage() {
   // plays shorter than the shortest length chosen on the Stats page (30 s by default) do not count here either
   const minMs = useMemo(() => loadFilter().minMs, []);
   const [combine, setCombine] = useState(false);
-  const stats = useMemo(() => (ids ? entityStats(lib, ids, minMs, combine) : null), [lib, ids, minMs, combine]);
+  // the play happening right now counts as soon as it passes the minimum length (and stops counting if you pause and cut it back), so the numbers move while you listen
+  const curId = usePlayer((s) => s.queue.currentId);
+  const curSecs = usePlayer((s) => Math.floor(s.time / 2) * 2);
+  const live = useMemo(() => (ids && curId && ids.includes(curId) ? liveListen(lib, curId, curSecs) : null), [lib, ids, curId, curSecs]);
+  const stats = useMemo(() => (ids ? entityStats(lib, ids, minMs, combine, live) : null), [lib, ids, minMs, combine, live]);
+  const menu = useMenu();
+  const trackItems = useTrackMenuItems(), albumItems = useAlbumMenuItems(), artistItems = useArtistMenuItems(), playlistItems = usePlaylistMenuItems();
   if (!kind || !ids || !stats) return <div className="text-muted">Nothing to show stats for. <Link className="underline" to="/stats">Stats</Link></div>;
 
   const track = kind === 'track' ? lib.trackById.get(id) : undefined;
@@ -57,6 +66,8 @@ export function EntityStatsPage() {
   const l = stats.listen;
   const playable = stats.tracks.filter(canPlay).map((t) => t.id);
   const info = track ? trackInfo(lib, id) : null;
+  // the same menu as right-clicking this thing anywhere else: play next, queue, add to a playlist, edit...
+  const menuItems = track ? trackItems(track, () => play(track.id, [track.id], { type: 'track', id: track.id })) : album ? albumItems(album) : artist ? artistItems(artist.id) : playlist ? playlistItems(playlist) : [];
   const rateRows = (list: Track[]) => list.map((t) => ({ key: t.id, label: t.title, sub: t.artistName, value: t.effectiveRating, to: trackPath(t) }));
   const playRows = [...stats.playsByTrack.entries()].sort((a, b) => b[1].plays - a[1].plays || b[1].ms - a[1].ms).slice(0, 10)
     .flatMap(([tid, v]) => { const t = lib.trackById.get(tid); return t ? [{ key: tid, label: t.title, sub: t.artistName, value: v.plays, extra: fmtHours(v.ms), to: trackPath(t) }] : []; });
@@ -67,7 +78,8 @@ export function EntityStatsPage() {
   const stat = (label: string, value: string) => <div className="rounded-theme bg-raised px-3 py-2"><div className="text-[11px] uppercase tracking-wider text-muted">{label}</div><div className="text-sm font-semibold tabular-nums">{value}</div></div>;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" onContextMenu={menuItems.length ? menu.onContextMenu(menuItems, `Actions for ${title}`, id) : undefined}>
+      {menu.element}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         {kind === 'playlist' && playlist ? <PlaylistCover playlist={playlist} className="w-32 shrink-0 sm:w-40" />
           : <Cover kind={kind === 'artist' ? 'artist' : undefined} hash={track?.cover ?? album?.cover ?? artist?.image ?? era?.cover ?? null} seed={title} className="w-32 shrink-0 sm:w-40" />}
@@ -86,6 +98,7 @@ export function EntityStatsPage() {
             <button className={editing ? 'btn btn-accent' : 'btn'} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Pencil size={15} />{editing ? 'Close editor' : 'Edit'}</button>
             {kind !== 'artist' && <button className="btn btn-ghost" onClick={() => edit({ kind: 'new-note', id: `${kind}:${id}` })}><StickyNote size={15} />Note</button>}
             <Link className="btn btn-ghost" to={pageOf(kind, id, track)}><ExternalLink size={15} />Open page</Link>
+            {menuItems.length > 0 && <button data-menu-trigger className="btn btn-ghost" aria-label="More actions" title="More: play next, add to queue or a playlist, edit…" onClick={(e) => menu.toggle(e.currentTarget, 'stats-more', menuItems, `Actions for ${title}`)}><MoreHorizontal size={16} /></button>}
           </div>
         </div>
       </div>
