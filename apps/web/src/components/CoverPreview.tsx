@@ -31,7 +31,7 @@ export function CoverPreview({ anchor, track }: { anchor: HTMLElement | null; tr
             <div className="truncate text-base font-semibold">{track.title}</div>
             <div className="truncate text-sm text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && ` · ${track.albumTitle}`}</div>
             <div className="mt-2 flex items-center gap-2"><Rating track={track} /><button type="button" className="btn btn-ghost !p-1.5" title="Track info" aria-label="Track info" onClick={() => { close(); edit({ kind: 'track-details', id: track.id }); }}><Info size={16} /></button>
-              <button type="button" className="btn btn-ghost !p-1.5" title="Full screen: cover and lyrics" aria-label="Full screen now playing" onClick={() => { usePopups.getState().setNow(true); void document.documentElement.requestFullscreen?.().catch(() => undefined); }}><Maximize2 size={16} /></button></div>
+              <button type="button" className="btn btn-ghost !p-1.5" title="Now playing: cover and lyrics (F11 for full screen)" aria-label="Full screen now playing" onClick={() => usePopups.getState().setNow(true)}><Maximize2 size={16} /></button></div>
           </div>
           <RateBlock track={track} />
         </div>
