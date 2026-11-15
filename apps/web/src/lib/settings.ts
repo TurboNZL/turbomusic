@@ -60,6 +60,9 @@ export interface DeviceSettings {
   preferLocalCopy: boolean;
   /** playing a track from search results queues every other result after it; off = only that track is played and the queue stays as it was */
   searchPlaysAll: boolean;
+  /** the order of the pages in the navigation (their addresses), and which of them are tabs on a phone (lib/navOrder.ts); unset = the defaults */
+  navOrder?: string[];
+  phoneTabs?: string[];
   /** vibration feedback on presses (the Android app and phones that support it) */
   haptics: boolean;
 }

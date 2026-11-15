@@ -22,6 +22,7 @@ import { BackupCard } from '../components/BackupCard.tsx';
 import { RecapDismissals } from '../components/RecapDismissals.tsx';
 import { LibraryFilesCard } from '../components/LibraryFilesCard.tsx';
 import { WidgetCard } from '../components/WidgetCard.tsx';
+import { NavOrderCard } from '../components/NavOrderCard.tsx';
 import { GuidesTab } from '../components/GuidesTab.tsx';
 import { ServerUpdateCard } from '../components/ServerUpdate.tsx';
 import { ConnectionTokens, PairDevice, ServerHealthCard } from '../components/ServerHealthCard.tsx';
@@ -79,6 +80,7 @@ export function SettingsPage() {
 
       {tab === 'look' && <>
       <AppearanceLayout />
+      <Section title="Pages: order and phone tabs"><NavOrderCard /></Section>
 
       <Section title="Wallpaper"><WallpaperCard /></Section>
       </>}
