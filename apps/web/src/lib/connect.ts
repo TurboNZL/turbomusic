@@ -90,12 +90,21 @@ function currentSnapshot(): PlaybackSnapshot | null {
  *  - disconnect()    drop the link: the device that was being controlled keeps playing, this one is its own player again.
  * Playback is always whole: the track, the position and the queue travel together, so nothing restarts or skips.
  */
+/** Tell a device to pause and make sure it did: a command can be lost on a bad connection, so ask again if its next reports still say it is playing. */
+async function pauseUntilQuiet(id: string) {
+  for (let i = 0; i < 3; i++) {
+    void send(id, { type: 'pause' });
+    await new Promise((r) => setTimeout(r, 1500));
+    if (!useConnect.getState().devices.find((x) => x.id === id)?.state?.playing) return;
+  }
+}
+
 export async function pullFrom(id: string) {
   const d = useConnect.getState().devices.find((x) => x.id === id);
   if (!d?.state?.trackId) throw new Error('That device is not playing anything');
   const snap = { ...d.state, position: positionNow(d, useConnect.getState().receivedAt) };
   const wasPlaying = snap.playing;
-  void send(id, { type: 'pause' });
+  void pauseUntilQuiet(id);
   useConnect.setState({ remoteId: null });
   usePlayer.getState().restore(snap, { play: wasPlaying });
   publish();
@@ -121,8 +130,10 @@ export function disconnect() { useConnect.setState({ remoteId: null }); publish(
  * Spotify and stops the stream of the server's Soloist, and forgets the chosen Spotify device so that the next local track starts at once,
  * without anything still tied to Spotify. A Spotify-only track needs a Spotify device chosen again to play.
  */
-export async function localOnly() {
+export async function localOnly(opts: { pauseRemote?: boolean } = {}) {
+  const was = useConnect.getState().remoteId;
   useConnect.setState({ remoteId: null });
+  if (opts.pauseRemote && was) void pauseUntilQuiet(was);
   const st = useStore.getState();
   // a track Spotify was playing continues from the same spot on this device when it has a file here by now (a download may have finished meanwhile)
   const p = usePlayer.getState();

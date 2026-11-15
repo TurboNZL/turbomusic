@@ -18,7 +18,6 @@ export function PlaybackRules() {
   const [a, setA] = useState<string | null>(null);
   const [b, setB] = useState<string | null>(null);
   const [openRule, setOpenRule] = useState<string | null>(null); // every rule starts folded: its options are one click away
-  const title = (id: string) => lib.trackById.get(id)?.title ?? '(deleted track)';
   const setRule = (i: number, change: Partial<PlaybackRule>) => saveRules(lib, lib.rules.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const add = () => {
     if (!a || !b || a === b) return;

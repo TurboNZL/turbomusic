@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { leaveRemoved } from '../lib/leave.ts';
 import { isQuickPlaylist, playlistTrackIds } from '../lib/playlists.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
+import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Shuffle, User, Layers, Search } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
@@ -77,7 +78,7 @@ export function useAlbumMenuItems() {
     { label: 'Add to an album playlist…', icon: <ListPlus size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
     { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) },
     { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) },
-    { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => edit({ kind: 'import-into-album', id: album.id }) },
+    { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => void openImportIntoAlbum(album.id) },
     ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
     { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
     ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
