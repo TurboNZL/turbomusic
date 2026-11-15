@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { ArrowRight, GitMerge, Pencil, Plus, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, ChevronDown, GitMerge, Pencil, Plus, X } from 'lucide-react';
+import { statsPath } from '../lib/entityStats.ts';
+import { cn } from '../lib/cn.ts';
 import type { PlaybackRule } from '@turbomusic/core';
 import { useLibrary } from '../lib/derive.ts';
 import { useStore } from '../lib/store.ts';
@@ -14,6 +17,7 @@ export function PlaybackRules() {
   const lib = useLibrary();
   const [a, setA] = useState<string | null>(null);
   const [b, setB] = useState<string | null>(null);
+  const [openRule, setOpenRule] = useState<string | null>(null); // every rule starts folded: its options are one click away
   const title = (id: string) => lib.trackById.get(id)?.title ?? '(deleted track)';
   const setRule = (i: number, change: Partial<PlaybackRule>) => saveRules(lib, lib.rules.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const add = () => {
@@ -24,16 +28,25 @@ export function PlaybackRules() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">When track A plays, track B is queued right after it, and the change can have its own crossfade. {lib.rules.length} rule{lib.rules.length === 1 ? '' : 's'}.</p>
-      {lib.rules.map((r, i) => (
-        <div key={`${r.trackAId}`} className="space-y-1 rounded-theme border border-line p-3 text-sm">
-          <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{title(r.trackAId)}</span><ArrowRight size={14} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{title(r.trackBId)}</span>
+      {lib.rules.map((r, i) => {
+        const key = `${r.trackAId}>${r.trackBId}`, isOpen = openRule === key;
+        const who = (id: string) => { const t = lib.trackById.get(id); return t
+          ? <div className="min-w-0 flex-1"><Link to={statsPath('track', id)} className="block truncate font-medium hover:underline" title="Open this track's stats">{t.title}</Link><div className="truncate text-xs text-muted">{t.artistName}{t.albumTitle ? ` · ${t.albumTitle}` : ''}</div></div>
+          : <div className="min-w-0 flex-1 truncate text-muted">(deleted track)</div>; };
+        return (
+        <div key={key} className="rounded-theme border border-line text-sm">
+          <div className="flex items-center gap-2 p-3">
+            {who(r.trackAId)}<ArrowRight size={14} className="shrink-0 text-muted" />{who(r.trackBId)}
+            <button className="p-1 text-muted hover:text-fg" aria-expanded={isOpen} aria-label={isOpen ? 'Hide options' : 'Show options'} onClick={() => setOpenRule(isOpen ? null : key)}><ChevronDown size={16} className={cn('transition-transform', isOpen && 'rotate-180')} /></button>
             <button className="p-1 text-muted hover:text-bad" aria-label="Delete rule" onClick={() => saveRules(lib, lib.rules.filter((_, j) => j !== i))}><X size={15} /></button></div>
-          <div className="flex flex-wrap gap-4 text-xs text-muted">
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.playFirstOnShuffle} onChange={(e) => setRule(i, { playFirstOnShuffle: e.target.checked })} />Keep together when shuffling</label>
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.applyToAlbumSource} onChange={(e) => setRule(i, { applyToAlbumSource: e.target.checked })} />Only when playing from an album</label>
+          {isOpen && <div className="space-y-2 border-t border-line/60 p-3">
+            <div className="flex flex-wrap gap-4 text-xs text-muted">
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.playFirstOnShuffle} onChange={(e) => setRule(i, { playFirstOnShuffle: e.target.checked })} />Keep together when shuffling</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.applyToAlbumSource} onChange={(e) => setRule(i, { applyToAlbumSource: e.target.checked })} />Only when playing from an album</label>
             </div>
-          <div className="space-y-0.5 text-xs text-muted"><div>Crossfade into it</div><CrossfadePick value={r.crossfadeSec} onChange={(v) => setRule(i, { crossfadeSec: v })} shift={r.crossfadeShiftSec} onShift={(v) => setRule(i, { crossfadeShiftSec: v })} shape={{ out: r.crossfadeOut, in: r.crossfadeIn }} onShape={(p) => setRule(i, p)} /></div>
-        </div>))}
+            <div className="space-y-0.5 text-xs text-muted"><div>Crossfade into it</div><CrossfadePick value={r.crossfadeSec} onChange={(v) => setRule(i, { crossfadeSec: v })} shift={r.crossfadeShiftSec} onShift={(v) => setRule(i, { crossfadeShiftSec: v })} shape={{ out: r.crossfadeOut, in: r.crossfadeIn }} onShape={(p) => setRule(i, p)} /></div>
+          </div>}
+        </div>); })}
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-start">
         <TrackPicker value={a} onChange={setA} /><ArrowRight size={16} className="mt-2.5 hidden text-muted sm:block" /><TrackPicker value={b} onChange={setB} exclude={a ?? undefined} />
         <button className="btn btn-accent" disabled={!a || !b} onClick={add}><Plus size={15} />Add rule</button></div>

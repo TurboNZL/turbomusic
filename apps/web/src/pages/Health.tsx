@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { CalendarCheck, CheckCircle2, ChevronDown, ClipboardPaste, Eraser, GitMerge, ImageDown, Search, Tags, UserRound, X } from 'lucide-react';
 import { HealthHero } from '../components/HealthHero.tsx';
 import { AudioQualityCard, MissingAudioCard } from '../components/AudioTools.tsx';
@@ -31,6 +31,10 @@ function AlbumLinkRow({ item }: { item: HealthItem }) {
     </div>
   );
 }
+
+/** Most important first: what stops music playing, then what makes the library wrong, then what is merely incomplete or tidy-up. */
+const PRIORITY = ['dead-links', 'no-audio', 'no-lead', 'no-source', 'album-empty', 'duplicates', 'needs-source', 'fake-quality', 'album-no-cover', 'artist-no-image', 'release-no-date', 'single-no-date', 'album-no-genre', 'no-genre', 'low-quality', 'no-youtube', 'no-youtube-album', 'genre-similar', 'artist-unused', 'genre-unused', 'role-unused', 'note-category-unused', 'no-spotify', 'no-genius'];
+const priority = (id: string) => { const i = PRIORITY.indexOf(id); return i < 0 ? 500 : i; };
 
 export function HealthPage() {
   const lib = useLibraryLive();
@@ -74,6 +78,9 @@ export function HealthPage() {
     }
   }
   const problems = checks.filter((c) => c.items.length);
+  // what to fix first on top (most important first); checks with nothing to fix go last, folded but still open-able
+  const ordered = [...checks].sort((a, b) => (a.items.length ? 0 : 1) - (b.items.length ? 0 : 1) || priority(a.id) - priority(b.id));
+  const firstClear = ordered.findIndex((c) => !c.items.length);
   const openItem = (i: HealthItem) => (i.kind === 'track' || i.kind === 'album' || i.kind === 'artist' || i.kind === 'release') && edit({ kind: i.kind, id: i.id });
 
   return (
@@ -81,17 +88,20 @@ export function HealthPage() {
       <HealthHero lib={lib} problems={problems.length} total={checks.length} />
       <CatalogueCard />
       <div className="grid gap-4 md:grid-cols-2"><MissingAudioCard /><AudioQualityCard /></div>
-      <AlbumSuggestions />
-      {checks.map((c) => (
-        <section key={c.id} className="card overflow-hidden">
+      {ordered.map((c, idx) => (
+        <Fragment key={c.id}>
+        {idx === firstClear && <h2 className="pt-2 text-sm font-semibold uppercase tracking-wider text-muted">Nothing to fix ({ordered.length - firstClear})</h2>}
+        <section className="card overflow-hidden">
           <button className="flex w-full items-center gap-3 px-4 py-3 text-left" onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id}>
             {c.items.length ? <span className="min-w-8 rounded-full bg-warn/20 px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-warn">{c.items.length}</span> : <CheckCircle2 size={18} className="text-good" />}
             <span className="flex-1 text-sm font-medium">{c.title}</span>
-            {c.items.length > 0 && <ChevronDown size={16} className={cn('text-muted transition-transform', open === c.id && 'rotate-180')} />}
+            <ChevronDown size={16} className={cn('text-muted transition-transform', open === c.id && 'rotate-180')} />
           </button>
+          {open === c.id && c.items.length === 0 && <div className="space-y-2 border-t border-line px-4 py-3"><p className="text-xs text-muted">{c.why}</p><p className="text-sm text-good">Nothing to fix here.</p>{c.id === 'needs-source' && <AlbumSuggestions />}</div>}
           {open === c.id && c.items.length > 0 && (
             <div className="border-t border-line">
               <p className="px-4 py-2 text-xs text-muted">{c.why}</p>
+              {c.id === 'needs-source' && <div className="px-4 pb-3"><AlbumSuggestions /></div>}
               {c.id === 'album-no-cover' && <div className="flex flex-wrap items-center gap-3 px-4 pb-2">
                 <button className="btn" disabled={!configured || covers?.running} onClick={() => void fillCovers(c.items.map((i) => i.id))}><ImageDown size={15} />Try YouTube thumbnails</button>
                 <span className="text-xs text-muted">{!configured ? 'Needs a server (Settings).' : covers ? `${covers.done}/${covers.total} done${covers.failed ? `, ${covers.failed} failed` : ''}${covers.running ? '…' : ''}` : 'Uses each album\'s first track link. Check the results; replace any that look wrong.'}</span></div>}
@@ -122,7 +132,8 @@ export function HealthPage() {
                   <span className="truncate">{i.label}</span>{i.detail && <span className="shrink-0 text-xs text-muted">{i.detail}</span>}</button>))}
                 {c.items.length > 200 && <div className="px-4 py-2 text-xs text-muted">…and {c.items.length - 200} more</div>}</div>}
             </div>)}
-        </section>))}
+        </section>
+        </Fragment>))}
       {bulk && <BulkLinks kind={bulk} onClose={() => setBulk(null)} />}
     </div>
   );

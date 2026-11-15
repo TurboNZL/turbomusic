@@ -52,7 +52,7 @@ export interface Library {
   eraById: Map<string, Era>;
   /** tracks that are not on any album */
   singles: Track[];
-  albums: (Omit<Row<AlbumData>, 'artistId'> & { artistId: string; leads: Lead[]; artistName: string; trackIds: string[]; rating: number | null; /** every era the album is in */ eraIds: string[]; /** the default release's date, else the earliest release date */ releaseDate: string | null; /** every image of the album: uploads, its picked cover and its releases' covers */ coverPool: string[] })[];
+  albums: (Omit<Row<AlbumData>, 'artistId'> & { artistId: string; leads: Lead[]; artistName: string; trackIds: string[]; rating: number | null; /** how much good music the album holds: Σ of each track's rating above 5.5 (see ratingStrength); what Rating sorts by */ strength: number; /** every era the album is in */ eraIds: string[]; /** the default release's date, else the earliest release date */ releaseDate: string | null; /** every image of the album: uploads, its picked cover and its releases' covers */ coverPool: string[] })[];
   albumById: Map<string, Library['albums'][number]>;
   /** `title` is the release's name, or the album's when it has none (`named` false) */
   releases: (Row<ReleaseData> & { named: boolean })[];
@@ -95,6 +95,12 @@ const featuredOf = (credits: Credit[], leads: Lead[], artistById: Map<string, { 
   }
   return out;
 };
+/**
+ * How much highly rated music a set of tracks holds: each track adds how far its rating is above 5.5. An average alone puts a one-hit
+ * wonder (one 10 and nothing else) above a consistently good album; this rewards the number of good tracks, and a mediocre track adds nothing.
+ */
+export const ratingStrength = (ratings: number[]) => ratings.reduce((n, r) => n + Math.max(0, r - 5.5), 0);
+
 const namesOf = (leads: Lead[]) => (leads.length ? leads.map((l) => l.name).join(', ') : 'Unknown artist');
 
 /** Folds the legacy `eraId` of albums and singles into each era's lists, drops ids of things that no longer exist. */
@@ -219,7 +225,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     const raw = rawAlbums.find((x) => x.id === a.id)!;
     return { ...a, artistId, leads, artistName: namesOf(leads), trackIds: ids, eraIds: erasOfAlbum.get(a.id) ?? [], releaseDate: albumDate.get(a.id) ?? null, coverPool: coverPool(raw, releases.filter((r) => r.albumId === a.id)),
       // an unrated track counts as 0, so one great track does not make a whole album look great; an album with no rated track at all has no rating
-      rating: rated.length ? rated.reduce((s, x) => s + x, 0) / ids.length : null };
+      rating: rated.length ? rated.reduce((s, x) => s + x, 0) / ids.length : null, strength: ratingStrength(rated) };
   });
 
   return {
