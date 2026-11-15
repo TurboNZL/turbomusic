@@ -33,7 +33,14 @@ function AlbumLinkRow({ item }: { item: HealthItem }) {
 }
 
 /** Most important first: what stops music playing, then what makes the library wrong, then what is merely incomplete or tidy-up. */
-const PRIORITY = ['dead-links', 'no-audio', 'no-lead', 'no-source', 'album-empty', 'duplicates', 'needs-source', 'fake-quality', 'album-no-cover', 'artist-no-image', 'release-no-date', 'single-no-date', 'album-no-genre', 'no-genre', 'low-quality', 'no-youtube', 'no-youtube-album', 'genre-similar', 'artist-unused', 'genre-unused', 'role-unused', 'note-category-unused', 'no-spotify', 'no-genius'];
+const PRIORITY = ['dead-links', 'no-audio', 'no-source', 'album-empty', 'fake-quality', 'low-quality', 'no-lead', 'duplicates', 'needs-source', 'album-no-cover', 'artist-no-image', 'release-no-date', 'single-no-date', 'album-no-genre', 'no-genre', 'no-youtube', 'no-youtube-album', 'no-spotify', 'no-genius', 'genre-similar', 'artist-unused', 'genre-unused', 'role-unused', 'note-category-unused'];
+/** The headings the checks sit under, so a long list reads as four short ones. */
+const GROUP: Record<string, string> = {
+  'dead-links': 'Things that stop music playing', 'no-audio': 'Things that stop music playing', 'no-source': 'Things that stop music playing', 'album-empty': 'Things that stop music playing', 'fake-quality': 'Things that stop music playing', 'low-quality': 'Things that stop music playing',
+  'no-lead': 'Missing or wrong information', duplicates: 'Missing or wrong information', 'needs-source': 'Missing or wrong information', 'release-no-date': 'Missing or wrong information', 'single-no-date': 'Missing or wrong information', 'album-no-genre': 'Missing or wrong information', 'no-genre': 'Missing or wrong information', 'album-no-cover': 'Missing or wrong information', 'artist-no-image': 'Missing or wrong information',
+  'no-youtube': 'Links', 'no-youtube-album': 'Links', 'no-spotify': 'Links', 'no-genius': 'Links',
+};
+const groupOf = (id: string) => GROUP[id] ?? 'Tidying up';
 const priority = (id: string) => { const i = PRIORITY.indexOf(id); return i < 0 ? 500 : i; };
 
 export function HealthPage() {
@@ -90,6 +97,7 @@ export function HealthPage() {
       <div className="grid gap-4 md:grid-cols-2"><MissingAudioCard /><AudioQualityCard /></div>
       {ordered.map((c, idx) => (
         <Fragment key={c.id}>
+        {idx !== firstClear && c.items.length > 0 && (idx === 0 || groupOf(ordered[idx - 1].id) !== groupOf(c.id) || ordered[idx - 1].items.length === 0) && <h2 className="pt-2 text-sm font-semibold uppercase tracking-wider text-muted">{groupOf(c.id)}</h2>}
         {idx === firstClear && <h2 className="pt-2 text-sm font-semibold uppercase tracking-wider text-muted">Nothing to fix ({ordered.length - firstClear})</h2>}
         <section className="card overflow-hidden">
           <button className="flex w-full items-center gap-3 px-4 py-3 text-left" onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id}>
