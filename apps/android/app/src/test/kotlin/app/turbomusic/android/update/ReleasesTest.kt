@@ -19,10 +19,14 @@ class ReleasesTest {
         assertEquals("v1", Releases.newestWithApk(r)?.first)
     }
     @Test fun hasNothingToOfferWithoutAnApk() = assertNull(Releases.newestWithApk(list(rel("v1", assets = arrayOf("x.exe")))))
+    @Test fun anOldAppThatTakesTheFirstDotApkNeverSeesTheServerApp() {
+        val r = list(rel("v5", assets = arrayOf("turbomusic-5-android-server.apk.bin", "turbomusic-5-android.apk")))
+        assertEquals("https://api.github.com/a/turbomusic-5-android.apk", Releases.newestWithApk(r, ".apk")?.second) // the old rule: first name ending in .apk
+    }
     @Test fun keepsTheAppAndTheServerAppApartWhenOneReleaseHasBoth() {
-        val r = list(rel("v5", assets = arrayOf("turbomusic-5-android-server.apk", "turbomusic-5-android.apk")))
+        val r = list(rel("v5", assets = arrayOf("turbomusic-5-android-server.apk.bin", "turbomusic-5-android.apk")))
         assertEquals("https://api.github.com/a/turbomusic-5-android.apk", Releases.newestWithApk(r)?.second)
-        assertEquals("https://api.github.com/a/turbomusic-5-android-server.apk", Releases.newestWithApk(r, Releases.SERVER_SUFFIX)?.second)
+        assertEquals("https://api.github.com/a/turbomusic-5-android-server.apk.bin", Releases.newestWithApk(r, Releases.SERVER_SUFFIX)?.second)
     }
     @Test fun comparesCalendarVersionsNumerically() {
         assertEquals(true, Releases.isNewer("v2026.10.1", "2026.10.0"))

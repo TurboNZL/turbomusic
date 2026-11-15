@@ -105,10 +105,18 @@ export function useArtistMenuItems() {
   const lib = useLibrary();
   const edit = useEditor((s) => s.open);
   const actions = useTrackListActions();
+  const replaceRest = usePlayer((s) => s.replaceRest);
+  const appendRest = usePlayer((s) => s.appendRest);
+  const hasCurrent = usePlayer((s) => !!s.queue.currentId);
   return (artistId: string): MenuItem[] => {
     const ids = lib.tracks.filter((t) => t.credits.some((c) => c.artistId === artistId)).sort((a, b) => b.effectiveRating - a.effectiveRating).map((t) => t.id);
+    const playable = ids.filter((id) => canPlay(lib.trackById.get(id)));
     return [
       ...actions(ids, { type: 'search', id: null }, lib.artistById.get(artistId)?.name),
+      ...(hasCurrent ? [
+        { label: 'Then: replace what is coming next', icon: <ListStart size={15} />, run: () => replaceRest(playable, { type: 'search', id: null }), disabled: !playable.length } as MenuItem,
+        { label: 'Add to the end of what is coming next', icon: <ListEnd size={15} />, run: () => appendRest(playable), disabled: !playable.length } as MenuItem,
+      ] : []),
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },

@@ -66,7 +66,7 @@ export function PlayerBar() {
               {!v.remote && p.engine === 'spotify' && <div className="flex items-center gap-1 truncate text-[11px] font-medium text-accent"><Cast size={11} />Playing on {spotifyDevice || 'Spotify'}</div>}
               {v.remote && <div className="flex items-center gap-1 truncate text-[11px] font-medium text-accent"><Cast size={11} />Playing on {v.remote.name}</div>}
             </div>
-            <button type="button" className="btn btn-ghost !p-1.5 shrink-0" title="Track info" aria-label="Track info" onClick={() => edit({ kind: 'track-details', id: track.id })}><Info size={16} /></button>
+            <button type="button" className="btn btn-ghost !p-1.5 shrink-0 max-md:hidden" title="Track info" aria-label="Track info" onClick={() => edit({ kind: 'track-details', id: track.id })}><Info size={16} /></button>
             <div className="hidden xl:block"><Rating track={track} size="sm" /></div>
             <RateBlock track={track} className="hidden md:grid" />
           </>}
@@ -76,7 +76,6 @@ export function PlayerBar() {
             <button className="btn-ghost btn !p-2" title="Previous" onClick={v.prev}><SkipBack size={18} /></button>
             <button className="btn btn-accent !rounded-full !p-2.5" title={v.loading ? 'Loading…' : v.playing ? 'Pause' : 'Play'} aria-busy={v.loading || undefined} onClick={v.toggle}>{v.loading ? <Loader2 size={18} className="animate-spin" /> : v.playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button>
             <button className="btn-ghost btn !p-2" title="Next" onClick={v.next}><SkipForward size={18} /></button>
-            <button type="button" data-popover-trigger className={cn('btn-ghost btn !p-2 md:hidden', (devicesOpen || v.remote) && 'text-accent')} title="Play on a device" aria-label="Play on a device" onClick={usePopups.getState().toggleDevices}><Cast size={16} /></button>
             <button type="button" data-popover-trigger className={cn('btn-ghost btn !p-2 md:hidden', queueOpen && 'text-accent')} title="Queue" aria-label="Queue" aria-expanded={queueOpen} onClick={toggleQueue}><ListMusic size={16} /></button>
           </div>
           <div className="bt-times hidden w-full max-w-xl items-center gap-2 text-xs tabular-nums text-muted sm:flex">

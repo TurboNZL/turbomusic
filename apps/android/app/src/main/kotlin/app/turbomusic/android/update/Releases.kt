@@ -4,9 +4,9 @@ import org.json.JSONArray
 
 /** What the update check reads out of GitHub's release list. No Android classes, so it is tested on the JVM. */
 object Releases {
-    /** a release now carries two apps: this one (`turbomusic-<v>-android.apk`) and the server app (`turbomusic-<v>-android-server.apk`) */
+    /** a release now carries two apps: this one (`turbomusic-<v>-android.apk`) and the server app (`turbomusic-<v>-android-server.apk.bin`: it must not end in .apk, because apps installed before this existed take the first .apk of a release) */
     const val MAIN_SUFFIX = "-android.apk"
-    const val SERVER_SUFFIX = "-android-server.apk"
+    const val SERVER_SUFFIX = "-android-server.apk.bin"
 
     /** "0.2.10" > "0.2.9": compare number by number */
     fun isNewer(remote: String, local: String): Boolean {
