@@ -11,14 +11,19 @@ class ReleasesTest {
     private fun list(vararg r: String) = JSONArray("[" + r.joinToString(",") + "]")
 
     @Test fun picksAPreReleaseWhenItIsTheNewest() {
-        val r = list(rel("v2026.10.1", pre = true, assets = arrayOf("turbomusic-2026.10.1.apk")), rel("v2026.10.0", pre = true, assets = arrayOf("turbomusic-2026.10.0.apk")))
-        assertEquals("v2026.10.1" to "https://api.github.com/a/turbomusic-2026.10.1.apk", Releases.newestWithApk(r))
+        val r = list(rel("v2026.10.1", pre = true, assets = arrayOf("turbomusic-2026.10.1-android.apk")), rel("v2026.10.0", pre = true, assets = arrayOf("turbomusic-2026.10.0-android.apk")))
+        assertEquals("v2026.10.1" to "https://api.github.com/a/turbomusic-2026.10.1-android.apk", Releases.newestWithApk(r))
     }
     @Test fun skipsDraftsAndReleasesWithoutAnApk() {
-        val r = list(rel("v3", draft = true, assets = arrayOf("a.apk")), rel("v2", assets = arrayOf("setup.exe")), rel("v1", assets = arrayOf("a.apk")))
+        val r = list(rel("v3", draft = true, assets = arrayOf("a-android.apk")), rel("v2", assets = arrayOf("setup.exe")), rel("v1", assets = arrayOf("a-android.apk")))
         assertEquals("v1", Releases.newestWithApk(r)?.first)
     }
     @Test fun hasNothingToOfferWithoutAnApk() = assertNull(Releases.newestWithApk(list(rel("v1", assets = arrayOf("x.exe")))))
+    @Test fun keepsTheAppAndTheServerAppApartWhenOneReleaseHasBoth() {
+        val r = list(rel("v5", assets = arrayOf("turbomusic-5-android-server.apk", "turbomusic-5-android.apk")))
+        assertEquals("https://api.github.com/a/turbomusic-5-android.apk", Releases.newestWithApk(r)?.second)
+        assertEquals("https://api.github.com/a/turbomusic-5-android-server.apk", Releases.newestWithApk(r, Releases.SERVER_SUFFIX)?.second)
+    }
     @Test fun comparesCalendarVersionsNumerically() {
         assertEquals(true, Releases.isNewer("v2026.10.1", "2026.10.0"))
         assertEquals(true, Releases.isNewer("v2026.10.10", "2026.10.9"))

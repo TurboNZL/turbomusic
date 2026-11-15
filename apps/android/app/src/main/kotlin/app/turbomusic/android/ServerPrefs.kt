@@ -39,6 +39,16 @@ class ServerPrefs(context: Context) {
         set(v) { p.edit().putString("eq", v).apply() }
 
     // ---- the server module (Termux), see TermuxServer.kt
+    var serverAppToken: String
+        get() = p.getString("serverAppToken", "") ?: ""
+        set(v) { p.edit().putString("serverAppToken", v).apply() }
+    var serverAppAuto: Boolean
+        get() = p.getBoolean("serverAppAuto", true)
+        set(v) { p.edit().putBoolean("serverAppAuto", v).apply() }
+    var serverAppWake: Boolean
+        get() = p.getBoolean("serverAppWake", false)
+        set(v) { p.edit().putBoolean("serverAppWake", v).apply() }
+
     var termuxInstalled: Boolean
         get() = p.getBoolean("termuxInstalled", false)
         set(v) { p.edit().putBoolean("termuxInstalled", v).apply() }

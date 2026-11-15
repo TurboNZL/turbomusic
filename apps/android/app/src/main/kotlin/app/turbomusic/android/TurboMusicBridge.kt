@@ -26,6 +26,15 @@ class TurboMusicBridge(private val context: Context, private val view: View) {
     /** this app adds the service token to the page's own GET requests for the server (AccessProxy), so the page need not download media whole to send it */
     @JavascriptInterface fun accessInjected(): Boolean = true
 
+    // ---- the server app (app.turbomusic.server): the server running in its own app, see ServerApp.kt
+    @JavascriptInterface fun serverAppStatus(): String = ServerApp.status(context)
+    @JavascriptInterface fun serverAppFetch() { app.turbomusic.android.update.ServerAppInstaller.fetch(context) }
+    @JavascriptInterface fun serverAppFetchState(): String = app.turbomusic.android.update.ServerAppInstaller.state.json().toString()
+    @JavascriptInterface fun serverAppInstall() { view.post { app.turbomusic.android.update.ServerAppInstaller.install(context) } }
+    @JavascriptInterface fun serverAppStart(): Boolean = ServerApp.start(context)
+    @JavascriptInterface fun serverAppStop(): Boolean = ServerApp.stop(context)
+    @JavascriptInterface fun serverAppSetOptions(autoStart: Boolean, wake: Boolean) { prefs.serverAppAuto = autoStart; prefs.serverAppWake = wake }
+
     // ---- the server module (beta): the TurboMusic server running in Termux, see TermuxServer.kt
     @JavascriptInterface fun termuxStatus(): String = Termux.status(context)
     /** the one line to paste into Termux, once */

@@ -59,8 +59,9 @@ object AppUpdater {
     }
 
     /** Opens Android's installer for the downloaded file (first time: the page where "install unknown apps" is allowed for this app). */
-    fun install(context: Context) {
-        val file = File(context.cacheDir, "updates/update.apk")
+    fun install(context: Context) = installFile(context, File(context.cacheDir, "updates/update.apk"))
+
+    internal fun installFile(context: Context, file: File) {
         if (!file.exists()) return
         if (!context.packageManager.canRequestPackageInstalls()) {
             context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -71,9 +72,9 @@ object AppUpdater {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    private class Reply(val bytes: ByteArray)
+    internal class Reply(val bytes: ByteArray)
 
-    private fun open(url: String, token: String, accept: String): HttpURLConnection {
+    internal fun open(url: String, token: String, accept: String): HttpURLConnection {
         var u = url
         // GitHub answers asset downloads with a redirect to its storage host; that host must NOT get the GitHub token, so follow by hand
         for (hop in 0 until 5) {
@@ -94,12 +95,12 @@ object AppUpdater {
         throw IllegalStateException("Too many redirects")
     }
 
-    private fun get(url: String, token: String, accept: String): Reply {
+    internal fun get(url: String, token: String, accept: String): Reply {
         val c = open(url, token, accept)
         try { return Reply(c.inputStream.use { it.readBytes() }) } finally { c.disconnect() }
     }
 
-    private fun download(url: String, token: String, out: File, progress: (Int) -> Unit) {
+    internal fun download(url: String, token: String, out: File, progress: (Int) -> Unit) {
         val c = open(url, token, "application/octet-stream")
         try {
             val total = c.contentLengthLong

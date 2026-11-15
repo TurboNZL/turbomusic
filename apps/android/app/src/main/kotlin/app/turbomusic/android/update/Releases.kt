@@ -4,6 +4,10 @@ import org.json.JSONArray
 
 /** What the update check reads out of GitHub's release list. No Android classes, so it is tested on the JVM. */
 object Releases {
+    /** a release now carries two apps: this one (`turbomusic-<v>-android.apk`) and the server app (`turbomusic-<v>-android-server.apk`) */
+    const val MAIN_SUFFIX = "-android.apk"
+    const val SERVER_SUFFIX = "-android-server.apk"
+
     /** "0.2.10" > "0.2.9": compare number by number */
     fun isNewer(remote: String, local: String): Boolean {
         fun parts(v: String) = v.removePrefix("v").substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
@@ -16,14 +20,14 @@ object Releases {
     }
 
     /** The newest published (not draft) release that carries an .apk, pre-releases included, as its tag and the asset's API address. GitHub lists newest first. */
-    fun newestWithApk(releases: JSONArray): Pair<String, String>? {
+    fun newestWithApk(releases: JSONArray, suffix: String = MAIN_SUFFIX): Pair<String, String>? {
         for (i in 0 until releases.length()) {
             val r = releases.getJSONObject(i)
             if (r.optBoolean("draft")) continue
             val assets = r.optJSONArray("assets") ?: continue
             for (j in 0 until assets.length()) {
                 val a = assets.getJSONObject(j)
-                if (a.getString("name").endsWith(".apk")) return r.getString("tag_name") to a.getString("url")
+                if (a.getString("name").endsWith(suffix)) return r.getString("tag_name") to a.getString("url")
             }
         }
         return null

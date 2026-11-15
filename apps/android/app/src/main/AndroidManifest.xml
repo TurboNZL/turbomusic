@@ -11,9 +11,12 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- the server module: lets the app start commands in Termux (the user allows it once, and in Termux's own settings) -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <!-- the TurboMusic Server app declares this (signature level): only apps signed with the same key may start its service -->
+    <uses-permission android:name="app.turbomusic.server.permission.CONTROL" />
 
     <queries>
         <package android:name="com.termux" />
+        <package android:name="app.turbomusic.server" />
     </queries>
 
     <application

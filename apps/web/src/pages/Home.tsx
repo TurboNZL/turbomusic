@@ -18,6 +18,7 @@ import { useMenu } from '../components/Menu.tsx';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 import { useTrackMenuItems } from '../components/TrackMenu.tsx';
 import { RecapPrompt } from '../components/RecapPrompt.tsx';
+import { addedTimes } from '../lib/addedAt.ts';
 import { Journal } from '../components/Journal.tsx';
 
 const ago = (ts: number) => { const m = Math.max(1, Math.round((Date.now() - ts) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -86,7 +87,7 @@ export function HomePage() {
   const [shuffleSeed, setShuffleSeed] = useState(0);
   const unheardCount = useMemo(() => { const h = heardTrackIds(listens); return lib.tracks.filter((t) => !h.has(t.id) && canPlay(t)).length; }, [listens, lib]);
   const tryNew = useMemo(() => tryNewPlaylist(lib.tracks, heardTrackIds(listens), canPlay), [listens, lib, shuffleSeed]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newest = useMemo(() => [...lib.albums].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 12), [lib]);
+  const newest = useMemo(() => { const at = addedTimes(lib.albums, lib.timeline); return [...lib.albums].sort((a, b) => (at.get(b.id) ?? 0) - (at.get(a.id) ?? 0)).slice(0, 12); }, [lib]);
   const month = useMemo(() => computeListenStats(listens, { from: Date.now() - 30 * 86_400_000 }), [listens]);
   const days = useMemo(() => Array.from({ length: 30 }, (_, i) => { const d = new Date(Date.now() - (29 - i) * 86_400_000); return { label: i % 5 === 0 || i === 29 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '', full: d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }), value: month.byDay.get(dayKey(d.getTime())) ?? 0 }; }), [month]);
   const score = healthScore(lib);
