@@ -87,6 +87,9 @@ export const spotifyEngine = {
     uri = trackUri; lastProgress = positionMs; lastDuration = 0; lastAt = Date.now(); playingNow = start; startedAt = Date.now();
     try {
       await api().spotifyPlay([trackUri], device(), positionMs);
+      // another engine may have taken over while this request was in flight (release() clears `uri`): the beam must not start then, or it
+      // would carry the silent mirror's sound and the song would play twice
+      if (uri !== trackUri) return;
       if (!start) await api().spotifyCommand('pause', device());
       else void startBeam(); // the server's Soloist beams its sound: hear it on this device
       useSpotifyLink.setState({ error: null });
@@ -95,7 +98,7 @@ export const spotifyEngine = {
     setTimeout(() => void poll(), 800);
   },
   async pause() { playingNow = false; stopBeam(); try { await api().spotifyCommand('pause', device()); } catch (e) { fail(e); } },
-  async resume() { playingNow = true; lastAt = Date.now(); try { await api().spotifyCommand('resume', device()); void startBeam(); } catch (e) { fail(e); } },
+  async resume() { playingNow = true; lastAt = Date.now(); const mine = uri; try { await api().spotifyCommand('resume', device()); if (uri === mine && uri !== null) void startBeam(); } catch (e) { fail(e); } },
   async seek(ms: number) { lastProgress = ms; lastAt = Date.now(); try { await api().spotifyCommand('seek', device(), ms); } catch (e) { fail(e); } },
   async volume(v: number) { try { await api().spotifyCommand('volume', device(), Math.round(v * 100)); } catch { /* some devices have fixed volume */ } },
   /** leave Spotify alone from now on (another engine takes over); pauses it if TurboMusic started it */

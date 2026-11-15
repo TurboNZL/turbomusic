@@ -69,6 +69,9 @@ export const remoteHooks: {
   enqueue?: (trackId: string, where: 'next' | 'last') => boolean;
 } = {};
 
+/** lib/spotifyMirror.ts: was the silent Spotify mirror playing this track while it was heard for `seconds`? (Spotify counted that play as well) */
+export const mirrorProbe: { counted?: (trackId: string, seconds: number) => boolean } = {};
+
 let audio: HTMLAudioElement | null = null;
 /** crossfade (see lib/crossfadeMath.ts): the second <audio> element, the next track loaded into it, and the fade in progress */
 let spare: HTMLAudioElement | null = null;
@@ -252,7 +255,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const dur = position();
     if (!playLog.claim(id, dur)) return; // once per play, and only for what was heard (lib/playLog.ts)
     const s = get().source;
-    const len = get().duration; const data: PlaybackLogData = { trackId: id, timestamp: Date.now(), duration: dur, length: len > 0 ? Math.round(len) : null, sourceType: s.type, sourceId: s.id, isSkip };
+    const len = get().duration; const data: PlaybackLogData = { trackId: id, timestamp: Date.now(), duration: dur, length: len > 0 ? Math.round(len) : null, ...(mirrorProbe.counted?.(id, dur) ? { mirrored: true } : {}), sourceType: s.type, sourceId: s.id, isSkip };
     useStore.getState().put('playbackLogs', data);
   }
 

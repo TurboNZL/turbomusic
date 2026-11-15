@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { LogIn } from 'lucide-react';
+import { Copy, LogIn } from 'lucide-react';
 import { api, useStore } from '../lib/store.ts';
 import type { SpotifyDiagnosis } from '../lib/api.ts';
 import { refreshSpotifyStatus } from '../lib/spotifyPlayer.ts';
@@ -41,6 +41,8 @@ export function SpotifyAccountPanel({ children, onStatus }: { children?: (s: Sta
   const [pasted, setPasted] = useState('');
   const [inApp, setInApp] = useState(false);
   const [write, setWrite] = useState(false);
+  const [editApp, setEditApp] = useState(false);
+  const [opened, setOpened] = useState(false);
   const [reauth, setReauth] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,17 +68,34 @@ export function SpotifyAccountPanel({ children, onStatus }: { children?: (s: Sta
             <button className="btn" disabled={!pasted.trim() || !!busy} onClick={() => void guard('Connecting…', async () => { await api().spotifyExchange(pasted.trim()); setPasted(''); setReauth(false); await load(); })}>Connect</button></div>}
         </div>}
         {children?.(acct)}
+      </>) : !acct.configured || editApp ? (<>
+        {/* first, once: a free Spotify developer app, which is what lets TurboMusic sign in as you */}
+        <div className="space-y-3 rounded-theme border border-line p-4">
+          <div><div className="font-medium">Connect your Spotify account</div>
+            <p className="text-muted">Spotify only lets an account sign in through an app you register yourself, and registering takes a minute. You do it once; every device that uses this server then shares it.</p></div>
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted">Make the app</div>
+            <p className="text-muted">Open <a className="text-accent underline" href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">developer.spotify.com/dashboard</a>, create an app (the account that owns it needs Premium), and give it this Redirect URI:</p>
+            <div className="flex items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-theme bg-raised px-3 py-2 text-xs">{redirect || acct.redirectUri}</code>
+              <button type="button" className="btn btn-ghost !p-2" aria-label="Copy the redirect address" onClick={() => void navigator.clipboard?.writeText(redirect || acct.redirectUri)}><Copy size={14} /></button></div>
+          </div>
+          <Field label="Then paste the app's Client ID"><input className="input font-mono" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="32 letters and digits" /></Field>
+          <details className="text-xs text-muted"><summary className="cursor-pointer">Use a different redirect address</summary><div className="mt-2"><Field label="Redirect URI"><input className="input font-mono" value={redirect} onChange={(e) => setRedirect(e.target.value)} /></Field></div></details>
+          <div className="flex gap-2"><button className="btn btn-accent" disabled={!clientId.trim() || !!busy} onClick={() => void guard('Saving…', async () => { setAcct(await api().spotifyConfig(clientId.trim(), redirect.trim() || undefined)); setEditApp(false); })}>Save and continue</button>
+            {acct.configured && <button className="btn btn-ghost" onClick={() => setEditApp(false)}>Cancel</button>}</div>
+        </div>
       </>) : (<>
-        <ol className="list-decimal space-y-1 pl-5 text-muted"><li>Make an app at <b>developer.spotify.com/dashboard</b> (free; Spotify requires Premium for the account that owns it). Set its Redirect URI to the address below exactly.</li>
-          <li>Paste the app's <b>Client ID</b> here and save.</li><li>Press <b>Sign in with Spotify</b>, allow access, and copy the address Spotify sends you to (the page may show an error: that is fine, copy the whole address).</li><li>Paste it below.</li></ol>
-        <div className="grid gap-2 sm:grid-cols-2"><Field label="Client ID"><input className="input font-mono" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="32 letters and digits" /></Field>
-          <Field label="Redirect URI"><input className="input font-mono" value={redirect} onChange={(e) => setRedirect(e.target.value)} /></Field></div>
-        <div className="flex flex-wrap gap-2"><button className="btn" disabled={!clientId.trim() || !!busy} onClick={() => void guard('Saving…', async () => setAcct(await api().spotifyConfig(clientId.trim(), redirect.trim() || undefined)))}>Save</button>
-          <button className="btn btn-accent" disabled={!acct.configured || !!busy} onClick={() => void guard('Opening Spotify…', async () => { window.open((await api().spotifyAuthUrl(inApp, write)).url, '_blank', 'noopener'); })}><LogIn size={15} />Sign in with Spotify</button></div>
-        <label className="flex items-start gap-2 text-xs text-muted"><input type="checkbox" className="mt-0.5" checked={inApp} onChange={(e) => setInApp(e.target.checked)} />Also allow playing Spotify inside the app (browser player). Leave this off unless you want that: it asks Spotify for three more permissions.</label>
-        <label className="flex items-start gap-2 text-xs text-muted"><input type="checkbox" className="mt-0.5" checked={write} onChange={(e) => setWrite(e.target.checked)} />Also allow changing my playlists (needed to send changes back to Spotify from a synced playlist; without it synced playlists can only read from Spotify)</label>
-        <Field label="Address Spotify sent you to"><input className="input font-mono" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://127.0.0.1:47813/api/spotify/callback?code=…" /></Field>
-        <button className="btn" disabled={!pasted.trim() || !!busy} onClick={() => void guard('Connecting…', async () => { await api().spotifyExchange(pasted.trim()); setPasted(''); await load(); })}>Connect</button>
+        <div className="space-y-3 rounded-theme border border-line p-4">
+          <div className="flex items-center gap-2"><div className="font-medium">Sign in to Spotify</div><button className="btn btn-ghost ml-auto !py-1 text-xs" onClick={() => setEditApp(true)}>Change the app</button></div>
+          <p className="text-muted">Press the button, allow access, and Spotify sends you to an address (the page may show an error: that is fine). Copy that whole address and paste it below.</p>
+          <div className="flex flex-wrap gap-2"><button className="btn btn-accent" disabled={!!busy} onClick={() => void guard('Opening Spotify…', async () => { window.open((await api().spotifyAuthUrl(inApp, write)).url, '_blank', 'noopener'); setOpened(true); })}><LogIn size={15} />Sign in with Spotify</button></div>
+          {(opened || pasted) && <div className="space-y-2"><Field label="The address Spotify sent you to"><input className="input font-mono" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://127.0.0.1:47813/api/spotify/callback?code=…" /></Field>
+            <button className="btn btn-accent" disabled={!pasted.trim() || !!busy} onClick={() => void guard('Connecting…', async () => { await api().spotifyExchange(pasted.trim()); setPasted(''); setOpened(false); await load(); })}>Connect</button></div>}
+          <details className="text-xs text-muted"><summary className="cursor-pointer">Permissions</summary>
+            <div className="mt-2 space-y-1.5">
+              <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={write} onChange={(e) => setWrite(e.target.checked)} />Allow changing my playlists (needed to send changes back to Spotify from a synced playlist; without it they only follow Spotify)</label>
+              <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={inApp} onChange={(e) => setInApp(e.target.checked)} />Allow playing Spotify inside the app (browser player; asks for three more permissions, leave it off unless you want that)</label></div></details>
+        </div>
       </>)}
       {busy && <div className="text-muted" role="status">{busy}</div>}
       {error && <div className="rounded-theme bg-bad/15 p-3 text-bad">{error}</div>}

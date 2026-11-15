@@ -180,6 +180,8 @@ export interface PlaybackLogData {
   trackId: string; timestamp: number; duration: number | null;
   /** the track's length in seconds when it was played (lets "pick up where you left off" tell a finished play from a partial one); absent on older plays */
   length?: number | null;
+  /** the silent Spotify mirror was streaming this song meanwhile, so Spotify counted this play too: an imported Spotify play of the same song just after it is the same play */
+  mirrored?: boolean;
   sourceType: string | null; sourceId: string | null; isSkip: boolean;
   /** set on plays imported from a service's history (Spotify's extended streaming history); `timestamp` is when the play ended, like Spotify's `ts` */
   imported?: 'spotify';
