@@ -9,7 +9,7 @@ import { usePreviews } from '../lib/usePreviews.ts';
 import { PreviewCard } from './PreviewCard.tsx';
 import { cn } from '../lib/cn.ts';
 
-const LABEL: Record<Question['kind'], string> = { duel: 'Head to head', triple: 'Best of three', benchmark: 'Against your top 10%', love: 'Gut check' };
+const LABEL: Record<Question['kind'], string> = { duel: 'Head to head', triple: 'Best of three', quad: 'Best of four', odd: 'Odd one out', benchmark: 'Against your top 10%', love: 'Gut check' };
 const OPEN_KEY = 'turbomusic.eloQuestionOpen';
 /** the question on screen survives leaving the home page and coming back */
 let kept: Question | null = null;
@@ -33,7 +33,7 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
   // the library may still be loading when this mounts: ask again once there is something to ask about
   useEffect(() => { if (!q && pool.length >= 2) setQ(ask(pool)); }, [q, pool]); // eslint-disable-line react-hooks/exhaustive-deps
   const T = (id: string) => lib.trackById.get(id);
-  const tracks = (!q ? [] : q.kind === 'duel' ? [T(q.a), T(q.b)] : q.kind === 'triple' ? q.ids.map(T) : q.kind === 'benchmark' ? [T(q.ref), T(q.id)] : [T(q.id)]).filter((t): t is Track => !!t);
+  const tracks = (!q ? [] : q.kind === 'duel' ? [T(q.a), T(q.b)] : q.kind === 'triple' || q.kind === 'quad' || q.kind === 'odd' ? q.ids.map(T) : q.kind === 'benchmark' ? [T(q.ref), T(q.id)] : [T(q.id)]).filter((t): t is Track => !!t);
   const preview = usePreviews(tracks, open && !!q);
   const toggle = () => { setOpen((o) => { try { localStorage.setItem(OPEN_KEY, o ? '0' : '1'); } catch { /* ignore */ } return !o; }); preview.stop(); };
   if (!q || tracks.length === 0) return null;
@@ -58,6 +58,8 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
         <p className="text-sm text-muted">{q.why}</p>
         {q.kind === 'duel' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t)}</PreviewCard>)}</div>}
         {q.kind === 'triple' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t, 'Best')}</PreviewCard>)}</div>}
+        {q.kind === 'quad' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 lg:grid-cols-4">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t, 'Best')}</PreviewCard>)}</div>}
+        {q.kind === 'odd' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview}>{pick(t, 'Like least')}</PreviewCard>)}</div>}
         {q.kind === 'benchmark' && (() => { const [ref, t] = tracks; return (
           // a plain head-to-head: the track on your top-10% line against a challenger. Picking the challenger says it clears the line.
           <div className="grid grid-cols-2 gap-3">

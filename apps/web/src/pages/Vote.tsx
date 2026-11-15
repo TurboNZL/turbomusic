@@ -294,10 +294,13 @@ function DuelRank() {
 }
 
 const MODE_KEY = 'turbomusic.rankMode';
-type Mode = 'duel' | 'triple' | 'benchmark' | 'love';
+type Mode = 'duel' | 'albums' | 'triple' | 'quad' | 'odd' | 'benchmark' | 'love';
 const MODES: { id: Mode; label: string; hint: string }[] = [
   { id: 'duel', label: 'Head to head', hint: 'Two songs: which is better?' },
+  { id: 'albums', label: 'Albums', hint: 'Two albums: which is better? A ranked album lifts the starting Elo of its tracks.' },
   { id: 'triple', label: 'Best of three', hint: 'Three close songs: pick your favourite, which settles two matches at once.' },
+  { id: 'quad', label: 'Best of four', hint: 'Four close songs: pick your favourite, which settles three matches at once.' },
+  { id: 'odd', label: 'Odd one out', hint: 'Three songs: which do you like least?' },
   { id: 'benchmark', label: 'Against your top 10%', hint: 'A song against the one at your top-10% line.' },
   { id: 'love', label: 'Gut check', hint: 'One song with almost no votes: love it or meh?' },
 ];
@@ -313,7 +316,35 @@ export function VotePage() {
         <span className="mr-1 text-muted">Rank by</span>
         {MODES.map((m) => <button key={m.id} role="tab" aria-selected={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={cn('chip cursor-pointer', mode === m.id ? 'bg-accent text-accent-fg' : 'hover:brightness-125')}>{m.label}</button>)}
       </div>
-      {mode === 'duel' ? <DuelRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
+      {mode === 'duel' ? <DuelRank /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
+    </div>
+  );
+}
+
+/** Albums head to head. Votes are stored like track votes with `album: true`; the library ranks the albums with them and a ranked album lifts the starting Elo of its tracks. */
+function AlbumRank() {
+  const lib = useLibraryLive();
+  const put = useStore((s) => s.put);
+  const pool = useMemo(() => lib.albums.filter((a) => a.trackIds.length >= 3).map((a) => ({ id: a.id, elo: lib.albumRank.get(a.id)?.elo ?? 1000, comparisons: lib.albumRank.get(a.id)?.comparisons ?? 0, rating: a.rating ?? 0 })), [lib]);
+  const [pair, setPair] = useState<[string, string] | null>(() => { const p = pickPair(pool, Math.random); return p ? [p[0].id, p[1].id] : null; });
+  const next = (prev?: [string, string] | null) => { const p = pickPair(pool, Math.random, prev ?? undefined); setPair(p ? [p[0].id, p[1].id] : null); };
+  if (!pair) return <p className="text-sm text-muted">You need at least two albums with three or more tracks to rank albums.</p>;
+  const albums = pair.map((id) => lib.albumById.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
+  if (albums.length < 2) { queueMicrotask(() => next()); return null; }
+  const answer = (winner: string | null) => { put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); next(pair); };
+  const ranked = [...lib.albums].filter((a) => (lib.albumRank.get(a.id)?.comparisons ?? 0) > 0).sort((a, b) => (lib.albumRank.get(b.id)!.elo) - (lib.albumRank.get(a.id)!.elo)).slice(0, 8);
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div><h2 className="text-xl font-bold">Which album is better?</h2><p className="text-sm text-muted">The winner is ranked above the other. An album you rank high gives its tracks a slightly higher starting Elo; votes on the tracks themselves still decide where they end up.</p></div>
+      <div className="grid grid-cols-2 gap-3">{albums.map((a) => (
+        <div key={a.id} className="card flex flex-col items-center gap-2 p-3 text-center">
+          <Cover hash={a.cover} seed={a.title} className="w-full max-w-[14rem]" />
+          <div className="min-w-0"><div className="truncate font-semibold">{a.title}</div><div className="truncate text-xs text-muted">{a.artistName} · {a.trackIds.length} tracks{a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}</div></div>
+          <button className="btn btn-accent w-full" onClick={() => answer(a.id)}>This one</button>
+        </div>))}</div>
+      <div className="flex gap-2"><button className="btn" onClick={() => answer(null)}>They are equal</button><button className="btn btn-ghost" onClick={() => next(pair)}>Skip</button></div>
+      {ranked.length > 0 && <div className="space-y-1"><div className="text-xs uppercase tracking-wider text-muted">Your album ranking so far</div>
+        <ol className="space-y-0.5 text-sm">{ranked.map((a, i) => <li key={a.id} className="flex gap-2"><span className="w-5 text-right text-muted">{i + 1}</span><span className="min-w-0 flex-1 truncate">{a.title} <span className="text-muted">· {a.artistName}</span></span><span className="tabular-nums text-muted">{Math.round(lib.albumRank.get(a.id)!.elo)}</span></li>)}</ol></div>}
     </div>
   );
 }

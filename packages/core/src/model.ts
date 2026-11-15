@@ -171,6 +171,8 @@ export interface VoteData {
   winnerId: string | null; isEqual: boolean;
   /** thumbs up/down on trackAId alone (trackBId is ''); see elo.ts */
   boost?: 1 | -1;
+  /** a head-to-head between two ALBUMS (trackAId/trackBId are album ids): it ranks albums, and a ranked album lifts the starting Elo of its tracks */
+  album?: boolean;
   timestamp: number;
 }
 /** One memory added to a track (the track's `memories` counter holds the total, including memories from before these were recorded). Deleted when that memory is removed. */

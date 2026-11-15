@@ -20,7 +20,7 @@ function useTrackListActions() {
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
   const enqueue = usePlayer((s) => s.enqueue);
-  return (ids: string[], source: Parameters<typeof play>[2]): MenuItem[] => {
+  return (ids: string[], source: Parameters<typeof play>[2], label?: string): MenuItem[] => {
     const playable = ids.filter((id) => canPlay(lib.trackById.get(id)));
     const none = !playable.length;
     // the one Shuffle switch (the same one the Play button on playlists and artists uses): Play, Play next and Add to queue all follow it
@@ -29,8 +29,8 @@ function useTrackListActions() {
       { label: 'Play', icon: <Play size={15} />, run: () => { const o = ordered(); play(o[0], o, source); }, disabled: none },
       { label: 'Shuffle', icon: <Shuffle size={15} />, checked: readShuffle(), keepOpen: true, run: () => writeShuffle(!readShuffle()) },
       // each goes right after the one before it, so "next" keeps the order (the shuffled order when Shuffle is on)
-      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next')), disabled: none },
-      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last')), disabled: none },
+      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next', label)), disabled: none },
+      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last', label)), disabled: none },
     ];
   };
 }
@@ -74,7 +74,7 @@ export function useAlbumMenuItems() {
   const convert = useConvertToSingle();
   const patch = useStore((s) => s.patch);
   return (album: Album, ids: string[] = album.trackIds): MenuItem[] => [
-    ...actions(ids, { type: 'album', id: album.id }),
+    ...actions(ids, { type: 'album', id: album.id }, album.title),
     { separator: true },
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
     { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
@@ -108,7 +108,7 @@ export function useArtistMenuItems() {
   return (artistId: string): MenuItem[] => {
     const ids = lib.tracks.filter((t) => t.credits.some((c) => c.artistId === artistId)).sort((a, b) => b.effectiveRating - a.effectiveRating).map((t) => t.id);
     return [
-      ...actions(ids, { type: 'search', id: null }),
+      ...actions(ids, { type: 'search', id: null }, lib.artistById.get(artistId)?.name),
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
@@ -130,7 +130,7 @@ export function usePlaylistMenuItems() {
     const source = { type: 'playlist' as const, id: playlist.id };
     return [
       { label: 'Open', icon: <Play size={15} />, to: `/playlists/${playlist.id}` },
-      ...actions(playlistTrackIds(lib, playlist), source),
+      ...actions(playlistTrackIds(lib, playlist), source, playlist.name),
       ...(hasCurrent ? [
         { label: 'Then: replace what is coming next', icon: <ListStart size={15} />, run: () => replaceRest(playable, source), disabled: !playable.length },
         { label: 'Add to the end of what is coming next', icon: <ListEnd size={15} />, run: () => appendRest(playable), disabled: !playable.length },

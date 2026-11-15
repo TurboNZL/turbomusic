@@ -39,7 +39,9 @@ interface PlayerState {
   seek(t: number): void;
   setVolume(v: number): void;
   /** put at the front of the user queue ("play next") or the back ("add to queue") */
-  enqueue(trackId: string, where?: 'next' | 'last'): void;
+  /** `label` names what the track was added with (an album, a playlist): the queue page groups the queued tracks by it */
+  enqueue(trackId: string, where?: 'next' | 'last', label?: string): void;
+  queueLabels: Record<string, string>;
   dequeue(index: number): void;
   /** reorder the user queue */
   moveQueued(from: number, to: number): void;
@@ -551,10 +553,12 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     seek(t) { if (spotifyEngine.active()) void spotifyEngine.seek(t * 1000); else if (native) nativeAudio.seek(t); else el().currentTime = t; set({ time: t }); },
     setVolume(v) { setBeamVolume(v); if (!fade) el().volume = v; /* while fading, the fade sets both volumes from this one */ if (spotifyEngine.active() && !beamActive()) void spotifyEngine.volume(v); /* a beamed stream is turned down here at once; Soloist's own volume is set in Settings > Spotify */ nativeAudio.volume(v); try { localStorage.setItem('turbomusic.volume', String(v)); } catch { /* ignore */ } set({ volume: v }); },
-    enqueue(trackId, where = 'last') {
+    queueLabels: {},
+    enqueue(trackId, where = 'last', label) {
       if (remoteHooks.enqueue?.(trackId, where)) return;
       const q = get().queue;
-      set({ queue: { ...q, user: where === 'next' ? [trackId, ...q.user] : [...q.user, trackId] } });
+      const labels = { ...get().queueLabels }; if (label) labels[trackId] = label; else delete labels[trackId];
+      set({ queueLabels: labels, queue: { ...q, user: where === 'next' ? [trackId, ...q.user] : [...q.user, trackId] } });
     },
     dequeue(index) {
       const q = get().queue;
