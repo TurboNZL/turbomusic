@@ -10,6 +10,7 @@ import { filterListens, filterRange, applyFilter, loadFilter, saveFilter, type S
 import { statsPath } from '../lib/entityStats.ts';
 import { StatsFilters } from '../components/StatsFilters.tsx';
 import { TopGrid } from '../components/TopGrid.tsx';
+import { useNearEnd } from '../lib/useChunks.ts';
 import { cn } from '../lib/cn.ts';
 import { Area, Bars, Calendar, Donut, fmtHours, Heatgrid, Kpi, Panel, RankList } from '../components/charts.tsx';
 import { ExportHistoryDialog, ImportHistoryDialog } from '../components/HistoryTools.tsx';
@@ -51,7 +52,7 @@ function Overview({ s, lib, range }: { s: ListenStats; lib: ReturnType<typeof us
         <Panel title="Top albums"><RankList rows={s.topAlbums.slice(0, 6).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: r.plays, img: pic(lib, 'album', r.id, r.label), to: r.id ? statsPath('album', r.id) : undefined }))} /></Panel>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        {s.onThisDay.length > 0 && <Panel title="On this day"><ul className="space-y-1.5 text-sm">{s.onThisDay.map((d) => <li key={d.year} className="flex gap-3"><b className="w-12 shrink-0 tabular-nums">{d.year}</b><span className="min-w-0 truncate text-muted">{d.plays} play{d.plays === 1 ? '' : 's'}{d.top ? ` · ${d.top}` : ''}</span></li>)}</ul></Panel>}
+        {s.onThisDay.length > 0 && <Panel title="On this day"><ul className="space-y-1.5 text-sm">{s.onThisDay.map((d) => <li key={d.year} className="flex gap-3"><b className="w-12 shrink-0 tabular-nums">{d.year}</b><span className="min-w-0 truncate text-muted">{d.plays} play{d.plays === 1 ? '' : 's'} that day{d.top ? (d.plays > 1 ? ` · most played: ${d.top} (${d.topPlays}×)` : ` · ${d.top}`) : ''}</span></li>)}</ul></Panel>}
         <Panel title="New artists per month" right={<span className="text-xs text-muted">first time you played them · {months[0].full} to {months[months.length - 1].full}</span>}><Bars data={months.map((m) => ({ label: m.label, full: m.full, value: m.value }))} format={(n) => `${n} new`} height={110} /></Panel>
       </div>
       {lib.logs.length === 0 && <p className="text-sm text-muted">Nothing to show yet. Play music, or import your listening history with the button above.</p>}
@@ -116,6 +117,7 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
   const [skips, setSkips] = useState<'all' | 'played' | 'skipped'>('all');
   const [on, setOn] = useState('');
   const [shown, setShown] = useState(PAGE);
+  const nearEnd = useNearEnd(() => setShown((n) => n + PAGE));
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const out: Listen[] = [];
@@ -173,7 +175,7 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
             </ul>
           </section>))}
       </div>
-      {rows.length > shown && <div className="flex justify-center gap-2"><button className="btn" onClick={() => setShown(shown + PAGE)}>Show {Math.min(PAGE, rows.length - shown)} more</button><button className="btn btn-ghost" onClick={() => setShown(rows.length)}>Show all {rows.length.toLocaleString()}</button></div>}
+      {rows.length > shown && <div ref={nearEnd} className="flex justify-center gap-2"><button className="btn" onClick={() => setShown(shown + PAGE)}>Show {Math.min(PAGE, rows.length - shown)} more</button><button className="btn btn-ghost" onClick={() => setShown(rows.length)}>Show all {rows.length.toLocaleString()}</button></div>}
     </div>
   );
 }

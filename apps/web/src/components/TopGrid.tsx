@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useChunks } from '../lib/useChunks.ts';
 import { Link } from 'react-router-dom';
 import { useLibraryLive } from '../lib/derive.ts';
 import type { TopRow } from '../lib/listenStats.ts';
@@ -6,18 +6,18 @@ import { statsPath, type StatsKind } from '../lib/entityStats.ts';
 import { Cover } from './Cover.tsx';
 import { fmtHours } from './charts.tsx';
 
-const FIRST = 12;
+const FIRST = 24; // a whole number of rows at every common width (2, 3, 4, 6 and 8 columns)
 
 /** One kind of top list as a grid of pictures with the numbers underneath, like stats.fm. Rows that are in the library link to their stats page. */
 function Section({ title, kind, rows, byTime, image }: { title: string; kind: Exclude<StatsKind, 'era' | 'playlist'>; rows: TopRow[]; byTime: boolean; image: (r: TopRow) => string | null | undefined }) {
-  const [shown, setShown] = useState(FIRST);
   const sorted = [...rows].sort((a, b) => (byTime ? b.ms - a.ms : b.plays - a.plays) || b.ms - a.ms);
+  const CH = useChunks(sorted.length, FIRST, `${kind}|${byTime}|${sorted.length}`);
   if (!sorted.length) return null;
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">{title}</h2>
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--grid-min), 9rem), 1fr))' }}>
-        {sorted.slice(0, shown).map((r, i) => {
+        {sorted.slice(0, CH.shown).map((r, i) => {
           const to = r.id ? statsPath(kind, r.id) : null;
           const art = <Cover kind={kind === 'artist' ? 'artist' : 'album'} hash={image(r)} seed={r.label} className="transition-transform group-hover:scale-[1.02]" />;
           const name = <span className="bt-cap-t mt-2 block truncate text-sm font-medium" title={r.label}>{r.label}</span>;
@@ -33,7 +33,7 @@ function Section({ title, kind, rows, byTime, image }: { title: string; kind: Ex
             </div>);
         })}
       </div>
-      {sorted.length > shown && <div className="flex gap-2"><button className="btn" onClick={() => setShown(shown + 12)}>Show {Math.min(12, sorted.length - shown)} more</button></div>}
+      {CH.left > 0 && <div ref={CH.sentinel} className="flex gap-2"><button className="btn" onClick={CH.more}>Show {Math.min(FIRST, CH.left)} more</button></div>}
     </section>
   );
 }

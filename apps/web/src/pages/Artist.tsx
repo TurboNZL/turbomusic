@@ -63,13 +63,13 @@ export function ArtistPage() {
   const where = (kind: 'albums' | 'singles' | 'tracks') => searchHref({ kind, chips: [idChip('artist', artist.id, artist.name), ...(era ? [idChip('era', era, lib.eraById.get(era)?.name ?? '')] : [])] });
   return (
     <DetailLayout right={<Notes lib={lib} type="artist" id={artist.id} />}>
-      <div className="flex items-center gap-4 sm:gap-5" onContextMenu={menu.onContextMenu(artistItems(artist.id), `Actions for ${artist.name}`, 'artist')}>
+      <div className="flex items-center gap-4 sm:gap-5" onContextMenu={(e) => menu.onContextMenu(artistItems(artist.id), `Actions for ${artist.name}`, 'artist')(e)}>
         <Cover kind="artist" hash={artist.image} seed={artist.name} className="w-24 shrink-0 sm:w-40" />
         <div><div className="text-xs uppercase tracking-wider text-muted">Artist</div><h1 className="text-2xl font-bold sm:text-3xl">{artist.name}</h1>
           {akaLine(artist.aliases) && <div className="text-sm text-muted" title={artist.aliases!.join(', ')}>{akaLine(artist.aliases)}</div>}
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{albums.length} album{albums.length === 1 ? "" : "s"}</Link>{singles.length > 0 && <> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{singles.length} single{singles.length === 1 ? "" : "s"}</Link></>} · <Link className="hover:text-fg hover:underline" to={where('tracks')}>{tracks.length} tracks</Link></div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <PlayControls ids={playable} source={{ type: 'search', id: null }} label="this artist" />
+            <PlayControls ids={playable} source={{ type: 'search', id: `Artist: ${artist.name}` }} label="this artist" />
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" onClick={(e) => menu.toggle(e.currentTarget, 'artist', artistItems(artist.id), `Actions for ${artist.name}`)}><MoreHorizontal size={16} /></button></div></div>
       </div>
       {eraIds.length > 0 && <section className="flex flex-wrap items-center gap-2" aria-label="Eras">
@@ -86,7 +86,7 @@ export function ArtistPage() {
       {albums.length > 0 && <section><h2 className="mb-3 text-lg font-semibold"><Link to={where('albums')} className="hover:underline" title="Search these albums">Albums</Link></h2>
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
           {albums.slice(0, albumChunks.shown).map((a) => (
-            <div key={a.id} className="bt-tile" onContextMenu={menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id)}>
+            <div key={a.id} className="bt-tile" onContextMenu={(e) => menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id)(e)}>
               <Link to={`/albums/${a.id}`} className="block"><Cover hash={a.cover} seed={a.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div></Link>
               <div className="bt-cap truncate text-xs text-muted"><ArtistLinks leads={a.leads} /></div>
             </div>))}
@@ -101,7 +101,7 @@ export function ArtistPage() {
           <span className="text-sm text-muted">{list === 'features' ? 'songs by others they appear on' : 'best first'}</span>
           <Link to={where('tracks')} className="ml-auto text-xs text-muted hover:text-fg hover:underline" title="Search these tracks">Search them</Link>
         </div>
-        <div className="card overflow-hidden"><TrackTable tracks={shownList.slice(0, trackChunks.shown)} queue={shownList} source="search" covers /></div>
+        <div className="card overflow-hidden"><TrackTable tracks={shownList.slice(0, trackChunks.shown)} queue={shownList} source="search" sourceId={`Artist: ${artist.name}`} covers /></div>
         {trackChunks.left > 0 && <div ref={trackChunks.sentinel} className="mt-3 text-center"><button className="btn" onClick={trackChunks.more}>Show more ({trackChunks.left} left)</button></div>}</section>
       {menu.element}
     </DetailLayout>

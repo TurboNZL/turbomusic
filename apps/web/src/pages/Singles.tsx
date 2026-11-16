@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useChunks } from '../lib/useChunks.ts';
+import { PlayControls } from '../components/PlayControls.tsx';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { matchesAll, splitTyped, trackSubject, type Chip } from '../lib/filters.ts';
 import { playCounts } from '../lib/listens.ts';
@@ -34,9 +35,9 @@ export function SinglesPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Singles <span className="text-base font-normal text-muted">{singles.length}</span></h1>
       </div>
-      <ListToolbar actions={<><button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'search', id: null })}><Play size={15} fill="currentColor" />Play</button> <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'search', id: null }); }}><Shuffle size={15} />Shuffle</button> <button className="btn" onClick={() => edit({ kind: 'import', id: 'single' })}><Download size={15} />Import from YouTube</button> <button className="btn" onClick={() => edit({ kind: 'new-track', id: '' })}><Plus size={15} />New single</button> <button className="btn" onClick={() => edit({ kind: 'upload', id: '' })}><FileAudio size={15} />Add files</button></>} scope="singles" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search singles, or filter: artist, era, before…" sorts={TRACK_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={<><PlayControls ids={playable} source={{ type: 'search', id: 'Singles' }} label="these singles" /></>} scope="singles" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search singles, or filter: artist, era, before…" sorts={TRACK_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {!singles.length && <p className="text-sm text-muted">{lib.singles.length ? 'No singles match.' : 'No singles. A single is a track that is not on an album: make one with New single, or take a track off its album in the track editor.'}</p>}
-      {page.view === 'grid' ? <SingleGrid tracks={shownSingles} /> : <div className="card overflow-hidden"><TrackTable tracks={shownSingles} queue={singles} source="search" covers /></div>}
+      {page.view === 'grid' ? <SingleGrid tracks={shownSingles} /> : <div className="card overflow-hidden"><TrackTable tracks={shownSingles} queue={singles} source="search" sourceId="Singles" covers /></div>}
       {CH.left > 0 && <div ref={CH.sentinel} className="mt-4 text-center"><button className="btn" onClick={CH.more}>Show more ({CH.left} left)</button></div>}
     </div>
   );

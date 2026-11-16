@@ -9,6 +9,6 @@ export function sourceLabel(lib: Library, source: { type: string; id: string | n
     if (p) return { text: `Playlist: ${p.name}`, to: `/playlists/${p.id}` };
   }
   if (source.type === 'shuffle') return { text: 'Shuffle', to: null };
-  if (source.type === 'search') return { text: 'Search results or a list of tracks', to: null };
+  if (source.type === 'search') return { text: id || 'A list of tracks', to: null };
   return null;
 }

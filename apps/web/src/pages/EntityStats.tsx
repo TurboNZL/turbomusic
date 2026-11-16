@@ -93,8 +93,8 @@ export function EntityStatsPage() {
             {(artist || era || playlist) && plural(ids.length, 'track')}
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'search', id: null })}><Play size={16} fill="currentColor" />Play</button>
-            {kind !== 'track' && <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'search', id: null }); }}><Shuffle size={15} />Shuffle</button>}
+            <button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'search', id: 'Stats page' })}><Play size={16} fill="currentColor" />Play</button>
+            {kind !== 'track' && <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'search', id: 'Stats page' }); }}><Shuffle size={15} />Shuffle</button>}
             <button className={editing ? 'btn btn-accent' : 'btn'} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Pencil size={15} />{editing ? 'Close editor' : 'Edit'}</button>
             {kind !== 'artist' && <button className="btn btn-ghost" onClick={() => edit({ kind: 'new-note', id: `${kind}:${id}` })}><StickyNote size={15} />Note</button>}
             <Link className="btn btn-ghost" to={pageOf(kind, id, track)}><ExternalLink size={15} />Open page</Link>

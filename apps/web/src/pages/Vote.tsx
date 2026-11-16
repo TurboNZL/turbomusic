@@ -10,6 +10,7 @@ import { useEditor } from '../lib/editor.ts';
 import { pairLacksAudio, pickPair, rankPool, tierPool, TIERS, type Tier, type TierChoice } from '../lib/pairing.ts';
 import { useStore } from '../lib/store.ts';
 import { EloQuestions } from '../components/EloQuestions.tsx';
+import { usePreviews } from '../lib/usePreviews.ts';
 import { fadeOut, loadPreview, middle, release, SNIPPET_MS, type Preview } from '../lib/preview.ts';
 import { usePlayer } from '../lib/player.ts';
 import { Cover } from '../components/Cover.tsx';
@@ -231,24 +232,18 @@ function DuelRank() {
     <div ref={fit.ref} className="mx-auto flex max-w-4xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
       <div className={cn('flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1', compact ? 'mb-1 text-xs' : 'mb-3')}>
         <h1 className={cn('mr-auto font-bold', compact ? 'sr-only' : 'text-xl sm:text-2xl')}>Which is better?</h1>
+        <ThemedSelect className="input !w-auto !py-1 text-sm" aria-label="Which tracks to compare" title="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.id === 'any' ? 'Compare: anything' : x.label}</option>)}</ThemedSelect>
+        {tier.tier === 'range' && <span className="flex items-center gap-1">
+          <input type="number" min={0} max={10} step={0.5} className="input !w-16 !py-0.5" aria-label="Lowest rating" value={tier.min} onChange={(e) => setTier({ ...tier, min: Number(e.target.value) })} />–
+          <input type="number" min={0} max={10} step={0.5} className="input !w-16 !py-0.5" aria-label="Highest rating" value={tier.max} onChange={(e) => setTier({ ...tier, max: Number(e.target.value) })} /></span>}
         <label className="flex items-center gap-1.5 text-sm text-muted"><input type="checkbox" checked={onlyPlayable} onChange={(e) => {
           setOnlyPlayable(e.target.checked);
           // the pair on screen stays unless it holds a track the filter now excludes
           if (e.target.checked && pairLacksAudio(pair, lib.trackById)) setPair(null);
-        }} />{compact ? 'With audio' : 'Only tracks with audio'}{onlyPlayable && fellBack ? ' (too few)' : ''}</label>
-        <span className="text-sm text-muted tabular-nums">{lib.votes.length} votes</span>
-        {noHistory && !compact && <span className="basis-full text-xs text-warn">Fewer than two tracks have been played yet, so every track is used. Ranking normally covers only tracks you have heard.</span>}
+        }} />With audio{onlyPlayable && fellBack ? ' (too few)' : ''}</label>
+        <span className="text-sm text-muted tabular-nums">{lib.votes.length} votes{tier.tier !== 'any' && !compact ? (tooFew ? ' · too few in this band, using all' : ` · ${tiered.length} in this band`) : ''}</span>
+        {noHistory && !compact && <span className="basis-full text-xs text-warn">Fewer than two tracks have been played yet, so every track is used.</span>}
       </div>
-      {compact ? <ThemedSelect className="input mb-1 shrink-0 !py-0.5 text-xs" aria-label="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</ThemedSelect>
-      : <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 text-sm" role="group" aria-label="Which tracks to compare">
-        <span className="mr-1 text-muted">Compare</span>
-        {TIERS.map((x) => <button key={x.id} type="button" title={x.hint} aria-pressed={tier.tier === x.id} onClick={() => setTier({ ...tier, tier: x.id })}
-          className={cn('chip cursor-pointer', tier.tier === x.id ? 'bg-accent text-accent-fg' : 'hover:brightness-125')}>{x.label}</button>)}
-        {tier.tier === 'range' && <span className="flex items-center gap-1">
-          <input type="number" min={0} max={10} step={0.5} className="input !w-16 !py-0.5" aria-label="Lowest rating" value={tier.min} onChange={(e) => setTier({ ...tier, min: Number(e.target.value) })} />–
-          <input type="number" min={0} max={10} step={0.5} className="input !w-16 !py-0.5" aria-label="Highest rating" value={tier.max} onChange={(e) => setTier({ ...tier, max: Number(e.target.value) })} /></span>}
-        <span className="ml-auto text-xs text-muted">{tier.tier === 'any' ? '' : tooFew ? 'Fewer than two tracks fit: using all' : `${tiered.length} tracks in this band`}</span>
-      </div>}
       {/* each card fills its share of the height that is left (on a phone they stack and share it), and lays itself out inside that space */}
       <div className={cn('grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[repeat(2,minmax(0,1fr))] sm:grid-cols-2 sm:grid-rows-[minmax(0,1fr)] sm:gap-4', compact ? 'gap-1.5' : 'gap-3')}>
         {[a, b].map((t, i) => t && (
@@ -269,14 +264,14 @@ function DuelRank() {
                 {picked === t.id && <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-accent/45 text-accent-fg"><Check className="bt-vote-check" size={44} strokeWidth={3} /></span>}
               </div>
             </div>
-            <div className={cn('flex min-w-0 flex-1 justify-center', compact ? 'flex-row items-center gap-1.5' : 'flex-col gap-1.5 sm:w-full sm:flex-none sm:items-center')}>
-              <div className={cn('min-w-0 text-left', compact ? 'flex-1' : 'sm:text-center')}><div className={cn('min-w-0 break-words font-semibold [overflow-wrap:anywhere]', compact ? 'truncate text-sm' : 'line-clamp-2 text-base sm:text-lg')}>{t.title}</div>
-                <div className={cn('min-w-0 break-words text-muted [overflow-wrap:anywhere]', compact ? 'truncate text-xs' : 'line-clamp-2 text-sm')}><ArtistLinks leads={t.leads} featured={t.featured} />{t.albumTitle && ` · ${t.albumTitle}`}</div></div>
+            <div className={cn('flex min-h-0 min-w-0 flex-1 justify-center overflow-hidden', compact ? 'flex-row items-center gap-1.5' : 'flex-col gap-1.5 sm:w-full sm:flex-none sm:items-center')}>
+              <div className={cn('min-w-0 text-left', compact ? 'flex-1' : 'sm:text-center')}><div className={cn('min-w-0 break-words font-semibold [overflow-wrap:anywhere]', compact ? 'truncate text-sm' : 'line-clamp-2 max-sm:[@container(max-height:14rem)]:line-clamp-1 text-base sm:text-lg')}>{t.title}</div>
+                <div className={cn('min-w-0 break-words text-muted [overflow-wrap:anywhere]', compact ? 'truncate text-xs' : 'line-clamp-1 text-sm')}><ArtistLinks leads={t.leads} featured={t.featured} />{t.albumTitle && ` · ${t.albumTitle}`}</div></div>
               <div className={cn('flex min-w-0 items-center gap-2 sm:justify-center', compact ? 'shrink-0' : 'flex-wrap')}>
                 {!compact && <Rating track={t} />}
                 <button type="button" className="btn btn-ghost !p-1.5" title="Stats" aria-label={`Stats for ${t.title}`} onClick={(e) => { e.stopPropagation(); edit({ kind: 'track-details', id: t.id }); }}><BarChart3 size={14} /></button>
               </div>
-              <div className={cn('text-xs text-muted sm:text-center max-sm:[@container(max-height:11.5rem)]:hidden', compact && 'hidden')} aria-hidden>{!t.file ? 'No audio yet' : playing === t.id ? <span className="inline-flex items-center gap-1"><Pause size={11} />Tap to stop</span> : <span className="inline-flex items-center gap-1">{ready.has(t.id) ? <><Play size={11} />Tap to preview 15 s</> : <><Loader2 size={11} className="animate-spin" />Loading preview…</>}</span>}</div>
+              <div className={cn('text-xs text-muted sm:text-center max-sm:[@container(max-height:11.5rem)]:hidden', compact && 'hidden')} aria-hidden>{!t.file ? 'No audio yet' : playing === t.id ? <span className="inline-flex items-center gap-1"><Pause size={11} />Tap to stop</span> : <span className="inline-flex items-center gap-1"><><Play size={11} />Tap to preview 15 s</></span>}</div>
               <button className={cn('btn btn-accent min-w-0 text-sm', compact ? 'shrink-0 !px-2 !py-0.5 text-xs' : 'w-full !px-3 !py-1.5 sm:w-auto sm:!px-4')} onClick={(e) => { e.stopPropagation(); vote(t.id); }}>{i === 0 ? '← ' : ''}This one{i === 1 ? ' →' : ''}</button>
             </div>
           </div>
@@ -312,9 +307,10 @@ export function VotePage() {
   const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* private mode */ } };
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 flex shrink-0 items-center gap-1.5 overflow-x-auto pb-1 text-sm sm:flex-wrap sm:justify-center [&>*]:shrink-0" role="tablist" aria-label="How to rank">
-        <span className="mr-1 text-muted">Rank by</span>
-        {MODES.map((m) => <button key={m.id} role="tab" aria-selected={mode === m.id} title={m.hint} onClick={() => setMode(m.id)} className={cn('chip cursor-pointer', mode === m.id ? 'bg-accent text-accent-fg' : 'hover:brightness-125')}>{m.label}</button>)}
+      <div className="mx-auto mb-3 flex w-full max-w-4xl shrink-0 items-center gap-2 text-sm">
+        <span className="text-muted">Rank by</span>
+        <ThemedSelect className="input !w-auto !py-1" aria-label="How to rank" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</ThemedSelect>
+        <span className="min-w-0 truncate text-xs text-muted max-sm:hidden">{MODES.find((m) => m.id === mode)?.hint}</span>
       </div>
       {mode === 'duel' ? <DuelRank /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
     </div>
@@ -328,18 +324,38 @@ function AlbumRank() {
   const pool = useMemo(() => lib.albums.filter((a) => a.trackIds.length >= 3).map((a) => ({ id: a.id, elo: lib.albumRank.get(a.id)?.elo ?? 1000, comparisons: lib.albumRank.get(a.id)?.comparisons ?? 0, rating: a.rating ?? 0 })), [lib]);
   const [pair, setPair] = useState<[string, string] | null>(() => { const p = pickPair(pool, Math.random); return p ? [p[0].id, p[1].id] : null; });
   const next = (prev?: [string, string] | null) => { const p = pickPair(pool, Math.random, prev ?? undefined); setPair(p ? [p[0].id, p[1].id] : null); };
+  // a few of each album's best songs are buffered, and "Hear a song" steps through them (15 s each), so the albums can be told apart by ear
+  const choices = useMemo(() => (pair ?? []).map((id) => (lib.albumById.get(id)?.trackIds ?? []).map((t) => lib.trackById.get(t)).filter((t): t is Track => !!t?.file).sort((x, y) => y.effectiveRating - x.effectiveRating).slice(0, 4)), [pair, lib]);
+  const previews = usePreviews(useMemo(() => choices.flat(), [choices]));
+  const [heard, setHeard] = useState<(Track | undefined)[]>([]);
+  const turn = useRef<Record<number, number>>({});
+  useEffect(() => { setHeard([]); turn.current = {}; }, [pair]);
+  const hear = (i: number) => {
+    const list = choices[i] ?? [];
+    if (!list.length) return;
+    const cur = heard[i];
+    if (cur && previews.playing === cur.id) { previews.stop(); return; }
+    const t = list[(turn.current[i] ?? 0) % list.length];
+    turn.current[i] = (turn.current[i] ?? 0) + 1;
+    setHeard((h) => { const n = [...h]; n[i] = t; return n; });
+    previews.toggle(t);
+  };
   if (!pair) return <p className="text-sm text-muted">You need at least two albums with three or more tracks to rank albums.</p>;
   const albums = pair.map((id) => lib.albumById.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
   if (albums.length < 2) { queueMicrotask(() => next()); return null; }
-  const answer = (winner: string | null) => { put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); next(pair); };
+  const answer = (winner: string | null) => { previews.stop(); put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); next(pair); };
   const ranked = [...lib.albums].filter((a) => (lib.albumRank.get(a.id)?.comparisons ?? 0) > 0).sort((a, b) => (lib.albumRank.get(b.id)!.elo) - (lib.albumRank.get(a.id)!.elo)).slice(0, 8);
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
-      <div><h2 className="text-xl font-bold">Which album is better?</h2><p className="text-sm text-muted">The winner is ranked above the other. An album you rank high gives its tracks a slightly higher starting Elo; votes on the tracks themselves still decide where they end up.</p></div>
-      <div className="grid grid-cols-2 gap-3">{albums.map((a) => (
-        <div key={a.id} className="card flex flex-col items-center gap-2 p-3 text-center">
-          <Cover hash={a.cover} seed={a.title} className="w-full max-w-[14rem]" />
-          <div className="min-w-0"><div className="truncate font-semibold">{a.title}</div><div className="truncate text-xs text-muted">{a.artistName} · {a.trackIds.length} tracks{a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}</div></div>
+      <div><h2 className="text-xl font-bold">Which album is better?</h2><p className="text-sm text-muted">The winner ranks above the other. A high album gives its tracks a slightly higher starting Elo.</p></div>
+      <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">{albums.map((a, i) => (
+        <div key={a.id} className="card flex min-w-0 flex-col items-center gap-2 p-3 text-center">
+          <button type="button" className="relative block w-full max-w-[14rem]" aria-label={`Hear a song from ${a.title}`} onClick={() => hear(i)}>
+            <Cover hash={a.cover} seed={a.title} className="w-full" />
+            {previews.playing && heard[i]?.id === previews.playing && <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-black/40 text-white"><Volume2 className="animate-pulse" size={26} /></span>}
+          </button>
+          <div className="w-full min-w-0"><div className="line-clamp-2 break-words font-semibold [overflow-wrap:anywhere]">{a.title}</div><div className="truncate text-xs text-muted">{a.artistName}</div><div className="truncate text-xs text-muted">{a.trackIds.length} tracks{a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}</div></div>
+          <button type="button" className="btn w-full !py-1 text-sm" disabled={!choices[i].length} onClick={() => hear(i)}><Play size={13} />{previews.playing && heard[i]?.id === previews.playing ? `${heard[i].title}` : choices[i].length ? 'Hear a song' : 'No audio'}</button>
           <button className="btn btn-accent w-full" onClick={() => answer(a.id)}>This one</button>
         </div>))}</div>
       <div className="flex gap-2"><button className="btn" onClick={() => answer(null)}>They are equal</button><button className="btn btn-ghost" onClick={() => next(pair)}>Skip</button></div>

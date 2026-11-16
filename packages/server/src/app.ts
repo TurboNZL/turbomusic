@@ -41,6 +41,7 @@ function tokenOk(given: string | undefined, expected: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+let analyzeLock: Promise<void> = Promise.resolve();
 export function createApp(
   config: Config, store: Store,
   acquirer = new Acquirer({ dataDir: config.dataDir, store, ytdlp: config.ytdlp, ytdlpArgs: config.ytdlpArgs, ffmpegDir: config.ffmpegDir }),
@@ -181,7 +182,10 @@ export function createApp(
     if (!/^[0-9a-f]{64}$/.test(hash)) return c.json({ error: 'bad hash' }, 400);
     const path = store.hasFile(hash) && filePath(config.dataDir, hash);
     if (!path || !existsSync(path)) return c.json({ error: 'no such file' }, 404);
-    return c.json(await analyzeAudio(path, { ffmpegDir: config.ffmpegDir }));
+    // one at a time, whoever asks: each decodes a minute and a half of audio, and a few at once would fill a Pi's memory
+    const turn = analyzeLock.then(() => analyzeAudio(path, { ffmpegDir: config.ffmpegDir }));
+    analyzeLock = turn.then(() => undefined, () => undefined);
+    return c.json(await turn);
   });
 
   app.post('/api/acquire', async (c) => {

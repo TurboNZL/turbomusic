@@ -18,6 +18,7 @@ import { ArtistLinks } from '../components/ArtistLinks.tsx';
 import { useMenu, type MenuItem } from '../components/Menu.tsx';
 import { useImportSearching } from '../lib/openImport.ts';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
+import { PlayControls } from '../components/PlayControls.tsx';
 
 export function AlbumPage() {
   const { id } = useParams();
@@ -45,7 +46,7 @@ export function AlbumPage() {
   const cover = release?.cover || album.cover;
   // the header keeps only what you do while listening; everything that edits or imports is in this menu (the ⋯ button and a right-click)
   const fullMenu: MenuItem[] = [
-    ...itemsFor(album, ids), { separator: true },
+    ...itemsFor(album, ids, true), { separator: true },
     view.kind === 'all' ? { label: arranging ? 'Done editing tracks' : 'Edit tracks (order, add, remove)', icon: <ListOrdered size={15} />, run: () => setArranging(!arranging) }
       : { label: 'Edit this release…', icon: <ListOrdered size={15} />, run: () => edit({ kind: 'release', id: view.id }) },
   ];
@@ -92,8 +93,7 @@ export function AlbumPage() {
           </div>
           <div className="flex flex-wrap gap-1.5">{album.genres.map((g) => <Link key={g} to={`/tracks?genre=${encodeURIComponent(g)}`} className="chip hover:brightness-125" title={`Tracks in ${g}`}>{g}</Link>)}</div>
           <div className="flex flex-wrap gap-2 pt-2">
-            <button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'album', id: album.id })}><Play size={16} fill="currentColor" />Play</button>
-            <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'album', id: album.id }); }}><Shuffle size={16} />Shuffle</button>
+            <PlayControls ids={playable} source={{ type: 'album', id: album.id }} label="this album" />
             <KeepOffline hashes={tracks.flatMap((t) => (t.file ? [t.file] : []))} />
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, add files, import, merge…" onClick={(e) => menu.toggle(e.currentTarget, 'album', fullMenu, `Actions for ${album.title}`)}><MoreHorizontal size={16} /></button>
             {searchingImport && <span className="flex items-center gap-1.5 text-xs text-muted" role="status"><Loader2 size={14} className="animate-spin" />Searching YouTube Music…</span>}

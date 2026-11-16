@@ -23,9 +23,9 @@ type MenuApi = ReturnType<typeof useMenu>;
 export function SingleTile({ t, ids, menu, itemsFor }: { t: Track; ids: string[]; menu: MenuApi; itemsFor: ReturnType<typeof useTrackMenuItems> }) {
   const play = usePlayer((s) => s.play);
   const edit = useEditor((s) => s.open);
-  const run = () => play(t.id, ids, { type: 'search', id: null });
+  const run = () => play(t.id, ids, { type: 'search', id: 'Singles' });
   return (
-    <div className="bt-tile group" onContextMenu={menu.onContextMenu(itemsFor(t, run), `Actions for ${t.title}`, t.id)}>
+    <div className="bt-tile group" onContextMenu={(e) => menu.onContextMenu(itemsFor(t, run), `Actions for ${t.title}`, t.id)(e)}>
       <div className="relative">
         <Link to={statsPath('track', t.id)} aria-label={`Open ${t.title}`} className="block"><Cover hash={t.cover} seed={t.title} className="transition-transform group-hover:scale-[1.02]" /></Link>
         <button className="btn btn-accent absolute bottom-2 right-2 !rounded-full !p-2.5 opacity-0 shadow-lg transition-opacity focus-visible:opacity-100 group-hover:opacity-100" disabled={!t.file}

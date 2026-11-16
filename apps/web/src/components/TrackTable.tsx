@@ -61,7 +61,7 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
       {tracks.map((t, i) => (
         <div key={t.id}>
         <div data-track-id={t.id} className={cn('bt-row group flex items-center gap-3 px-3', current === t.id && 'bt-row-current')} style={{ paddingBlock: 'var(--row-y)' }}
-          onContextMenu={menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)}>
+          onContextMenu={(e) => menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}>
           {covers ? <>
             {numbered && <span className={cn('w-6 shrink-0 text-center text-sm text-muted', current === t.id && 'text-accent')}>{i + 1}</span>}
             {/* the cover is the play button: the Play glyph appears over it on hover or focus (and a tap on a phone plays) */}

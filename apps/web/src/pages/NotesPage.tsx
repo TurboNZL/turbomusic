@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ListMusic, Plus, Search } from 'lucide-react';
-import { Select } from '../components/Select.tsx';
+import { ListMusic, Plus } from 'lucide-react';
+import { PlainToolbar } from '../components/ListToolbar.tsx';
 import { useLibrary } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
 import { cn } from '../lib/cn.ts';
@@ -41,12 +41,10 @@ export function NotesPage() {
   const chip = (on: boolean) => cn('rounded-full border px-3 py-1 text-sm', on ? 'border-accent text-accent' : 'border-line text-muted hover:text-fg');
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-2xl font-bold">Notes <span className="text-base font-normal text-muted">{lib.groups.length}</span></h1>
-        <div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input !w-56 pl-8" placeholder="Search notes" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <Select className="!w-44" aria-label="Sort by" value={sort} onChange={(v) => { setSort(v as typeof sort); setFlip(false); }} options={[{ value: 'new', label: 'Sort: Date written' }, { value: 'title', label: 'Sort: Title' }, { value: 'category', label: 'Sort: Category' }, { value: 'links', label: 'Sort: Most linked things' }]} />
-        <button type="button" className="btn !px-2.5" onClick={() => setFlip(!flip)} aria-label={dirSign > 0 ? 'Ascending: switch to descending' : 'Descending: switch to ascending'} title={dirSign > 0 ? 'Ascending' : 'Descending'}>{dirSign > 0 ? <ArrowUp size={15} /> : <ArrowDown size={15} />}</button>
-        <button className="btn btn-accent" onClick={() => edit({ kind: 'new-note', id: '' })}><Plus size={15} />New note</button></div>
+      <h1 className="text-2xl font-bold">Notes <span className="text-base font-normal text-muted">{lib.groups.length}</span></h1>
+      <PlainToolbar text={q} onText={setQ} placeholder="Search notes" actions={<button className="btn" onClick={() => edit({ kind: 'new-note', id: '' })}><Plus size={15} />New note</button>}
+        sorts={[{ value: 'new', label: 'Date written', dir: 'desc' }, { value: 'title', label: 'Title', dir: 'asc' }, { value: 'category', label: 'Category', dir: 'asc' }, { value: 'links', label: 'Most linked', dir: 'desc' }]}
+        sort={sort} dir={dirSign > 0 ? 'asc' : 'desc'} onSort={(k) => { setSort(k); setFlip(false); }} onFlip={() => setFlip(!flip)} />
       {used.length > 0 && <div className="flex flex-wrap gap-2" role="group" aria-label="Category">
         <button className={chip(cat === null)} aria-pressed={cat === null} onClick={() => setCat(null)}>All</button>
         {used.map((c) => <button key={c.id} className={chip(cat === c.id)} aria-pressed={cat === c.id} onClick={() => setCat(c.id)}>{c.name}</button>)}

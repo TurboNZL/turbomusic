@@ -1,3 +1,6 @@
+import { PlainToolbar } from '../components/ListToolbar.tsx';
+import type { SortOption } from '../lib/listSort.ts';
+import type { SortDir } from '../lib/trackSort.ts';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { statsPath } from '../lib/entityStats.ts';
@@ -24,6 +27,9 @@ import { SyncBar } from '../components/SyncedPlaylist.tsx';
 import { splitSynced } from '../lib/playlistSync.ts';
 
 /** Marks the playlists TurboMusic fills in by itself (thumbs up / down), so they are not mistaken for ones you made. */
+type PlaylistSort = 'new' | 'name' | 'size';
+const PLAYLIST_SORTS: SortOption<PlaylistSort>[] = [{ value: 'new', label: 'Date made', dir: 'desc' }, { value: 'name', label: 'Name', dir: 'asc' }, { value: 'size', label: 'Most songs', dir: 'desc' }];
+
 export function AutoBadge({ className }: { className?: string }) {
   return <span title="Made automatically from your thumbs. You cannot edit it." className={cn('inline-flex w-fit items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur', className)}><Sparkles size={11} />Auto</span>;
 }
@@ -39,6 +45,8 @@ export function PlaylistsPage() {
   const menuItems = usePlaylistMenuItems();
   const [adding, setAdding] = useState('');
   const [find, setFind] = useState('');
+  const [sort, setSort] = useState<PlaylistSort>('new');
+  const [dir, setDir] = useState<SortDir>('desc');
   const deferredFind = useDeferredValue(find); // typing stays smooth: the lists below follow a moment later
   // two automatic playlists (thumbs up / thumbs down) come first; they are read-only
   const quick = useMemo(() => quickPlaylists(lib), [lib]);
@@ -46,10 +54,14 @@ export function PlaylistsPage() {
   // playlists match by name, description, or a track or artist inside them
   const listed = useMemo(() => {
     const f = deferredFind.trim().toLowerCase();
-    if (!f) return all;
-    return all.filter((p) => `${p.name} ${p.description ?? ''}`.toLowerCase().includes(f)
+    const base = !f ? all : all.filter((p) => `${p.name} ${p.description ?? ''}`.toLowerCase().includes(f)
       || playlistTrackIds(lib, p).some((id) => { const t = lib.trackById.get(id); return !!t && `${t.title} ${t.artistName}`.toLowerCase().includes(f); }));
-  }, [lib, all, deferredFind]);
+    const sg = dir === 'asc' ? 1 : -1;
+    const key = (p: (typeof all)[number]) => (sort === 'name' ? p.name : sort === 'size' ? playlistCount(lib, p).n : p.createdAt ?? 0);
+    // the automatic playlists (thumbs up / down) stay on top, the rest follow the chosen order
+    const own = base.filter((p) => !isQuickPlaylist(p.id)).sort((x, y) => { const a = key(x), b = key(y); return (typeof a === 'string' ? a.localeCompare(b as string, undefined, { sensitivity: 'base', numeric: true }) : (a as number) - (b as number)) * sg; });
+    return [...base.filter((p) => isQuickPlaylist(p.id)), ...own];
+  }, [lib, all, deferredFind, sort, dir]);
   const open = all.find((p) => p.id === openId);
   const readOnly = isQuickPlaylist(open?.id);
   const albumMode = !!open && isAlbumList(open);
@@ -94,14 +106,12 @@ export function PlaylistsPage() {
 
   return (
     <div className="space-y-5">
-      {!open && <><div className="flex items-center gap-3"><h1 className="mr-auto text-2xl font-bold">Playlists</h1>
-        <button className="btn" title="Keep a playlist in step with one on your Spotify account" onClick={() => edit({ kind: 'new-synced-playlist', id: '' })}><RefreshCw size={16} />Synced playlist</button>
-        <button className="btn btn-accent" onClick={() => edit({ kind: 'new-playlist', id: '' })}><Plus size={16} />New playlist</button></div>
-      {all.length > 0 && <label className="relative block max-w-md"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-        <input className="input !pl-9" type="search" aria-label="Search playlists" placeholder="Search playlists, or a track or artist in them…" value={find} onChange={(e) => setFind(e.target.value)} /></label>}
+      {!open && <><h1 className="text-2xl font-bold">Playlists</h1>
+      <PlainToolbar text={find} onText={setFind} placeholder="Search playlists, or a track or artist in them…" sorts={PLAYLIST_SORTS} sort={sort} dir={dir} onSort={(k) => { setSort(k); setDir(PLAYLIST_SORTS.find((o) => o.value === k)!.dir); }} onFlip={() => setDir(dir === 'asc' ? 'desc' : 'asc')}
+        actions={<button className="btn" title="Keep a playlist in step with one on your Spotify account" onClick={() => edit({ kind: 'new-synced-playlist', id: '' })}><RefreshCw size={16} />Synced playlist</button>} />
       {find.trim() && !listed.length && <p className="text-sm text-muted">No playlist matches.</p>}
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(var(--grid-min), 9rem), 1fr))' }}>{listed.slice(0, cards.shown).map((p) => { const c = playlistCount(lib, p); return (
-        <Link key={p.id} to={`/playlists/${p.id}`} className="bt-tile group block text-left" onContextMenu={menu.onContextMenu(menuItems(p), `Actions for ${p.name}`, p.id)}>
+        <Link key={p.id} to={`/playlists/${p.id}`} className="bt-tile group block text-left" onContextMenu={(e) => menu.onContextMenu(menuItems(p), `Actions for ${p.name}`, p.id)(e)}>
           <div className="relative"><PlaylistCover playlist={p} className="transition-transform group-hover:scale-[1.02]" />
             {isQuickPlaylist(p.id) && <AutoBadge className="absolute left-2 top-2" />}
             {p.spotify && <span title="Synced with a Spotify playlist" className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur"><RefreshCw size={11} />Synced</span>}</div>
@@ -113,7 +123,7 @@ export function PlaylistsPage() {
       {open && (
         <section className="space-y-3">
           <Link to="/playlists" className="btn btn-ghost -ml-2"><ArrowLeft size={15} />Playlists</Link>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end" onContextMenu={menu.onContextMenu(menuItems(open), `Actions for ${open.name}`, open.id)}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end" onContextMenu={(e) => menu.onContextMenu(menuItems(open), `Actions for ${open.name}`, open.id)(e)}>
             <PlaylistCover playlist={open} className="w-32 shrink-0 sm:w-40" />
             <div className="min-w-0 space-y-2">
               {readOnly && <AutoBadge />}

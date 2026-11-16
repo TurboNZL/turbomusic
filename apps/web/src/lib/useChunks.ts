@@ -21,3 +21,17 @@ export function useChunks(total: number, size: number, resetKey: unknown) {
   const count = Math.min(shown, total);
   return { shown: count, left: Math.max(0, total - count), more, sentinel };
 }
+
+/** A ref callback for an element after the last drawn item: calls `more` whenever it comes within a screen of the viewport (for lists that count their own page). */
+export function useNearEnd(more: () => void) {
+  const observer = useRef<IntersectionObserver | null>(null);
+  const latest = useRef(more);
+  latest.current = more;
+  return useCallback((el: HTMLElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    observer.current = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) latest.current(); }, { rootMargin: '600px' });
+    observer.current.observe(el);
+  }, []);
+}

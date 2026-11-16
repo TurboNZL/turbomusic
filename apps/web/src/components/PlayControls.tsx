@@ -16,7 +16,7 @@ export function useShuffleSwitch(): [boolean, () => void] {
 }
 
 /** Play, the Shuffle switch, "Then: replace" and "Add to Then" for a list of playable track ids: the same row on playlists and artists. */
-export function PlayControls({ ids, source, label = 'this list' }: { ids: string[]; source: { type: 'playlist' | 'search'; id: string | null }; label?: string }) {
+export function PlayControls({ ids, source, label = 'this list' }: { ids: string[]; source: { type: 'playlist' | 'search' | 'album'; id: string | null }; label?: string }) {
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
   const replaceRest = usePlayer((s) => s.replaceRest);
