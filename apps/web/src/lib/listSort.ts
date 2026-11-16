@@ -4,7 +4,8 @@ import type { SortDir } from './trackSort.ts';
 /** One sortable column of a list page: what it is called and which way a first click should go. */
 export interface SortOption<K extends string = string> { value: K; label: string; dir: SortDir }
 
-const text = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }); // shared: localeCompare with options builds one per call
+const text = (a: string, b: string) => collator.compare(a, b);
 const sign = (dir: SortDir) => (dir === 'asc' ? 1 : -1);
 const memoriesOf = (lib: Library, ids: string[]) => ids.reduce((n, id) => n + (lib.trackById.get(id)?.memories ?? 0), 0);
 

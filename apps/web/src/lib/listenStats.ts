@@ -23,7 +23,7 @@ export interface ListenStats {
   shuffleShare: number | null;
   sessions: { count: number; longestMs: number; avgMs: number };
   /** the same calendar day in earlier years */
-  onThisDay: { year: number; plays: number; top: string | null }[];
+  onThisDay: { year: number; plays: number; top: string | null; topPlays: number }[];
   notInLibrary: TopRow[];
 }
 
@@ -113,7 +113,7 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
       y.set(`${l.title} · ${l.artist}`, (y.get(`${l.title} · ${l.artist}`) ?? 0) + 1); byYear.set(d.getFullYear(), y);
     }
   }
-  for (const [year, m] of [...byYear.entries()].sort((a, b) => b[0] - a[0])) onThisDay.push({ year, plays: [...m.values()].reduce((a, b) => a + b, 0), top: [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null });
+  for (const [year, m] of [...byYear.entries()].sort((a, b) => b[0] - a[0])) onThisDay.push({ year, plays: [...m.values()].reduce((a, b) => a + b, 0), top: [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null, topPlays: Math.max(0, ...m.values()) });
 
   return {
     plays: rows.length, ms, skips, skipRate: rows.length ? skips / rows.length : 0,

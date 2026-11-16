@@ -134,8 +134,8 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
       {!configured && <div className="rounded-theme bg-warn/15 p-3 text-sm text-warn">Importing runs on your server. Connect one in Settings first.</div>}
       {done ? null : !pv ? (
         <>
-        <Field label="Album, playlist or single link, or what to search for" hint="Paste a YouTube Music album or playlist link (or one video for a single), or type an album's name (and artist) to search YouTube Music. Nothing is downloaded until you confirm.">
-          <input autoFocus className="input" placeholder="https://music.youtube.com/playlist?list=…  or  artist album" value={url} onChange={(e) => { setUrl(e.target.value); setHits(null); }} onKeyDown={(e) => e.key === 'Enter' && url.trim() && !busy && go()} /></Field>
+        <Field label="Search YouTube Music, or paste a link" hint="Paste a YouTube Music album or playlist link (or one video for a single), or type an album's name (and artist) to search YouTube Music. Nothing is downloaded until you confirm.">
+          <input autoFocus className="input" placeholder="Search: artist album   ·   or paste a link" value={url} onChange={(e) => { setUrl(e.target.value); setHits(null); }} onKeyDown={(e) => e.key === 'Enter' && url.trim() && !busy && go()} /></Field>
         {hits && !hits.length && !error && <div className="rounded-theme bg-warn/15 p-3 text-sm text-warn">No album found. Try the artist and the album name, or paste a link.</div>}
         {hits && hits.length > 0 && <div className="space-y-1.5" aria-label="Search results">{hits.map((c) => (
           <button key={c.url} type="button" className="flex w-full items-center gap-3 rounded-theme border border-line p-2 text-left hover:border-accent" onClick={() => { setUrl(c.url); void lookUp(c.url); }}>

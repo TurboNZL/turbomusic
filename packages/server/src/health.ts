@@ -70,14 +70,18 @@ export function diskProbe(dir: string, now = Date.now()): HealthSnapshot['probe'
   let value: HealthSnapshot['probe'] = null;
   const path = join(dir, `.probe-${process.pid}`);
   try {
+    // three tries, the best one counts: a drive that was asleep (an external disk) is slow only on the first, a failing one on every try
     const buf = Buffer.alloc(4096, 7);
-    const t0 = performance.now();
-    const fd = openSync(path, 'w');
-    writeSync(fd, buf); fsyncSync(fd); closeSync(fd);
-    const t1 = performance.now();
-    const rd = openSync(path, 'r'); readSync(rd, Buffer.alloc(4096), 0, 4096, 0); closeSync(rd);
-    const t2 = performance.now();
-    value = { writeMs: Math.round((t1 - t0) * 10) / 10, readMs: Math.round((t2 - t1) * 10) / 10 };
+    for (let i = 0; i < 3; i++) {
+      const t0 = performance.now();
+      const fd = openSync(path, 'w');
+      writeSync(fd, buf); fsyncSync(fd); closeSync(fd);
+      const t1 = performance.now();
+      const rd = openSync(path, 'r'); readSync(rd, Buffer.alloc(4096), 0, 4096, 0); closeSync(rd);
+      const t2 = performance.now();
+      const one = { writeMs: Math.round((t1 - t0) * 10) / 10, readMs: Math.round((t2 - t1) * 10) / 10 };
+      if (!value || one.writeMs < value.writeMs) value = one;
+    }
   } catch { value = null; }
   finally { try { unlinkSync(path); } catch { /* not created */ } }
   probeCache = { at: now, dir, value };
@@ -131,7 +135,7 @@ export function assessHealth(h: HealthSnapshot): Warning[] {
   else if (avail < 0.15) out.push({ level: 'warn', id: 'memory', message: `Memory is getting low (${Math.round(h.memory.availableBytes / 1048576)} MB available).` });
   if (h.swap && h.swap.totalBytes && h.swap.usedBytes / h.swap.totalBytes > 0.5) out.push({ level: 'warn', id: 'swap', message: 'More than half the swap is in use. Swap on an SD card is slow and wears it; free memory or add RAM.' });
   if (h.cpu.load5 > h.cpu.cores * 1.5) out.push({ level: 'warn', id: 'load', message: `The CPU has been busy (load ${h.cpu.load5.toFixed(1)} on ${h.cpu.cores} cores).` });
-  if (h.probe && h.probe.writeMs > 250) out.push({ level: 'warn', id: 'slow-disk', message: `The disk is slow to write right now (${h.probe.writeMs} ms for 4 KB). A failing or very full drive or SD card does this.` });
+  if (h.probe && h.probe.writeMs > 500) out.push({ level: 'warn', id: 'slow-disk', message: `The disk is slow to write right now (${h.probe.writeMs} ms for 4 KB). A failing or very full drive or SD card does this.` });
   if (h.db.walBytes > 256 * 1048576) out.push({ level: 'warn', id: 'wal', message: 'The database journal is unusually large; restarting the server clears it.' });
   return out;
 }

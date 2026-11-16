@@ -35,18 +35,21 @@ export async function runAudioCheck(tracks: Track[], onProgress: (p: CheckProgre
   const todo = tracks.filter((t) => t.file && (again || !t.audioCheck || t.audioCheck.file !== t.file));
   const p: CheckProgress = { running: true, done: 0, total: todo.length, failed: 0 };
   onProgress({ ...p });
-  const queue = [...todo];
-  const worker = async () => {
-    for (let t = queue.shift(); t; t = queue.shift()) {
+  // one file at a time with a short rest between (each one decodes 90 s of audio on the server, which is heavy on a Raspberry Pi), and the
+  // results are saved in groups of 20, so the library is not rebuilt after every single file
+  const pending: [string, AudioCheck][] = [];
+  const flush = () => { for (const [id, check] of pending.splice(0)) useStore.getState().patch('tracks', id, { audioCheck: check }); };
+  try {
+    for (const t of todo) {
       try {
         const r = await api().analyzeAudio(t.file!);
-        const check: AudioCheck = { kbps: r.kbps, codec: r.codec, cutoffHz: r.cutoffHz, looksLike: r.looksLike, verdict: r.verdict, file: t.file!, at: Date.now() };
-        useStore.getState().patch('tracks', t.id, { audioCheck: check });
+        pending.push([t.id, { kbps: r.kbps, codec: r.codec, cutoffHz: r.cutoffHz, looksLike: r.looksLike, verdict: r.verdict, file: t.file!, at: Date.now() }]);
+        if (pending.length >= 20) flush();
       } catch { p.failed++; }
       p.done++; onProgress({ ...p });
+      await new Promise((r) => setTimeout(r, 250));
     }
-  };
-  try { await Promise.all([worker(), worker()]); } finally { running = false; }
+  } finally { flush(); running = false; }
   p.running = false; onProgress({ ...p });
   return p;
 }

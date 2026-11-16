@@ -35,13 +35,13 @@ export function ArtistsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Artists <span className="text-base font-normal text-muted">{rows.length}</span></h1>
       </div>
-      <ListToolbar actions={<><button className="btn" onClick={() => edit({ kind: 'new-artist', id: '' })}><Plus size={15} />New artist</button></>} scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {page.view === 'list'
         ? <EntityList rows={shownRows.map((a) => ({ id: a.id, to: `/artists/${a.id}`, cover: a.image, seed: a.name, title: a.name, kind: 'artist' as const,
             sub: `${plural(a.tracks, 'track')} · ${plural(a.albums, 'album')}`, meta: a.rating != null ? a.rating.toFixed(1) : undefined, menu: menu.onContextMenu(itemsFor(a.id), `Actions for ${a.name}`, a.id) }))} />
         : <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
             {shownRows.map((a) => (
-              <Link key={a.id} to={`/artists/${a.id}`} className="bt-tile group block text-center" onContextMenu={menu.onContextMenu(itemsFor(a.id), `Actions for ${a.name}`, a.id)}>
+              <Link key={a.id} to={`/artists/${a.id}`} className="bt-tile group block text-center" onContextMenu={(e) => menu.onContextMenu(itemsFor(a.id), `Actions for ${a.name}`, a.id)(e)}>
                 <Cover kind="artist" hash={a.image} seed={a.name} className="mx-auto w-full transition-transform group-hover:scale-[1.03]" />
                 <div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.name}</div>
                 <div className="bt-cap text-xs text-muted">{plural(a.tracks, 'track')}</div>

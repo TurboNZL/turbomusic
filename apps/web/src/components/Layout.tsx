@@ -1,6 +1,6 @@
 import { WindowFrame } from './WindowFrame.tsx';
 import { NavLink, Outlet, useLocation, useMatch, useNavigate, useNavigationType } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, BarChart3, Compass, Stethoscope, Disc, Disc3, Download, FileAudio, Home, Layers, ListMusic, MoreHorizontal, Network, ListOrdered, Music2, Plus, Search, Settings, Swords, User, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Compass, Stethoscope, StickyNote, Disc, Disc3, Download, FileAudio, Home, Layers, ListMusic, MoreHorizontal, Network, ListOrdered, Music2, Plus, Search, Settings, Swords, User, Users } from 'lucide-react';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { orderNav, phoneTabs } from '../lib/navOrder.ts';
 import { effectiveUi } from 'turbothemes';
@@ -94,6 +94,8 @@ const ADD: { label: string; icon: typeof Plus; target: EditTarget }[] = [
   { label: 'New track', icon: Music2, target: { kind: 'new-track', id: '' } },
   { label: 'New artist', icon: User, target: { kind: 'new-artist', id: '' } },
   { label: 'New playlist', icon: ListMusic, target: { kind: 'new-playlist', id: '' } },
+  { label: 'New era', icon: Layers, target: { kind: 'new-era', id: '' } },
+  { label: 'New note', icon: StickyNote, target: { kind: 'new-note', id: '' } },
 ];
 
 /** One place to add anything, reachable on every page and on a phone. */

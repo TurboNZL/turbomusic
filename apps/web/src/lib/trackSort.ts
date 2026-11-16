@@ -6,7 +6,9 @@ export type SortDir = 'asc' | 'desc';
 /** Natural direction for a first click on each column: text A-Z, numbers high first. */
 export const defaultDir = (k: SortKey): SortDir => (k === 'rating' || k === 'comparisons' || k === 'memories' || k === 'released' || k === 'plays' ? 'desc' : 'asc');
 
-const text = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+// one shared collator: String.localeCompare with options builds a new one on every call, which dominated sorting a few thousand tracks
+const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+const text = (a: string, b: string) => collator.compare(a, b);
 /** play counts by track id, for the `plays` sort */
 export type PlayCounts = ReadonlyMap<string, number>;
 const asc: Record<SortKey, (a: Track, b: Track, plays: PlayCounts) => number> = {

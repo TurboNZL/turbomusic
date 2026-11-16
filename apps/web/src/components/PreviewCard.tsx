@@ -1,4 +1,4 @@
-import { Loader2, Pause, Play, Volume2 } from 'lucide-react';
+import { Pause, Play, Volume2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Track } from '../lib/derive.ts';
 import type { PreviewState } from '../lib/usePreviews.ts';
@@ -27,8 +27,7 @@ export function PreviewCard({ t, preview, badge, accent, children }: { t: Track;
         <div className="truncate text-xs text-muted"><ArtistLinks leads={t.leads} featured={t.featured} /></div>
         <div className="mt-0.5 text-[11px] text-muted" aria-hidden>
           {!t.file ? 'No audio yet' : on ? <span className="inline-flex items-center gap-1"><Pause size={10} />Tap to stop</span>
-            : preview.ready.has(t.id) ? <span className="inline-flex items-center gap-1"><Play size={10} />Tap the card: 15 s</span>
-            : <span className="inline-flex items-center gap-1"><Loader2 size={10} className="animate-spin" />Loading preview…</span>}
+            : <span className="inline-flex items-center gap-1"><Play size={10} />Tap the card: 15 s</span>}
         </div>
       </div>
       {children && <div className="mt-auto flex flex-col gap-1.5">{children}</div>}

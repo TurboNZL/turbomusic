@@ -20,6 +20,9 @@ function useTrackListActions() {
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
   const enqueue = usePlayer((s) => s.enqueue);
+  const replaceRest = usePlayer((s) => s.replaceRest);
+  const appendRest = usePlayer((s) => s.appendRest);
+  const hasCurrent = usePlayer((s) => !!s.queue.currentId);
   return (ids: string[], source: Parameters<typeof play>[2], label?: string): MenuItem[] => {
     const playable = ids.filter((id) => canPlay(lib.trackById.get(id)));
     const none = !playable.length;
@@ -29,8 +32,13 @@ function useTrackListActions() {
       { label: 'Play', icon: <Play size={15} />, run: () => { const o = ordered(); play(o[0], o, source); }, disabled: none },
       { label: 'Shuffle', icon: <Shuffle size={15} />, checked: readShuffle(), keepOpen: true, run: () => writeShuffle(!readShuffle()) },
       // each goes right after the one before it, so "next" keeps the order (the shuffled order when Shuffle is on)
-      { label: 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next', label)), disabled: none },
-      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last', label)), disabled: none },
+      { label: readShuffle() ? 'Play next (shuffled)' : 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next', label)), disabled: none },
+      { label: readShuffle() ? 'Add to queue (shuffled)' : 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last', label)), disabled: none },
+      // only while something is playing: "then" is what comes after it
+      ...(hasCurrent ? [
+        { label: readShuffle() ? 'Then: replace (shuffled)' : 'Then: replace', icon: <ListStart size={15} />, run: () => replaceRest(ordered(), source), disabled: none } as MenuItem,
+        { label: readShuffle() ? 'Add to Then (shuffled)' : 'Add to Then', icon: <ListEnd size={15} />, run: () => appendRest(ordered()), disabled: none } as MenuItem,
+      ] : []),
     ];
   };
 }
@@ -73,30 +81,34 @@ export function useAlbumMenuItems() {
   const lib = useLibrary();
   const convert = useConvertToSingle();
   const patch = useStore((s) => s.patch);
-  return (album: Album, ids: string[] = album.trackIds): MenuItem[] => [
+  return (album: Album, ids: string[] = album.trackIds, full = false): MenuItem[] => [
     ...actions(ids, { type: 'album', id: album.id }, album.title),
     { separator: true },
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
     { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
     { label: 'Add to an album playlist…', icon: <ListPlus size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
-    { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) },
-    { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) },
+    ...(full ? [
+      { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) } as MenuItem,
+      { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) } as MenuItem,
+    ] : []),
     { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => void openImportIntoAlbum(album.id) },
-    ...(lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
+    ...(full && lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
     { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
-    ...(planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
-    (album as { complete?: boolean }).complete
-      ? { label: 'Not complete after all', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: false }) }
-      : { label: 'Mark as complete', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
-    (album as { hidden?: boolean }).hidden
-      ? { label: 'Show this album again', icon: <Eye size={15} />, run: () => patch('albums', album.id, { hidden: false }) }
-      : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
-    (album as { noYoutube?: boolean }).noYoutube
-      ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
-      : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
+    ...(full && planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
+    ...(full ? [
+      (album as { complete?: boolean }).complete
+        ? { label: 'Suggest it again', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: false }) }
+        : { label: 'Mark complete (stop suggesting it)', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
+      (album as { hidden?: boolean }).hidden
+        ? { label: 'Show this album again', icon: <Eye size={15} />, run: () => patch('albums', album.id, { hidden: false }) }
+        : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
+      (album as { noYoutube?: boolean }).noYoutube
+        ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
+        : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) }
+    ] as MenuItem[] : []),
     { separator: true },
     ...album.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),
-    ...album.eraIds.flatMap((e) => lib.eraById.get(e) ?? []).map((e) => ({ label: `Go to ${e.name}`, icon: <Layers size={15} />, to: `/eras/${e.id}` })),
+    ...(full ? album.eraIds.flatMap((e) => lib.eraById.get(e) ?? []).map((e) => ({ label: `Go to ${e.name}`, icon: <Layers size={15} />, to: `/eras/${e.id}` })) : []),
   ];
 }
 
@@ -112,11 +124,7 @@ export function useArtistMenuItems() {
     const ids = lib.tracks.filter((t) => t.credits.some((c) => c.artistId === artistId)).sort((a, b) => b.effectiveRating - a.effectiveRating).map((t) => t.id);
     const playable = ids.filter((id) => canPlay(lib.trackById.get(id)));
     return [
-      ...actions(ids, { type: 'search', id: null }, lib.artistById.get(artistId)?.name),
-      ...(hasCurrent ? [
-        { label: 'Then: replace what is coming next', icon: <ListStart size={15} />, run: () => replaceRest(playable, { type: 'search', id: null }), disabled: !playable.length } as MenuItem,
-        { label: 'Add to the end of what is coming next', icon: <ListEnd size={15} />, run: () => appendRest(playable), disabled: !playable.length } as MenuItem,
-      ] : []),
+      ...actions(ids, { type: 'search', id: `Artist: ${lib.artistById.get(artistId)?.name ?? ''}` }, lib.artistById.get(artistId)?.name),
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
@@ -139,10 +147,6 @@ export function usePlaylistMenuItems() {
     return [
       { label: 'Open', icon: <Play size={15} />, to: `/playlists/${playlist.id}` },
       ...actions(playlistTrackIds(lib, playlist), source, playlist.name),
-      ...(hasCurrent ? [
-        { label: 'Then: replace what is coming next', icon: <ListStart size={15} />, run: () => replaceRest(playable, source), disabled: !playable.length },
-        { label: 'Add to the end of what is coming next', icon: <ListEnd size={15} />, run: () => appendRest(playable), disabled: !playable.length },
-      ] : []),
       ...(isQuickPlaylist(playlist.id) ? [] : [
         { separator: true } as MenuItem,
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },

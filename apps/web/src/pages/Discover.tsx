@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { shuffleWithRules } from '@turbomusic/core';
 import { Link } from 'react-router-dom';
-import { CalendarClock, Compass, Disc3, ListEnd, ListPlus, Music4, Play, Shuffle, Sparkles, Users } from 'lucide-react';
+import { CalendarClock, Compass, Disc3, ListEnd, ListPlus, Music4, Play, RefreshCw, Shuffle, Sparkles, Users } from 'lucide-react';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
 import { heardTrackIds, tryNewPlaylist } from '../lib/heard.ts';
@@ -22,7 +23,8 @@ const KEY = 'turbomusic.discoverTab';
 const loadTab = (): Tab => { try { const t = localStorage.getItem(KEY); return TABS.some((x) => x.id === t) ? (t as Tab) : 'foryou'; } catch { return 'foryou'; } };
 
 /** A made-up playlist: a mosaic of its first covers, what it is, and what to do with it. */
-function MixCard({ title, blurb, tracks, wide, accent }: { title: string; blurb: string; tracks: Track[]; wide?: boolean; accent?: boolean }) {
+function MixCard({ title, blurb, tracks, wide, accent, onReroll }: { title: string; blurb: string; tracks: Track[]; wide?: boolean; accent?: boolean; onReroll?: () => void }) {
+  const lib = useLibraryLive();
   const play = usePlayer((s) => s.play);
   const hasCurrent = usePlayer((s) => !!s.queue.currentId);
   const appendRest = usePlayer((s) => s.appendRest);
@@ -41,12 +43,14 @@ function MixCard({ title, blurb, tracks, wide, accent }: { title: string; blurb:
         <div className="min-w-0 flex-1 space-y-1"><h2 className="font-semibold">{title}</h2><p className="text-sm text-muted">{blurb}</p><p className="text-xs text-muted">{plural(tracks.length, 'track')}</p></div>
       </div>
       {tracks.length > 0 ? <div className="flex flex-wrap gap-2">
-        <button className="btn btn-accent" onClick={() => play(ids[0], ids, { type: 'search', id: null })}><Play size={15} fill="currentColor" />Play</button>
+        <button className="btn btn-accent" onClick={() => play(ids[0], ids, { type: 'search', id: 'Discover mix' })}><Play size={15} fill="currentColor" />Play</button>
+        <button className="btn" title="Play this mix in a random order (your playback rules still apply)" onClick={() => { const s = shuffleWithRules(ids, lib.rules); play(s[0], s, { type: 'search', id: 'Discover mix' }); }}><Shuffle size={15} />Shuffle</button>
+        {onReroll && <button className="btn btn-ghost" title="Pick a different set" onClick={onReroll}><RefreshCw size={15} />New mix</button>}
         {hasCurrent && <button className="btn" title="Add to the end of what is coming next" onClick={() => appendRest(ids)}><ListEnd size={15} />Add to Then</button>}
         <button className="btn btn-ghost" disabled={saved} onClick={save}><ListPlus size={15} />{saved ? 'Saved as a playlist' : 'Save as playlist'}</button>
         <button className="btn btn-ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide tracks' : 'Show tracks'}</button></div>
         : <p className="text-sm text-muted">Nothing to put here yet.</p>}
-      {open && <div className="overflow-hidden rounded-theme border border-line"><TrackTable tracks={tracks} source="search" covers /></div>}
+      {open && <div className="overflow-hidden rounded-theme border border-line"><TrackTable tracks={tracks} source="search" sourceId="Discover mix" covers /></div>}
     </section>
   );
 }
@@ -64,7 +68,7 @@ function BucketGrid({ buckets, now, empty }: { buckets: Bucket<Track>[]; now: nu
             <div className="flex items-baseline justify-between gap-2"><h3 className="truncate font-semibold">{b.label}</h3><span className="text-xs tabular-nums text-muted">{b.avg ? `avg ${b.avg.toFixed(1)}` : 'unrated'}</span></div>
             <div className="h-1.5 overflow-hidden rounded-full bg-raised" title={`${b.tracks.length} tracks`}><div className="h-full rounded-full bg-accent" style={{ width: `${(b.tracks.length / top) * 100}%` }} /></div>
             <div className="text-xs text-muted">{plural(b.tracks.length, 'track')}</div>
-            <button className="btn btn-accent w-full" disabled={!mix.length} onClick={() => play(mix[0].id, mix.map((t) => t.id), { type: 'search', id: null })}><Play size={14} fill="currentColor" />Play a mix</button>
+            <button className="btn btn-accent w-full" disabled={!mix.length} onClick={() => play(mix[0].id, mix.map((t) => t.id), { type: 'search', id: 'Discover mix' })}><Play size={14} fill="currentColor" />Play a mix</button>
           </div>);
       })}
     </div>
@@ -77,6 +81,8 @@ export function DiscoverPage() {
   const [tab, setTabState] = useState(loadTab);
   const setTab = (t: Tab) => { setTabState(t); try { localStorage.setItem(KEY, t); } catch { /* private mode */ } };
   const now = useMemo(() => Date.now(), []);
+  const freshRef = useRef<{ seed: number; ids: string[] }>({ seed: -1, ids: [] });
+  const [seed, setSeed] = useState(0); // "New mix" is the only thing that re-rolls the random one: it must not change under your hands every time the library refreshes
   const listens = useMemo(() => buildListens(lib), [lib]);
   const playable = useMemo(() => lib.tracks.filter((t) => canPlay(t)), [lib]);
   const plays = useMemo<Plays>(() => {
@@ -96,9 +102,9 @@ export function DiscoverPage() {
       forgotten: back(forgottenFavourites(mixables, plays, now)),
       gems: back(hiddenGems(mixables, plays)),
       cuts: back(deepCuts(mixables, plays, w)),
-      fresh: tryNewPlaylist(playable, heard, canPlay),
+      fresh: freshRef.current.seed === seed && freshRef.current.ids.length ? freshRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t) : (() => { const f = tryNewPlaylist(playable, heard, canPlay); freshRef.current = { seed, ids: f.map((t) => t.id) }; return f; })(),
     };
-  }, [mixables, plays, listens, now, playable]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mixables, plays, now, playable, seed]); // eslint-disable-line react-hooks/exhaustive-deps
   const genres = useMemo(() => genreBuckets(mixables).map((b) => ({ ...b, tracks: back(b.tracks) })), [mixables]); // eslint-disable-line react-hooks/exhaustive-deps
   const decades = useMemo(() => decadeBuckets(mixables).map((b) => ({ ...b, tracks: back(b.tracks) })), [mixables]); // eslint-disable-line react-hooks/exhaustive-deps
   const unfinished = useMemo(() => unfinishedAlbums(lib.albums, heardTrackIds(listens), (id) => canPlay(lib.trackById.get(id))).slice(0, 40), [lib, listens]);
@@ -119,7 +125,7 @@ export function DiscoverPage() {
           <MixCard title="Loved and forgotten" blurb="Rated highly, played before, and not heard for three weeks." tracks={mixes.forgotten} />
           <MixCard title="Hidden gems" blurb="Songs you rate highly but have hardly played." tracks={mixes.gems} />
           <MixCard title="Deep cuts" blurb="Songs you never played, by the artists you rate best." tracks={mixes.cuts} />
-          <MixCard title="Something new" blurb="Songs you have never played, a few from each album." tracks={mixes.fresh} />
+          <MixCard title="Something new" blurb="Songs you have never played, a few from each album." tracks={mixes.fresh} onReroll={() => setSeed((n) => n + 1)} />
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={() => { const r = [...playable].sort(() => Math.random() - 0.5).slice(0, 40); if (r.length) play(r[0].id, r.map((t) => t.id), { type: 'shuffle', id: null }); }}><Shuffle size={15} />Surprise me: 40 random songs</button>

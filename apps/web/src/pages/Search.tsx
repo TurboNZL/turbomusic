@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { useLibrary, type Library } from '../lib/derive.ts';
@@ -30,6 +30,10 @@ export function SearchPage() {
   const searchPlaysAll = useStore((s) => s.settings.searchPlaysAll);
   const { q, chips, kind } = parseSearch(params);
   const [shown, setShown] = useState(CHUNK);
+  const watcher = useRef<IntersectionObserver | null>(null);
+  const grow = useRef<() => void>(() => {});
+  const sentinel = (el: HTMLElement | null) => { watcher.current?.disconnect(); if (!el || typeof IntersectionObserver === 'undefined') return; watcher.current = new IntersectionObserver((e) => { if (e.some((x) => x.isIntersecting)) grow.current(); }, { rootMargin: '600px' }); watcher.current.observe(el); };
+  grow.current = () => setShown((n) => n + CHUNK);
 
   const results = useMemo(() => {
     const needle = (splitTyped(q) ? '' : q).trim().toLowerCase();
@@ -59,7 +63,7 @@ export function SearchPage() {
     ? <h2 className="mb-2 font-semibold"><Link to={where(k)} className="hover:underline">{LABEL[k]}</Link> <span className="text-sm font-normal text-muted">{results[k]!.length}</span></h2> : null);
   const more = (k: Exclude<SearchKind, 'all'>) => (kind === 'all' && results[k]!.length > (k === 'tracks' ? CHUNK : GLANCE)
     ? <Link to={where(k)} className="mt-2 inline-block text-sm text-accent hover:underline">See all {results[k]!.length}</Link>
-    : kind === k && shown < results[k]!.length ? <div className="mt-4 text-center"><button className="btn" onClick={() => setShown(shown + CHUNK)}>Show more ({results[k]!.length - shown} left)</button></div> : null);
+    : kind === k && shown < results[k]!.length ? <div ref={sentinel} className="mt-4 text-center"><button className="btn" onClick={() => setShown(shown + CHUNK)}>Show more ({results[k]!.length - shown} left)</button></div> : null);
 
   return (
     <div className="space-y-6">
@@ -76,17 +80,17 @@ export function SearchPage() {
         })}
       </div>
       {visible('artists') && <section>{heading('artists')}<div className="flex flex-wrap gap-3">{cap(results.artists!, 'artists').map((a) => (
-        <Link key={a.id} to={`/artists/${a.id}`} className="card flex w-48 items-center gap-3 p-2" onContextMenu={menu.onContextMenu(artistItems(a.id), `Actions for ${a.name}`, a.id)}><Cover kind="artist" hash={a.image} seed={a.name} className="w-10" /><span className="truncate text-sm">{a.name}</span></Link>))}</div>{more('artists')}</section>}
+        <Link key={a.id} to={`/artists/${a.id}`} className="card flex w-48 items-center gap-3 p-2" onContextMenu={(e) => menu.onContextMenu(artistItems(a.id), `Actions for ${a.name}`, a.id)(e)}><Cover kind="artist" hash={a.image} seed={a.name} className="w-10" /><span className="truncate text-sm">{a.name}</span></Link>))}</div>{more('artists')}</section>}
       {visible('albums') && <section>{heading('albums')}
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
           {cap(results.albums!, 'albums').map((a: Library['albums'][number]) => (
-            <div key={a.id} className="bt-tile" onContextMenu={menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id)}><Link to={`/albums/${a.id}`} className="block"><Cover hash={a.cover} seed={a.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div></Link>
+            <div key={a.id} className="bt-tile" onContextMenu={(e) => menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id)(e)}><Link to={`/albums/${a.id}`} className="block"><Cover hash={a.cover} seed={a.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div></Link>
               <div className="bt-cap truncate text-xs text-muted"><ArtistLinks leads={a.leads} /></div></div>))}
         </div>{more('albums')}</section>}
       {visible('singles') && <section>{heading('singles')}<SingleGrid tracks={cap(results.singles!, 'singles')} />{more('singles')}</section>}
       {visible('eras') && <section>{heading('eras')}<div className="flex flex-wrap gap-3">{cap(results.eras!, 'eras').map((e) => (
         <Link key={e.id} to={`/eras/${e.id}`} className="card flex w-56 items-center gap-3 p-2"><Cover hash={e.cover} seed={e.name} className="w-10" /><span className="flex min-w-0 items-center gap-1.5 truncate text-sm"><Layers size={13} className="shrink-0 text-muted" />{e.name}</span></Link>))}</div>{more('eras')}</section>}
-      {visible('tracks') && <section>{heading('tracks')}<div className="card overflow-hidden"><TrackTable tracks={cap(results.tracks!, 'tracks')} queue={results.tracks!} source="search" covers keepQueue={!searchPlaysAll} /></div>{more('tracks')}</section>}
+      {visible('tracks') && <section>{heading('tracks')}<div className="card overflow-hidden"><TrackTable tracks={cap(results.tracks!, 'tracks')} queue={results.tracks!} source="search" sourceId="Search results" covers keepQueue={!searchPlaysAll} /></div>{more('tracks')}</section>}
       {(chips.length > 0 || q) && total === 0 && <p className="text-muted">Nothing matches.</p>}
     </div>
   );

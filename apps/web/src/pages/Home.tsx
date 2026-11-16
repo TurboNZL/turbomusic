@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { Link } from 'react-router-dom';
 import { HeartPulse, Play, Shuffle, Sparkles, Swords } from 'lucide-react';
@@ -10,7 +10,7 @@ import { computeListenStats, dayKey } from '../lib/listenStats.ts';
 import { Bars, fmtHours } from '../components/charts.tsx';
 import { healthScore } from '../components/HealthHero.tsx';
 import { Cover } from '../components/Cover.tsx';
-import type { Library } from '../lib/derive.ts';
+import type { Library, Track } from '../lib/derive.ts';
 import { useLibraryLive } from '../lib/derive.ts';
 import { cn } from '../lib/cn.ts';
 import { EloQuestions } from '../components/EloQuestions.tsx';
@@ -86,7 +86,16 @@ export function HomePage() {
   // never-played tracks, a few per album: a premade playlist to get to know the rest of the library (they are kept out of the ranking until heard)
   const [shuffleSeed, setShuffleSeed] = useState(0);
   const unheardCount = useMemo(() => { const h = heardTrackIds(listens); return lib.tracks.filter((t) => !h.has(t.id) && canPlay(t)).length; }, [listens, lib]);
-  const tryNew = useMemo(() => tryNewPlaylist(lib.tracks, heardTrackIds(listens), canPlay), [listens, lib, shuffleSeed]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the random set is rolled once per "New mix" press, not every time the library refreshes under it
+  const tryRef = useRef<{ seed: number; ids: string[] }>({ seed: -1, ids: [] });
+  const tryNew = useMemo(() => {
+    if (tryRef.current.seed === shuffleSeed && tryRef.current.ids.length) return tryRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t);
+    const f = tryNewPlaylist(lib.tracks, heardTrackIds(listens), canPlay);
+    tryRef.current = { seed: shuffleSeed, ids: f.map((t) => t.id) };
+    return f;
+  }, [listens, lib, shuffleSeed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickList = useMemo(() => (tryNew.length ? tryNew : [...lib.tracks].filter(canPlay).sort((x, y) => y.effectiveRating - x.effectiveRating).slice(0, 40)).map((t) => t.id), [tryNew, lib]);
+  const pick = lib.trackById.get(pickList[0] ?? '');
   const newest = useMemo(() => { const at = addedTimes(lib.albums, lib.timeline); return [...lib.albums].sort((a, b) => (at.get(b.id) ?? 0) - (at.get(a.id) ?? 0)).slice(0, 12); }, [lib]);
   const month = useMemo(() => computeListenStats(listens, { from: Date.now() - 30 * 86_400_000 }), [listens]);
   const days = useMemo(() => Array.from({ length: 30 }, (_, i) => { const d = new Date(Date.now() - (29 - i) * 86_400_000); return { label: i % 5 === 0 || i === 29 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '', full: d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }), value: month.byDay.get(dayKey(d.getTime())) ?? 0 }; }), [month]);
@@ -108,8 +117,16 @@ export function HomePage() {
               <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(last.pos / 60)}:{String(Math.floor(last.pos % 60)).padStart(2, '0')}</button>
                 <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div>
             </div></>
-          : <div className="min-w-0 flex-1 space-y-2"><h1 className="text-2xl font-bold">Welcome back</h1><p className="text-sm text-muted">If you stop a song part-way, it will be waiting for you here.</p>
-              <div className="flex flex-wrap gap-2"><Link to="/vote" className="btn btn-accent whitespace-nowrap"><Swords size={16} />Keep ranking · {lib.tracks.length - done} to go</Link><Link to="/albums" className="btn">Browse albums</Link></div></div>}
+          : pick ? <>
+            <Cover hash={pick.cover} seed={pick.albumTitle ?? pick.title} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="text-xs uppercase tracking-wider text-muted">{tryNew.length ? 'Something you have not heard' : 'One of your best'}</div>
+              <div className="truncate text-2xl font-bold">{pick.title}</div>
+              <div className="truncate text-sm text-muted">{pick.artistName}{pick.albumTitle ? ` · ${pick.albumTitle}` : ''}</div>
+              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={() => play(pick.id, pickList, { type: 'search', id: tryNew.length ? 'Try something new' : 'Your best tracks' })}><Play size={16} fill="currentColor" />Play</button>
+                <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div>
+            </div></>
+          : <div className="min-w-0 flex-1"><Link to="/albums" className="btn">Browse albums</Link></div>}
         </div>
       </section>
       {lib.tracks.filter((t) => t.file).length >= 3 && <EloQuestions />}
@@ -126,7 +143,7 @@ export function HomePage() {
             : <p className="py-6 text-sm text-muted">No listening in the last 30 days. <Link to="/stats" className="underline">Import your Spotify history</Link> to fill this in.</p>}
         </section>
         <section className="card space-y-2 p-5"><div><h2 className="font-semibold">Rediscover</h2><p className="text-xs text-muted">Songs you rated 8 or higher that you have not played for a month.</p></div>
-          {comeback.length ? <ul className="space-y-1">{comeback.map((t) => <li key={t.id}><button className="flex w-full items-center gap-2 rounded-theme px-1 py-1 text-left text-sm hover:bg-raised" onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, comeback.map((x) => x.id), { type: 'search', id: null })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, comeback.map((x) => x.id), { type: 'search', id: null })}><Play size={12} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{t.title}<span className="text-muted"> · {t.artistName}</span></span><span className="text-xs tabular-nums text-muted">{t.effectiveRating.toFixed(1)}</span></button></li>)}</ul>
+          {comeback.length ? <ul className="space-y-1">{comeback.map((t) => <li key={t.id}><button className="flex w-full items-center gap-2 rounded-theme px-1 py-1 text-left text-sm hover:bg-raised" onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Try something new' })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Try something new' })}><Play size={12} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{t.title}<span className="text-muted"> · {t.artistName}</span></span><span className="text-xs tabular-nums text-muted">{t.effectiveRating.toFixed(1)}</span></button></li>)}</ul>
             : <p className="text-sm text-muted">Nothing yet: your favourites have all been played lately.</p>}
         </section>
       </div>
@@ -135,9 +152,9 @@ export function HomePage() {
           <div className="mr-auto"><h2 className="flex items-center gap-2 font-semibold"><Sparkles size={16} className="text-accent" />Try something new</h2>
             <p className="text-xs text-muted">{tryNew.length} tracks you have never played{unheardCount > tryNew.length ? `, picked from ${unheardCount}` : ''}. Ranking only uses tracks you have heard.</p></div>
           <button className="btn" title="A different mix" onClick={() => setShuffleSeed((n) => n + 1)}><Shuffle size={16} />New mix</button>
-          <button className="btn btn-accent" onClick={() => play(tryNew[0].id, tryNew.map((t) => t.id), { type: 'search', id: null })}><Play size={16} fill="currentColor" />Play</button>
+          <button className="btn btn-accent" onClick={() => play(tryNew[0].id, tryNew.map((t) => t.id), { type: 'search', id: 'Try something new' })}><Play size={16} fill="currentColor" />Play</button>
         </div>
-        <div className="flex gap-3 overflow-x-auto pb-1">{tryNew.slice(0, 12).map((t) => <button key={t.id} className="group w-28 shrink-0 space-y-1 text-left" title={`${t.title} · ${t.artistName}`} onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, tryNew.map((x) => x.id), { type: 'search', id: null })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, tryNew.map((x) => x.id), { type: 'search', id: null })}>
+        <div className="flex gap-3 overflow-x-auto pb-1">{tryNew.slice(0, 12).map((t) => <button key={t.id} className="group w-28 shrink-0 space-y-1 text-left" title={`${t.title} · ${t.artistName}`} onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, tryNew.map((x) => x.id), { type: 'search', id: 'Try something new' })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, tryNew.map((x) => x.id), { type: 'search', id: 'Try something new' })}>
           <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="w-28 transition-transform group-hover:-translate-y-0.5" /><div className="truncate text-sm font-medium">{t.title}</div><div className="truncate text-xs text-muted">{t.artistName}</div></button>)}</div>
       </section>}
       {recentAlbums.length > 0 && <Shelf title="Recently played" to="/albums"><div className="flex gap-3 overflow-x-auto pb-2">{recentAlbums.map((a) => <AlbumTile key={a.id} album={a} onMenu={albumMenu} />)}</div></Shelf>}

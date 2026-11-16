@@ -44,7 +44,9 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
     if (a !== 'skip') setAnswered((n) => n + 1);
     next(q.kind);
   };
-  const pick = (t: Track, label = 'This one', on?: () => void) => <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={on ?? (() => answer(t.id))}><Check size={14} />{label}</button>;
+  const pick = (t: Track, label = 'This one', on?: () => void) => label === 'Like least'
+    ? <button className="btn w-full !py-1.5 text-sm" onClick={on ?? (() => answer(t.id))}><ThumbsDown size={14} />{label}</button> // the opposite of picking a favourite: not the accent colour, not a tick
+    : <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={on ?? (() => answer(t.id))}><Check size={14} />{label}</button>;
 
   return (
     <section className="card" aria-label="Ranking question">

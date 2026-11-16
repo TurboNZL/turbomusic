@@ -9,6 +9,7 @@ import { activityGrid, groupByMonth, listeningOnThisDay, MOODS, moodOf, onThisDa
 import { buildListens } from '../lib/listens.ts';
 import { cn } from '../lib/cn.ts';
 import { Cover } from './Cover.tsx';
+import { useNearEnd } from '../lib/useChunks.ts';
 
 const KINDS: Record<string, { label: string; Icon: typeof Plus; tone: string }> = {
   entry: { label: 'Written', Icon: PenLine, tone: 'bg-accent text-accent-fg' },
@@ -110,6 +111,7 @@ export function Journal({ lib }: { lib: Library }) {
   const [kind, setKind] = useState('all');
   const [mood, setMood] = useState<string | null>(null);
   const [shown, setShown] = useState(20);
+  const nearEnd = useNearEnd(() => setShown((n) => n + 20));
   const all = useMemo<Entry[]>(() => lib.timeline.map((r) => ({ ...r })), [lib]);
   const kinds = useMemo(() => { const m = new Map<string, number>(); for (const e of all) m.set(e.type, (m.get(e.type) ?? 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]); }, [all]);
   const needle = q.trim().toLowerCase();
@@ -178,7 +180,7 @@ export function Journal({ lib }: { lib: Library }) {
             {items.map((e) => <EntryCard key={e.id} e={e} lib={lib} onPin={() => pin(e)} onDelete={() => del(e)} />)}
           </div>) : null; })}
       </div>
-      {shown < filtered.length && <button className="btn" onClick={() => setShown(shown + 20)}>Show more</button>}
+      {shown < filtered.length && <button ref={nearEnd} className="btn" onClick={() => setShown(shown + 20)}>Show more</button>}
     </section>
   );
 }

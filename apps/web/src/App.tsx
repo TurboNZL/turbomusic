@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
+import { Onboarding } from './components/Onboarding.tsx';
 import { Layout } from './components/Layout.tsx';
 import { useStore } from './lib/store.ts';
 import { HomePage } from './pages/Home.tsx';
@@ -39,7 +40,8 @@ export function App() {
   const ready = useStore((s) => s.ready);
   useEffect(() => { void init(); }, [init]);
   if (!ready) return <BootSplash />;
-  return (
+  return (<>
+    <Onboarding />
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
@@ -68,6 +70,6 @@ export function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<div className="p-8 text-muted">Nothing here.</div>} />
       </Route>
-    </Routes>
+    </Routes></>
   );
 }

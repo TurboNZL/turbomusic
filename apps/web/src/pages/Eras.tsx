@@ -43,7 +43,7 @@ export function ErasPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Eras <span className="text-base font-normal text-muted">{rows.length}</span></h1>
       </div>
-      <ListToolbar actions={<><button className="btn" onClick={() => edit({ kind: 'new-era', id: '' })}><Plus size={15} />New era</button></>} scope="eras" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search eras, or filter: artist, genre, before…" sorts={ERA_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar scope="eras" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search eras, or filter: artist, genre, before…" sorts={ERA_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {!all.length && <p className="max-w-xl text-sm text-muted">An era groups albums and singles that belong to the same period (a phase of an artist, a scene). Make one here and fill it, or choose it in an album’s or single’s editor. Eras can overlap, and notes and playlists can belong to them.</p>}
       {all.length > 0 && !rows.length && <p className="text-sm text-muted">No eras match.</p>}
       {page.view === 'list'
@@ -105,8 +105,8 @@ export function EraPage() {
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{plural(total.albums, 'album')}</Link> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{plural(total.singles, 'single')}</Link>{playlists.length > 0 && ` · ${plural(playlists.length, 'playlist')}`}</div>
           {era.description && <p className="max-w-prose text-sm">{era.description}</p>}
           <div className="flex gap-2 pt-1">
-            <button className="btn btn-accent" disabled={!ids.length} onClick={() => play(ids[0], ids, { type: 'search', id: null })}><Play size={16} fill="currentColor" />Play</button>
-            <button className="btn" disabled={!ids.length} onClick={() => { const s = shuffleWithRules(ids, lib.rules); play(s[0], s, { type: 'search', id: null }); }}><Shuffle size={15} />Shuffle</button>
+            <button className="btn btn-accent" disabled={!ids.length} onClick={() => play(ids[0], ids, { type: 'search', id: `Era: ${era.name}` })}><Play size={16} fill="currentColor" />Play</button>
+            <button className="btn" disabled={!ids.length} onClick={() => { const s = shuffleWithRules(ids, lib.rules); play(s[0], s, { type: 'search', id: `Era: ${era.name}` }); }}><Shuffle size={15} />Shuffle</button>
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, the tracks in this era…" onClick={(e) => menu.toggle(e.currentTarget, 'era', [
               { label: 'Tracks in this era', icon: <Layers size={15} />, to: where('tracks') },
               { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('era', era.id) },
@@ -119,7 +119,7 @@ export function EraPage() {
         {page.view === 'grid'
           ? <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
               {items.map((i) => i.kind === 'album'
-                ? <div key={i.id} className="bt-tile" onContextMenu={menu.onContextMenu(albumItems(i.album), `Actions for ${i.album.title}`, i.id)}>
+                ? <div key={i.id} className="bt-tile" onContextMenu={(e) => menu.onContextMenu(albumItems(i.album), `Actions for ${i.album.title}`, i.id)(e)}>
                     <Link to={`/albums/${i.album.id}`} className="block"><Cover hash={i.album.cover} seed={i.album.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{i.album.title}</div></Link>
                     <div className="bt-cap truncate text-xs text-muted"><ArtistLinks leads={i.album.leads} /></div>
                     <div className="bt-cap truncate text-xs text-muted">{i.album.releaseDate ? fmtDate(i.album.releaseDate) : 'No date'}</div>

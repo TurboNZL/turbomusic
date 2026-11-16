@@ -14,6 +14,7 @@ import { useEditor } from '../lib/editor.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { Cover } from '../components/Cover.tsx';
 import { useMenu } from '../components/Menu.tsx';
+import { PlayControls } from '../components/PlayControls.tsx';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 import { ArtistLinks } from '../components/ArtistLinks.tsx';
 import { plural } from '../lib/cn.ts';
@@ -46,13 +47,13 @@ export function AlbumsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Albums <span className="text-base font-normal text-muted">{albums.length}</span></h1>
       </div>
-      <ListToolbar actions={<>{hiddenCount > 0 && <button type="button" className={`btn ${showHidden ? 'btn-accent' : ''}`} aria-pressed={showHidden} title="Albums you hid are left out of this list" onClick={() => setShowHidden(!showHidden)}><EyeOff size={15} />Hidden {hiddenCount}</button>}<button className="btn" disabled={!playable.length} title="Shuffle every track of the albums shown" onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'search', id: null }); }}><Shuffle size={15} />Shuffle</button> <button className="btn" onClick={() => edit({ kind: 'import', id: '' })}><Download size={15} />Import</button> <button className="btn" onClick={() => edit({ kind: 'new-album', id: '' })}><Plus size={15} />New album</button></>} scope="albums" chips={chips} onChips={setChips} text={q} onText={setQ} sorts={ALBUM_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={<>{hiddenCount > 0 && <button type="button" className={`btn ${showHidden ? 'btn-accent' : ''}`} aria-pressed={showHidden} title="Albums you hid are left out of this list" onClick={() => setShowHidden(!showHidden)}><EyeOff size={15} />Hidden {hiddenCount}</button>}<PlayControls ids={playable} source={{ type: 'search', id: 'Albums' }} label="these albums" /></>} scope="albums" chips={chips} onChips={setChips} text={q} onText={setQ} sorts={ALBUM_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {page.view === 'list'
         ? <EntityList rows={shownAlbums.map((a) => ({ id: a.id, to: `/albums/${a.id}`, cover: a.cover, seed: a.title, title: a.title, sub: <ArtistLinks leads={a.leads} />,
             meta: <>{a.releaseDate?.slice(0, 4)}{a.releaseDate ? ' · ' : ''}{plural(a.trackIds.length, 'track')}{a.rating != null && ` · ${a.rating.toFixed(1)}`}</>, menu: menu.onContextMenu(itemsFor(a), `Actions for ${a.title}`, a.id) }))} />
         : <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
             {shownAlbums.map((a) => (
-              <div key={a.id} className="bt-tile group" onContextMenu={menu.onContextMenu(itemsFor(a), `Actions for ${a.title}`, a.id)}>
+              <div key={a.id} className="bt-tile group" onContextMenu={(e) => menu.onContextMenu(itemsFor(a), `Actions for ${a.title}`, a.id)(e)}>
                 <Link to={`/albums/${a.id}`} className="block">
                   <Cover hash={a.cover} seed={a.title} className="transition-transform group-hover:scale-[1.02]" />
                   <div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div>
