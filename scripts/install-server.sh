@@ -97,11 +97,18 @@ port_busy() { { ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null; } | awk '{print
 
 if [ -z "$ROOT" ]; then
   DRIVE="$(biggest_drive)"
+  if [ -n "$DRIVE" ]; then DEFROOT="$DRIVE/turbomusic"; else DEFROOT="$HOME/turbomusic"; fi
   ask ROOT "Where should TurboMusic live? One folder holds the program, its tools and (by default) your library.${DRIVE:+
-  (Your biggest extra drive is mounted at $DRIVE.)}" "${DRIVE:+$DRIVE/turbomusic}${DRIVE:-$HOME/turbomusic}"
+  (Your biggest extra drive is mounted at $DRIVE.)}" "$DEFROOT"
 fi
 case "$ROOT" in /*) ;; *) die "the folder must be a full path starting with /" ;; esac
 ROOT="${ROOT%/}"
+# a folder that already holds an install: its settings.env says where the library is and which port it uses
+if [ -f "$ROOT/settings.env" ]; then
+  SAVED_DATA="$(sed -n 's/^TURBOMUSIC_DATA_DIR=//p' "$ROOT/settings.env" | head -1)"; SAVED_PORT="$(sed -n 's/^TURBOMUSIC_PORT=//p' "$ROOT/settings.env" | head -1)"
+  [ -n "$DATA" ] || DATA="${SAVED_DATA:-}"; [ -n "$PORT" ] || PORT="${SAVED_PORT:-}"
+  note "Found an existing install in $ROOT (library ${DATA:-?}, port ${PORT:-?}); it will be kept."
+fi
 if [ -z "$DATA" ]; then
   EXISTING=""
   for d in "$ROOT/data" /mnt/data/curator /var/lib/turbomusic "$HOME/turbomusic-data"; do [ -f "$d/turbomusic.db" ] || [ -f "$d/curator.db" ] && { EXISTING="$d"; break; }; done
@@ -114,10 +121,10 @@ if [ -z "$PORT" ]; then
   ask PORT "Which port should the server listen on? Port numbers must be unique on this machine." "47813"
 fi
 case "$PORT" in ''|*[!0-9]*) die "the port must be a number" ;; esac
-if port_busy "$PORT" && ! { [ -L "$ROOT/app" ] && systemctl is-active --quiet "$APP" 2>/dev/null; }; then
+if port_busy "$PORT" && [ ! -f "$ROOT/settings.env" ]; then
   note "Something already listens on port $PORT. If that is an older TurboMusic about to be replaced it is fine; otherwise choose another port (--port)."
 fi
-if [ "$LOCAL" != 1 ] && interactive; then
+if [ "$LOCAL" != 1 ] && interactive && [ ! -f "$ROOT/settings.env" ]; then
   confirm "Should other devices on your network be able to reach it directly? (Answer no if only a Cloudflare tunnel on this machine should.)" || LOCAL=1
 fi
 
@@ -125,7 +132,7 @@ fi
 say "TurboMusic server: the plan"
 note "Folder:    $ROOT"
 note "Library:   $DATA"
-if [ "$LOCAL" = 1 ]; then note "Port:      $PORT   (this machine only)"; else note "Port:      $PORT   (reachable from your network)"; fi
+if [ -f "$ROOT/settings.env" ]; then note "Port:      $PORT   (as in your settings.env)"; elif [ "$LOCAL" = 1 ]; then note "Port:      $PORT   (this machine only)"; else note "Port:      $PORT   (reachable from your network)"; fi
 if [ "$SERVICE" = 1 ]; then
   if [ "$SYSTEM" = 1 ]; then note "Service:   system service, running as $USER (sudo is asked for once)"; else note "Service:   user service of $USER (no sudo; needs lingering to start at boot)"; fi
 else note "Service:   none (start it yourself with $ROOT/run.sh)"; fi
