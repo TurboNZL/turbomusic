@@ -59,7 +59,7 @@ if [ "$found" = 0 ]; then say "Nothing of the old install was found. Nothing to 
 say
 if [ "${#LIB[@]}" -gt 0 ]; then
   say "Your library (NOT touched) is probably in:"; printf '  %s\n' "$(printf '%s\n' "${LIB[@]}" | sort -u)"
-  say "Give that folder to the new install:  install-server.sh --root /mnt/data/turbomusic --data-dir <that folder>"
+  say "Give that folder to the new install:  the installer (curl -fsSL .../scripts/install-server.sh | bash) and give that folder when it asks for the library"
   say
 fi
 [ "$DRY" = 1 ] && { say "(dry run: nothing was changed)"; exit 0; }

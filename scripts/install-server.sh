@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
-# TurboMusic server, self-contained: ONE folder holds the program, its own Node, ffmpeg, yt-dlp and (by default) the library.
-# Nothing is installed system-wide and nothing needs root, so with --root on your big drive the root drive stays untouched
-# (apart from one small link that starts the server at boot, see the end of this script).
+# TurboMusic server, guided. ONE folder holds the program, its own Node, ffmpeg, yt-dlp and (by default) the library.
+# It asks where things should go, shows what it will do, and only then does it. It never creates a user account: the server runs as
+# the account you run this as. It runs as a normal system service (sudo is used once, to put the service file in place).
 #
-#   curl -fsSL https://raw.githubusercontent.com/TurboNZL/turbomusic/main/scripts/install-server.sh | bash -s -- --root /mnt/data/turbomusic
+#   curl -fsSL https://raw.githubusercontent.com/TurboNZL/turbomusic/main/scripts/install-server.sh | bash
 #
-# Run it as the account that should own the library (not as root). Running it again repairs missing parts and never changes the
-# server version: updating is the "Update server" button in the app's Settings (or the same command with --update).
+# Run it as the account that should own the library (not as root). Running it again repairs missing parts, keeps your settings and
+# never changes the server version: updating is the "Update server" button in the app's Settings (or this script with --update).
 #
-#   --root DIR        the install folder (required), e.g. /mnt/data/turbomusic
+# Everything it asks can be given as an option instead (then it asks nothing, or add --yes to accept the defaults):
+#   --root DIR        the install folder, e.g. /mnt/data/turbomusic
 #   --data-dir DIR    where the library lives (default: DIR/data). Point it at an existing library folder to keep it.
 #   --port N          default 47813
+#   --local-only      listen on this machine only (127.0.0.1), for when only a tunnel should reach the server
+#   --user-service    run it as a user service of this account instead of a system service (no sudo, needs lingering)
 #   --no-service      do not set up the start-at-boot service
 #   --update          also fetch the newest server bundle now (a re-run otherwise keeps the installed version)
-#   --allow-root-drive  allow --root on the same drive as /
+#   --yes             do not ask: use the options given and the defaults for the rest
+#   --allow-root-drive  allow the folder on the same drive as /
 #   --token T         a read-only GitHub token (only while the repository is private)
 #   --bundle-file F --version V   use a server bundle you already have (offline installs, tests)
-#   --dry-run         say what would be done
+#   --dry-run         say what would be done and change nothing
 set -euo pipefail
 
-ROOT=""; DATA=""; PORT="47813"; SERVICE=1; DRY=0; UPDATE=0; ALLOW_ROOT=0; TOKEN_ARG=""; BUNDLE_FILE=""; VERSION_ARG=""
+ROOT=""; DATA=""; PORT=""; SERVICE=1; SYSTEM=1; DRY=0; UPDATE=0; ALLOW_ROOT=0; TOKEN_ARG=""; BUNDLE_FILE=""; VERSION_ARG=""; YES=0; LOCAL=0
+APP="turbomusic"
 REPO="TurboNZL/turbomusic"
 say() { printf '\n== %s\n' "$*"; }
 note() { printf '   %s\n' "$*"; }
@@ -31,21 +36,22 @@ while [ $# -gt 0 ]; do
     --root) ROOT="${2:?--root needs a folder}"; shift 2 ;;
     --data-dir) DATA="${2:?--data-dir needs a folder}"; shift 2 ;;
     --port) PORT="${2:?--port needs a number}"; shift 2 ;;
+    --local-only) LOCAL=1; shift ;;
+    --user-service) SYSTEM=0; shift ;;
     --no-service) SERVICE=0; shift ;;
     --update) UPDATE=1; shift ;;
+    --yes|-y) YES=1; shift ;;
     --allow-root-drive) ALLOW_ROOT=1; shift ;;
     --token) TOKEN_ARG="${2:?--token needs a value}"; shift 2 ;;
     --bundle-file) BUNDLE_FILE="${2:?--bundle-file needs a file}"; shift 2 ;;
     --version) VERSION_ARG="${2:?--version needs a value}"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     *) die "unknown option: $1 (try --help)" ;;
   esac
 done
 
-[ -n "$ROOT" ] || die "--root is required, for example: --root /mnt/data/turbomusic"
-case "$ROOT" in /*) ;; *) die "--root must be a full path starting with /" ;; esac
-[ "$(id -u)" != 0 ] || die "run this as the account that should own the library, not as root (nothing here needs root)"
+[ "$(id -u)" != 0 ] || die "run this as the account that should own the library, not as root. The server will run as that account; sudo is asked for only when needed."
 for c in curl tar xz sha256sum; do command -v "$c" >/dev/null 2>&1 || die "'$c' is missing. On Debian/Ubuntu/Raspberry Pi OS: sudo apt install curl xz-utils (tar and sha256sum come with the system)."; done
 
 case "$(uname -m)" in
@@ -54,16 +60,86 @@ case "$(uname -m)" in
   *) die "unsupported processor: $(uname -m) (64-bit Intel/AMD and 64-bit ARM, such as a Raspberry Pi 4/5 with a 64-bit OS, are supported)" ;;
 esac
 
-[ -n "$DATA" ] || DATA="$ROOT/data"
-case "$DATA" in /*) ;; *) die "--data-dir must be a full path starting with /" ;; esac
+# --- questions. With `curl | bash` the script itself is stdin, so answers are read from the terminal (TURBOMUSIC_INSTALL_INPUT: a file, for tests).
+INPUT_FD=""
+if [ "$YES" != 1 ]; then
+  if [ -n "${TURBOMUSIC_INSTALL_INPUT:-}" ]; then exec 3<"$TURBOMUSIC_INSTALL_INPUT"; INPUT_FD=1
+  elif { : </dev/tty; } 2>/dev/null; then exec 3</dev/tty; INPUT_FD=1
+  fi
+fi
+interactive() { [ "$INPUT_FD" = 1 ]; }
+# ask VAR "question" "default": a blank answer takes the default
+ask() {
+  local var="$1" q="$2" def="$3" ans=""
+  if interactive; then
+    printf '\n%s\n  [%s] > ' "$q" "$def" >&2
+    IFS= read -r ans <&3 || ans=""
+  fi
+  printf -v "$var" '%s' "${ans:-$def}"
+}
+confirm() {  # confirm "question" -> yes by default
+  local ans=""
+  if interactive; then printf '\n%s [Y/n] > ' "$1" >&2; IFS= read -r ans <&3 || ans=""; fi
+  case "${ans:-y}" in y|Y|yes|YES|Yes) return 0 ;; *) return 1 ;; esac
+}
 
-# --- the root drive guard: the whole point is to keep everything on the big drive
-mkdir -p "$ROOT" 2>/dev/null || { [ "$DRY" = 1 ] || die "cannot create $ROOT. Create it once with: sudo mkdir -p $ROOT && sudo chown $USER $ROOT"; }
-if [ -d "$ROOT" ] && [ "$ALLOW_ROOT" != 1 ] && [ "$(stat -c %d "$ROOT")" = "$(stat -c %d /)" ]; then
-  die "$ROOT is on the same drive as the system (/). You asked for the big drive: is it mounted? Check with: findmnt /mnt/data. (Use --allow-root-drive if you really want this.)"
+# the biggest mounted drive that is not the system drive (a USB/SSD library drive), for the suggested folder
+biggest_drive() {
+  local best="" bestkb=0 kb target
+  while read -r kb target; do
+    case "$target" in /mnt/*|/media/*|/srv|/srv/*|/data|/data/*) ;; *) continue ;; esac
+    [ "$(stat -c %d "$target" 2>/dev/null)" = "$(stat -c %d / 2>/dev/null)" ] && continue
+    [ "$kb" -gt "$bestkb" ] 2>/dev/null && { best="$target"; bestkb="$kb"; }
+  done < <(df -P -k -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | awk 'NR>1 {print $4, $6}')
+  printf '%s' "$best"
+}
+port_busy() { { ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null; } | awk '{print $4}' | grep -Eq "[:.]$1\$"; }
+
+if [ -z "$ROOT" ]; then
+  DRIVE="$(biggest_drive)"
+  ask ROOT "Where should TurboMusic live? One folder holds the program, its tools and (by default) your library.${DRIVE:+
+  (Your biggest extra drive is mounted at $DRIVE.)}" "${DRIVE:+$DRIVE/turbomusic}${DRIVE:-$HOME/turbomusic}"
+fi
+case "$ROOT" in /*) ;; *) die "the folder must be a full path starting with /" ;; esac
+ROOT="${ROOT%/}"
+if [ -z "$DATA" ]; then
+  EXISTING=""
+  for d in "$ROOT/data" /mnt/data/curator /var/lib/turbomusic "$HOME/turbomusic-data"; do [ -f "$d/turbomusic.db" ] || [ -f "$d/curator.db" ] && { EXISTING="$d"; break; }; done
+  ask DATA "Where is (or should be) your music library? An existing library is kept as it is.${EXISTING:+
+  (Found an existing library at $EXISTING.)}" "${EXISTING:-$ROOT/data}"
+fi
+case "$DATA" in /*) ;; *) die "the library folder must be a full path starting with /" ;; esac
+DATA="${DATA%/}"
+if [ -z "$PORT" ]; then
+  ask PORT "Which port should the server listen on? Port numbers must be unique on this machine." "47813"
+fi
+case "$PORT" in ''|*[!0-9]*) die "the port must be a number" ;; esac
+if port_busy "$PORT" && ! { [ -L "$ROOT/app" ] && systemctl is-active --quiet "$APP" 2>/dev/null; }; then
+  note "Something already listens on port $PORT. If that is an older TurboMusic about to be replaced it is fine; otherwise choose another port (--port)."
+fi
+if [ "$LOCAL" != 1 ] && interactive; then
+  confirm "Should other devices on your network be able to reach it directly? (Answer no if only a Cloudflare tunnel on this machine should.)" || LOCAL=1
+fi
+
+# --- summary
+say "TurboMusic server: the plan"
+note "Folder:    $ROOT"
+note "Library:   $DATA"
+if [ "$LOCAL" = 1 ]; then note "Port:      $PORT   (this machine only)"; else note "Port:      $PORT   (reachable from your network)"; fi
+if [ "$SERVICE" = 1 ]; then
+  if [ "$SYSTEM" = 1 ]; then note "Service:   system service, running as $USER (sudo is asked for once)"; else note "Service:   user service of $USER (no sudo; needs lingering to start at boot)"; fi
+else note "Service:   none (start it yourself with $ROOT/run.sh)"; fi
+note "Accounts:  none are created"
+[ "$DRY" = 1 ] && note "(dry run: nothing will be changed)"
+if [ "$YES" != 1 ] && interactive; then confirm "Go ahead?" || { echo "Nothing was changed."; exit 0; }; fi
+
+# --- the root drive guard: the point of the folder is to keep everything on the big drive
+mkdir -p "$ROOT" 2>/dev/null || {
+  if [ "$DRY" = 1 ]; then :; elif [ "$YES" != 1 ] && interactive && confirm "$ROOT does not exist and $USER cannot create it. Create it with sudo and give it to $USER?"; then sudo mkdir -p "$ROOT" && sudo chown "$USER" "$ROOT"; else die "cannot create $ROOT. Create it once with: sudo mkdir -p $ROOT && sudo chown $USER $ROOT"; fi; }
+if [ -d "$ROOT" ] && [ "$ALLOW_ROOT" != 1 ] && [ "$(stat -c %d "$ROOT")" = "$(stat -c %d /)" ] && [ "$ROOT" != "$HOME/turbomusic" ]; then
+  die "$ROOT is on the same drive as the system (/). Is the drive mounted? Check with: findmnt. (Use --allow-root-drive if you really want this.)"
 fi
 [ "$DRY" = 1 ] || [ -w "$ROOT" ] || die "$ROOT is not writable for $USER: sudo chown -R $USER $ROOT"
-say "TurboMusic server -> $ROOT   (library: $DATA, port $PORT)"
 run mkdir -p "$ROOT/tools" "$ROOT/releases" "$ROOT/.dl" "$DATA"
 [ "$DRY" = 1 ] || [ -w "$DATA" ] || die "the library folder $DATA is not writable for $USER. If an older install owns it: sudo chown -R $USER $DATA"
 
@@ -137,14 +213,15 @@ if [ -n "$CURRENT" ] && [ "$UPDATE" != 1 ] && [ -z "$BUNDLE_FILE" ]; then note "
 fi
 
 # --- settings, start script, service file (settings.env is written once; your edits to it are kept)
+HOSTV="0.0.0.0"; [ "$LOCAL" = 1 ] && HOSTV="127.0.0.1"
 if [ "$DRY" != 1 ]; then
-  if [ ! -f "$ROOT/settings.env" ]; then
+  if [ -f "$ROOT/settings.env" ]; then note "settings.env already exists and is kept as it is (the port, library and network choices above only apply to a new install: edit that file to change them)"; else
     cat > "$ROOT/settings.env" <<ENV
 # TurboMusic server settings. Plain KEY=VALUE lines; restart the server after changing them.
 TURBOMUSIC_DATA_DIR=$DATA
 TURBOMUSIC_PORT=$PORT
 # Reachable from your network (0.0.0.0) or only from this machine (127.0.0.1, e.g. when only a tunnel should reach it):
-TURBOMUSIC_HOST=0.0.0.0
+TURBOMUSIC_HOST=$HOSTV
 # YouTube asks some servers to prove they are not a bot: a cookies file from a signed-in browser answers it.
 #TURBOMUSIC_YTDLP_COOKIES=$DATA/cookies.txt
 # Only while the GitHub repository is private (the in-app update then needs to read its releases):
@@ -171,7 +248,29 @@ export TMPDIR="$TURBOMUSIC_DATA_DIR/tmp" XDG_CACHE_HOME="$TURBOMUSIC_DATA_DIR/ca
 exec "$ROOT/node/bin/node" --disable-warning=ExperimentalWarning "$ROOT/app/headless.mjs"
 RUN
   chmod 755 "$ROOT/run.sh"
-  cat > "$ROOT/turbomusic.service" <<UNIT
+  if [ "$SYSTEM" = 1 ]; then
+    # a normal system service run by this account: plain `sudo systemctl restart turbomusic`, logs in `journalctl -u turbomusic`.
+    # RequiresMountsFor waits for the drive; XDG_RUNTIME_DIR lets Soloist reach this account's audio (PipeWire) when it is running.
+    cat > "$ROOT/turbomusic.service" <<UNIT
+[Unit]
+Description=TurboMusic server
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=$ROOT $DATA
+
+[Service]
+User=$USER
+Group=$(id -gn)
+Environment=XDG_RUNTIME_DIR=/run/user/$(id -u)
+ExecStart=$ROOT/run.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  else
+    cat > "$ROOT/turbomusic.service" <<UNIT
 [Unit]
 Description=TurboMusic server
 After=network-online.target
@@ -186,14 +285,36 @@ RestartSec=10
 [Install]
 WantedBy=default.target
 UNIT
+  fi
 fi
 
-# --- start at boot: a user service whose file lives in the install folder (one small link is all that touches the root drive)
+# --- start at boot
 STARTED=0
 if [ "$SERVICE" = 1 ]; then
   say "Service"
-  if [ "$DRY" = 1 ]; then note "[dry-run] would link $ROOT/turbomusic.service as a user service, enable it and turn on lingering"
-  elif command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  if [ "$DRY" = 1 ]; then
+    if [ "$SYSTEM" = 1 ]; then note "[dry-run] would stop an older user service of $USER if there is one, copy $ROOT/turbomusic.service to /etc/systemd/system with sudo, enable it and start it"
+    else note "[dry-run] would link $ROOT/turbomusic.service as a user service, enable it and turn on lingering"; fi
+  elif [ "$SYSTEM" = 1 ]; then
+    command -v systemctl >/dev/null 2>&1 || die "systemctl is missing, so there is no service manager. Start the server yourself with $ROOT/run.sh"
+    # an older install ran as a user service: stop it so two copies never fight for the port
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"   # over SSH this is often unset, and the user manager is then not found
+    if systemctl --user show-environment >/dev/null 2>&1 && systemctl --user cat turbomusic.service >/dev/null 2>&1; then
+      note "stopping the older user service of $USER"
+      systemctl --user disable --now turbomusic.service >/dev/null 2>&1 || true
+      rm -f "$HOME/.config/systemd/user/turbomusic.service" 2>/dev/null || true
+      systemctl --user daemon-reload >/dev/null 2>&1 || true
+    fi
+    note "sudo is needed once, to install the service file"
+    sudo install -m 644 "$ROOT/turbomusic.service" /etc/systemd/system/turbomusic.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable turbomusic.service >/dev/null 2>&1 || true
+    sudo systemctl restart turbomusic.service && STARTED=1
+    # logs survive a reboot only when this folder exists (Raspberry Pi OS does not create it)
+    if [ ! -d /var/log/journal ]; then
+      if confirm "Keep the server's logs across reboots? (creates /var/log/journal; small)"; then sudo mkdir -p /var/log/journal && sudo systemd-tmpfiles --create --prefix /var/log/journal >/dev/null 2>&1 && sudo systemctl restart systemd-journald >/dev/null 2>&1 || true; fi
+    fi
+  elif systemctl --user show-environment >/dev/null 2>&1; then
     systemctl --user link "$ROOT/turbomusic.service" >/dev/null 2>&1 || true
     systemctl --user daemon-reload
     systemctl --user enable turbomusic.service >/dev/null 2>&1 || true
@@ -201,7 +322,6 @@ if [ "$SERVICE" = 1 ]; then
     if loginctl enable-linger "$USER" >/dev/null 2>&1; then note "starts at boot, even when nobody is logged in"; else note "To start at boot without anyone logged in, run once:  sudo loginctl enable-linger $USER"; fi
   else
     note "No user service manager here (no login session with systemd). Start it with: $ROOT/run.sh"
-    note "To keep it running without a terminal:  nohup $ROOT/run.sh >/dev/null 2>&1 &"
   fi
 fi
 
@@ -212,5 +332,13 @@ if [ "$DRY" != 1 ]; then
   note "Open:   http://${IP:-<this machine>}:$PORT"
   if [ -s "$DATA/token" ]; then note "Token:  $(cat "$DATA/token")   (also in $DATA/token)"; else note "The token appears in $DATA/token when the server first starts."; fi
   note "Update: Settings -> Update server in the app (nothing to do here)"
-  note "Logs:   journalctl --user -u turbomusic -n 50"
+  if [ "$SERVICE" != 1 ]; then
+    note "Start:   $ROOT/run.sh"
+  elif [ "$SYSTEM" = 1 ]; then
+    note "Restart: sudo systemctl restart turbomusic"
+    note "Logs:    journalctl -u turbomusic -n 50"
+  else
+    note "Restart: systemctl --user restart turbomusic   (over SSH first: export XDG_RUNTIME_DIR=/run/user/\$(id -u))"
+    note "Logs:    journalctl --user -u turbomusic -n 50"
+  fi
 fi

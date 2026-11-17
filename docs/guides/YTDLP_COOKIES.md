@@ -58,7 +58,7 @@ TURBOMUSIC_YTDLP_COOKIES=/mnt/data/turbomusic/data/youtube-cookies.txt
 
 Make sure there is only ONE such line, and that it is not left over from the installer (it writes a commented example whose path is the data folder you gave it, which may be an old one). A path to a folder that does not exist makes yt-dlp crash with an unhelpful `[PYI-...] Failed to execute script` error. Check with `grep -n COOKIES /mnt/data/turbomusic/settings.env`.
 
-Then restart the server: `systemctl --user restart turbomusic`. If that says it cannot connect to the user bus (you got in with `su` or `sudo -iu`), run `export XDG_RUNTIME_DIR=/run/user/$(id -u)` first. No systemd session at all? Stop `run.sh` and start it again.
+Then restart the server: `sudo systemctl restart turbomusic`. (If you chose the user-service option when installing, it is `systemctl --user restart turbomusic`, and over `su` or `sudo -iu` run `export XDG_RUNTIME_DIR=/run/user/$(id -u)` first.) No systemd session at all? Stop `run.sh` and start it again.
 
 `TURBOMUSIC_YTDLP_COOKIES` becomes `--cookies <file>` on every yt-dlp call (downloads and album look-ups). For anything else yt-dlp should always get, `TURBOMUSIC_YTDLP_ARGS` takes extra arguments separated by spaces (for example `--js-runtimes node`). The one-folder install already sets up yt-dlp's tools and runtime, so that is rarely needed.
 
