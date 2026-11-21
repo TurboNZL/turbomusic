@@ -461,3 +461,16 @@ describe('filters', () => {
     expect(sortTracks(lib.tracks, 'released', 'asc').map((t) => t.id)).toEqual(['t1', 't2']);
   });
 });
+
+describe('other recordings of a song', () => {
+  it('share the main version\'s votes and rating, are not asked about twice, and a vote between versions says nothing', () => {
+    const vs = [1, 2, 3].map((i) => vote(`w${i}`, 't1', 't2', 't1', i));
+    const lib = buildLibrary(rows(rec('artists', 'a', { name: 'Artist', image: null }), rec('tracks', 't1', track('One')), rec('tracks', 't2', track('Two')), rec('tracks', 't3', track('Three', { versionOf: 't1' })), ...vs, vote('same', 't1', 't3', 't1', 9)));
+    const main = lib.trackById.get('t1')!, ver = lib.trackById.get('t3')!;
+    expect(ver.versionOf).toBe('t1');
+    expect(main.versions).toEqual(['t3']);
+    expect(ver.comparisons).toBe(main.comparisons); // pooled
+    expect(ver.effectiveRating).toBeCloseTo(main.effectiveRating);
+    expect(main.comparisons).toBe(3); // the vote between the two versions was dropped
+  });
+});

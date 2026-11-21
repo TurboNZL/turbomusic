@@ -14,6 +14,7 @@ import { parseSearch, searchHref } from '../lib/searchUrl.ts';
 import { useStore } from '../lib/store.ts';
 import { useEditor, type EditTarget } from '../lib/editor.ts';
 import { EditorHost } from './EditorHost.tsx';
+import { ImportToasts } from './ImportToasts.tsx';
 import { PlayerBar } from './PlayerBar.tsx';
 import { VolumeButton } from './VolumeButton.tsx';
 import { NowPlaying } from './NowPlaying.tsx';
@@ -90,7 +91,8 @@ const TOOLBAR_LABEL: Record<string, string> = { '/': 'Journal' };
 
 const ADD: { label: string; icon: typeof Plus; target: EditTarget }[] = [
   { label: 'Add audio files', icon: FileAudio, target: { kind: 'upload', id: '' } },
-  { label: 'New album', icon: Disc3, target: { kind: 'new-album', id: '' } },
+  { label: 'Album / single from YouTube Music', icon: Download, target: { kind: 'import', id: '' } },
+  { label: 'New album / single by hand', icon: Disc3, target: { kind: 'new-album', id: '' } },
   { label: 'New track', icon: Music2, target: { kind: 'new-track', id: '' } },
   { label: 'New artist', icon: User, target: { kind: 'new-artist', id: '' } },
   { label: 'New playlist', icon: ListMusic, target: { kind: 'new-playlist', id: '' } },
@@ -258,6 +260,7 @@ export function Layout() {
         </main>
       </div>
       <PlayerBar />
+      <ImportToasts />
       <EditorHost />
       <NowPlaying />
       <nav ref={tabRef} className={cn('bt-tabbar bt-shell relative flex', !dock && 'md:hidden')}>

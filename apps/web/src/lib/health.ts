@@ -1,3 +1,4 @@
+import { splitFeaturing } from './autofill.ts';
 import { findDuplicates } from './duplicates.ts';
 import { hasLead } from './defaults.ts';
 import type { Library } from './library.ts';
@@ -6,12 +7,21 @@ import { genreKey } from './genreOps.ts';
 
 export type HealthKind = 'album-source' | 'track' | 'album' | 'artist' | 'genre' | 'role' | 'release' | 'noteCategory';
 export interface HealthItem { kind: HealthKind; id: string; label: string; /** the album a track is on (for "this album has no YouTube Music link") */ albumId?: string | null; detail?: string; /** items that belong together (duplicates of one song) share a group */ group?: string; /** why a group was listed (duplicates) */ note?: string }
+/** A downloaded file whose length is off by more than 6 seconds and 4% from the song's length at its source (needs a measured length). */
+export const lengthMismatch = (t: { sourceSeconds?: number | null; audioCheck?: { seconds?: number; file?: string } | null; file?: string | null }) => {
+  const want = t.sourceSeconds, got = t.audioCheck?.seconds;
+  if (!want || !got || !t.file || t.audioCheck?.file !== t.file) return false;
+  return Math.abs(got - want) > 6 && Math.abs(got - want) / want > 0.04;
+};
+
 export interface HealthCheck {
   id: string; title: string; why: string; items: HealthItem[];
   /** only for checks that are safe to fix in one click */
   fix?: { label: string; table: 'artists' | 'genres' | 'roleCategories' | 'noteCategories' };
   /** one-click: write a "Lead artist" credit from the stored artistId onto each item */
   addLead?: { label: string };
+  /** one-click: take "(feat. X)" out of the title and add X as a Featured artist credit */
+  moveFeatured?: boolean;
   /** paste many links at once, album by album */
   bulk?: 'youtubeMusicUrl' | 'spotifyUrl' | 'geniusUrl';
   /** open the tool that looks for YouTube links of the tracks */
@@ -72,7 +82,9 @@ export function computeHealth(lib: Library): HealthCheck[] {
   for (const a of lib.albums) a.credits.forEach((c) => c.role.forEach((r) => usedRoles.add(r.toLowerCase())));
 
   const ignored = ignoredDupes(lib);
-  const dupeGroups = findDuplicates(lib).filter((g) => !isIgnoredDupe(ignored, g.ids));
+  // recordings already linked as versions of one song are settled: a group whose members are all one main version and its versions is not listed
+  const settled = (ids: string[]) => { const roots = new Set(ids.map((id) => lib.trackById.get(id)?.versionOf ?? id)); return roots.size === 1; };
+  const dupeGroups = findDuplicates(lib).filter((g) => !isIgnoredDupe(ignored, g.ids) && !settled(g.ids));
   const lowQuality = lib.tracks.filter((x) => x.bitrate && parseInt(x.bitrate) > 0 && parseInt(x.bitrate) < 192);
 
   const fakes = lib.tracks.filter((x) => { const q = qualityOf(x); return q === 'transcode' || q === 'mismatch'; });
@@ -89,6 +101,10 @@ export function computeHealth(lib: Library): HealthCheck[] {
         ...lib.albums.filter((a) => !hasLead(a.credits ?? [])).map((a) => ({ kind: 'album' as const, id: a.id, label: `${a.title} · ${a.artistName}` })),
         ...lib.tracks.filter((x) => !hasLead(x.credits ?? [])).map((x) => t(x)),
       ] },
+    { id: 'title-features', moveFeatured: true, title: 'Titles that name a featured artist', why: 'Featured artists belong in the credits, not in the title. “Move to credits” cuts “(feat. X)” / “(with X)” from the title and adds X as a Featured artist credit (an artist you already have is reused). Plays in your listening history still match.',
+      items: lib.tracks.filter((x) => splitFeaturing(x.title).featured.length).map((x) => t(x, `→ ${splitFeaturing(x.title).title} + ${splitFeaturing(x.title).featured.join(', ')}`)) },
+    { id: 'length-mismatch', title: 'Audio whose length differs from the song', why: 'The file is noticeably longer or shorter than the song should be (according to the album it came from). YouTube Music often serves the music-video audio, which can have an intro, a skit or silence added. Open the track, paste the link of the album’s own audio (the “Topic” upload or the album playlist) and download again. Run “Check audio quality” above first so lengths are known.',
+      items: lib.tracks.filter(lengthMismatch).map((x) => t(x, `file is ${Math.round(x.audioCheck!.seconds!)} s, song should be ${Math.round(x.sourceSeconds!)} s (${x.audioCheck!.seconds! > x.sourceSeconds! ? '+' : '−'}${Math.abs(Math.round(x.audioCheck!.seconds! - x.sourceSeconds!))} s)`)) },
     { id: 'dead-links', title: 'Dead YouTube links', why: 'YouTube said these videos are no longer available (removed, private or blocked), so the audio cannot be downloaded from them. Open the track and paste a working link, then download again. The mark goes away by itself once the link changes.', clearDead: true,
       items: lib.tracks.filter(isDead).map((x) => t(x, x.youtubeDead?.reason || 'video unavailable')) },
     { id: 'no-audio', title: 'Tracks without audio', why: 'They cannot be played. Tracks with a YouTube link can be downloaded with “Download missing audio” above.',

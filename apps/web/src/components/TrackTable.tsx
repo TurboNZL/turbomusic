@@ -61,7 +61,9 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
       {tracks.map((t, i) => (
         <div key={t.id}>
         <div data-track-id={t.id} className={cn('bt-row group flex items-center gap-3 px-3', current === t.id && 'bt-row-current')} style={{ paddingBlock: 'var(--row-y)' }}
-          onContextMenu={(e) => menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}>
+          onContextMenu={(e) => menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}
+          // double-click anywhere on the row that is not a button, link or field plays it
+          onDoubleClick={(e) => { if ((e.target as Element).closest('a, button, input, select, textarea, [role="menu"]') || !canPlay(t)) return; window.getSelection()?.removeAllRanges(); playRow(t.id); }}>
           {covers ? <>
             {numbered && <span className={cn('w-6 shrink-0 text-center text-sm text-muted', current === t.id && 'text-accent')}>{i + 1}</span>}
             {/* the cover is the play button: the Play glyph appears over it on hover or focus (and a tap on a phone plays) */}
@@ -82,6 +84,7 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
               <ArtistLinks leads={t.leads} featured={t.featured} />
               {showAlbum && t.albumTitle && <> · <Link to={`/albums/${t.albumId}`} className="hover:text-fg hover:underline">{t.albumTitle}</Link></>}
               {!t.albumId && t.releaseDate && <> · {fmtDate(t.releaseDate)}</>}
+              {t.alsoOn.length > 0 && <span className="ml-1.5 rounded-full border border-line px-1.5 text-[10px] text-muted" title={`Also on: ${t.alsoOn.map((a) => a.title).join(', ')}`}>also on {t.alsoOn.length === 1 ? t.alsoOn[0].title : `${t.alsoOn.length} albums`}</span>}
             </div>
           </div>
           <div className="hidden w-40 justify-end gap-1 overflow-hidden [@container(min-width:36rem)]:flex">{t.allGenres.slice(0, 2).map((g) => <span key={g} className="chip">{g}</span>)}</div>

@@ -1,25 +1,56 @@
 import { create } from 'zustand';
-import { cachedMatches, prefetchMatches } from './matchCache.ts';
+import { cacheMatches, cachedMatches, forgetMatches, prefetchMatches } from './matchCache.ts';
 import { getLibrary } from './derive.ts';
 import { useEditor } from './editor.ts';
 import { useStore } from './store.ts';
 
-/** Albums whose YouTube Music search is running because the user asked to import a release into them (their button shows a spinner meanwhile). */
-export const useImportSearching = create<{ ids: ReadonlySet<string> }>(() => ({ ids: new Set() }));
-const mark = (id: string, on: boolean) => useImportSearching.setState((s) => { const ids = new Set(s.ids); if (on) ids.add(id); else ids.delete(id); return { ids }; });
+/**
+ * A YouTube Music album search that runs in the background. It shows as a toast (`ImportToasts`) that you can open when you like and
+ * leave alone while the page changes: nothing here opens a dialog by itself, and the answer is kept so opening it later needs no new search.
+ */
+export interface ImportJob {
+  id: string;            // the album id (one job per album)
+  title: string;
+  status: 'searching' | 'ready' | 'empty' | 'failed';
+  startedAt: number;
+  count?: number;
+  error?: string;
+}
+
+export const useImportJobs = create<{ jobs: ImportJob[] }>(() => ({ jobs: [] }));
+const setJob = (id: string, patch: Partial<ImportJob>) => useImportJobs.setState((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
+export const dismissImportJob = (id: string) => useImportJobs.setState((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
+
+/** Albums whose search is running (the album page shows a spinner). */
+export const useImportSearching = <T,>(pick: (s: { ids: ReadonlySet<string> }) => T): T =>
+  useImportJobs((s) => pick({ ids: new Set(s.jobs.filter((j) => j.status === 'searching').map((j) => j.id)) }));
+
+const openDialog = (albumId: string) => useEditor.getState().open({ kind: 'import-into-album', id: albumId });
+
+/** The toast's Open button: the finished search (kept for a week) is in the import screen at once. */
+export function openImportJob(albumId: string) { dismissImportJob(albumId); openDialog(albumId); }
 
 /**
- * "Import a release from YouTube Music": the search for the album runs first, with the button turning into a spinner, and the import
- * screen opens when the answer is in (before, a blocking dialog opened at once and the user waited inside it). A search that fails or has
- * no server just opens the screen, which shows the reason and lets the user type or paste something.
+ * "Import a release from YouTube Music" for an album. With an answer already kept, the import screen opens at once; otherwise the search
+ * starts in the background and a toast reports it. Without a server there is nothing to search, so the screen opens to let a link be pasted.
  */
-export async function openImportIntoAlbum(albumId: string): Promise<void> {
-  const open = () => useEditor.getState().open({ kind: 'import-into-album', id: albumId });
+export async function startImportSearch(albumId: string, fresh = false): Promise<void> {
   const lib = getLibrary();
   const album = lib.albumById.get(albumId);
-  if (!album || !useStore.getState().settings.token || cachedMatches(albumId) || useImportSearching.getState().ids.has(albumId)) { open(); return; }
-  mark(albumId, true);
-  try { await prefetchMatches(lib, [album]); } catch { /* the screen reports it */ }
-  finally { mark(albumId, false); }
-  open();
+  const running = useImportJobs.getState().jobs.find((j) => j.id === albumId && j.status === 'searching');
+  if (running) return;
+  if (!album || !useStore.getState().settings.token || (!fresh && cachedMatches(albumId))) { openDialog(albumId); return; }
+  if (fresh) forgetMatches(albumId);
+  useImportJobs.setState((s) => ({ jobs: [...s.jobs.filter((j) => j.id !== albumId), { id: albumId, title: album.title, status: 'searching', startedAt: Date.now() }] }));
+  try {
+    await prefetchMatches(lib, [album]);
+    const found = cachedMatches(albumId);
+    if (!found) cacheMatches(albumId, []); // "nothing found" is an answer too: the screen then does not search a second time
+    setJob(albumId, found?.length ? { status: 'ready', count: found.length } : { status: 'empty', count: 0 });
+  } catch (e) {
+    setJob(albumId, { status: 'failed', error: e instanceof Error ? e.message : String(e) });
+  }
 }
+
+/** Kept under its old name for the places that already call it. */
+export const openImportIntoAlbum = (albumId: string) => startImportSearch(albumId);

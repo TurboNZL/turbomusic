@@ -13,7 +13,7 @@ import { usePlayer } from '../lib/player.ts';
 import { planConvertToSingle } from '../lib/albumOps.ts';
 import { eraPatches } from '../lib/eraOps.ts';
 import { useStore } from '../lib/store.ts';
-import type { MenuItem } from './Menu.tsx';
+import { group, type MenuItem } from './Menu.tsx';
 
 /** What a menu does to a list of tracks: play it, shuffle it (with the playback rules), queue it. */
 function useTrackListActions() {
@@ -32,13 +32,13 @@ function useTrackListActions() {
       { label: 'Play', icon: <Play size={15} />, run: () => { const o = ordered(); play(o[0], o, source); }, disabled: none },
       { label: 'Shuffle', icon: <Shuffle size={15} />, checked: readShuffle(), keepOpen: true, run: () => writeShuffle(!readShuffle()) },
       // each goes right after the one before it, so "next" keeps the order (the shuffled order when Shuffle is on)
-      { label: readShuffle() ? 'Play next (shuffled)' : 'Play next', icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next', label)), disabled: none },
-      { label: readShuffle() ? 'Add to queue (shuffled)' : 'Add to queue', icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last', label)), disabled: none },
+      { label: () => (readShuffle() ? 'Play next (shuffled)' : 'Play next'), icon: <ListStart size={15} />, run: () => [...ordered()].reverse().forEach((id) => enqueue(id, 'next', label)), disabled: none },
+      { label: () => (readShuffle() ? 'Add to queue (shuffled)' : 'Add to queue'), icon: <ListEnd size={15} />, run: () => ordered().forEach((id) => enqueue(id, 'last', label)), disabled: none },
       // only while something is playing: "then" is what comes after it
-      ...(hasCurrent ? [
-        { label: readShuffle() ? 'Then: replace (shuffled)' : 'Then: replace', icon: <ListStart size={15} />, run: () => replaceRest(ordered(), source), disabled: none } as MenuItem,
-        { label: readShuffle() ? 'Add to Then (shuffled)' : 'Add to Then', icon: <ListEnd size={15} />, run: () => appendRest(ordered()), disabled: none } as MenuItem,
-      ] : []),
+      ...(hasCurrent ? group('After the current song', <ListStart size={15} />, [
+        { label: () => (readShuffle() ? 'Then: replace (shuffled)' : 'Then: replace'), icon: <ListStart size={15} />, run: () => replaceRest(ordered(), source), disabled: none } as MenuItem,
+        { label: () => (readShuffle() ? 'Add to Then (shuffled)' : 'Add to Then'), icon: <ListEnd size={15} />, run: () => appendRest(ordered()), disabled: none } as MenuItem,
+      ]) : []),
     ];
   };
 }
@@ -87,15 +87,15 @@ export function useAlbumMenuItems() {
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
     { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
     { label: 'Add to an album playlist…', icon: <ListPlus size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
-    ...(full ? [
+    ...group('Import and merge', <Download size={15} />, [
+      { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => void openImportIntoAlbum(album.id), keepOpen: true },
+      ...(full && lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
+      { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
+      ...(full && planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
+    ]),
+    ...(full ? group('Files and status', <FileAudio size={15} />, [
       { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) } as MenuItem,
       { label: 'New release…', icon: <Plus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) } as MenuItem,
-    ] : []),
-    { label: 'Import a release from YouTube Music…', icon: <Download size={15} />, run: () => void openImportIntoAlbum(album.id) },
-    ...(full && lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
-    { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
-    ...(full && planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
-    ...(full ? [
       (album as { complete?: boolean }).complete
         ? { label: 'Suggest it again', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: false }) }
         : { label: 'Mark complete (stop suggesting it)', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
@@ -104,11 +104,12 @@ export function useAlbumMenuItems() {
         : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
       (album as { noYoutube?: boolean }).noYoutube
         ? { label: 'Has a YouTube Music link after all', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
-        : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) }
-    ] as MenuItem[] : []),
-    { separator: true },
-    ...album.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),
-    ...(full ? album.eraIds.flatMap((e) => lib.eraById.get(e) ?? []).map((e) => ({ label: `Go to ${e.name}`, icon: <Layers size={15} />, to: `/eras/${e.id}` })) : []),
+        : { label: 'Not on YouTube Music', icon: <Download size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
+    ]) : []),
+    ...group('Go to', <User size={15} />, [
+      ...album.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),
+      ...(full ? album.eraIds.flatMap((e) => lib.eraById.get(e) ?? []).map((e) => ({ label: `Go to ${e.name}`, icon: <Layers size={15} />, to: `/eras/${e.id}` })) : []),
+    ]),
   ];
 }
 
@@ -151,10 +152,10 @@ export function usePlaylistMenuItems() {
         { separator: true } as MenuItem,
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },
         { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) },
-        ...(playlist.kind === 'albums' ? [] : [
+        ...(playlist.kind === 'albums' ? [] : group('Merge', <GitMerge size={15} />, [
           { label: 'Merge other playlists into this…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `into:${playlist.id}` }) } as MenuItem,
           { label: playlist.spotify ? 'Merge into another playlist…' : 'Merge into a synced playlist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `from:${playlist.id}` }) } as MenuItem,
-        ]),
+        ])),
       ]),
     ];
   };

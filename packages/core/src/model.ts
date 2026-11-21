@@ -100,11 +100,19 @@ export interface TrackData {
   preReleaseOf?: string | null;
   /** On the RELEASED track: the id of a tied pre-release whose audio file is used as this track's primary audio. Set by hand, never automatically. */
   primaryAudioFrom?: string | null;
+  /**
+   * This track is another RECORDING of the song `versionOf` (a remaster, a live take, a radio edit, the music-video audio): it keeps
+   * its own audio file and its own place on its own album, but it shares the main version's votes, rating and thumbs, so one song is
+   * ranked once. Songs that are simply the same audio on two albums should be merged instead (one track listed on both albums).
+   */
+  versionOf?: string | null;
+  /** how long the song should be, in seconds, according to where it came from (the album's entry on YouTube, or Spotify): lets a download be checked for music-video junk */
+  sourceSeconds?: number | null;
   syncWithAlbumCredits: boolean;
   queueRules: Record<string, unknown>;
 }
 /** The result of measuring a track's audio file. `cutoffHz`: highest frequency with sound; `looksLike`: the bit rate class that points to. */
-export interface AudioCheck { kbps: number; codec: string; cutoffHz: number; looksLike: number; verdict: 'ok' | 'transcode' | 'unknown'; file: string; at: number }
+export interface AudioCheck { /** the file's length in seconds (older checks have none) */ seconds?: number; kbps: number; codec: string; cutoffHz: number; looksLike: number; verdict: 'ok' | 'transcode' | 'unknown'; file: string; at: number }
 export interface PlaylistData {
   name: string;
   description: string | null;
@@ -171,6 +179,8 @@ export interface VoteData {
   winnerId: string | null; isEqual: boolean;
   /** thumbs up/down on trackAId alone (trackBId is ''); see elo.ts */
   boost?: 1 | -1;
+  /** how much this answer counts: 1 = ordinary (the default), 2.5 = "much better" */
+  weight?: number;
   /** a head-to-head between two ALBUMS (trackAId/trackBId are album ids): it ranks albums, and a ranked album lifts the starting Elo of its tracks */
   album?: boolean;
   timestamp: number;
@@ -192,6 +202,12 @@ export interface PlaybackLogData {
   /** spotify:track:<id> */
   uri?: string;
   shuffle?: boolean | null; platform?: string | null; reasonStart?: string | null; reasonEnd?: string | null;
+  /** which of the owner's accounts an imported play came from ("Old account"): lets a whole account's history be hidden at once */
+  account?: string;
+  /** the play was found by the server's automatic check of Spotify's recently played (not from an export file): it has no exact length and is dropped when the same play is in an export or in TurboMusic's own log */
+  via?: 'api';
+  /** left out of every list and statistic, but kept so it can be brought back (the history manager) */
+  hidden?: boolean;
 }
 export interface ProfileData {
   name: string; theme: string; accentColor: string; playbackMode: string;

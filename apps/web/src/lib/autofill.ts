@@ -37,3 +37,20 @@ export function genresFor(lib: Library, artistId: string, n = 3): string[] {
   for (const t of lib.tracks) if (!t.albumId && t.leads.some((l) => l.id === artistId)) t.allGenres.forEach(bump);
   return [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([g]) => g);
 }
+
+const FEAT_WORD = '(?:feat(?:uring)?\\.?|ft\\.?)';
+// "(feat. A & B)", "[ft. A]", "(with A)" at the end; or a bare " feat. A" / " - feat. A" tail
+const FEAT_GROUPED = new RegExp(`\\s*[(\\[]\\s*(?:${FEAT_WORD}|with)\\s+([^)\\]]+?)\\s*[)\\]]\\s*$`, 'i');
+const FEAT_BARE = new RegExp(`\\s+(?:-\\s*)?${FEAT_WORD}\\s+(.+)$`, 'i');
+
+/** Splits "Song (feat. A & B)" into the title and the featured names, so credits can carry them instead of the title. */
+export function splitFeaturing(title: string): { title: string; featured: string[] } {
+  let t = title.trim(), names = '';
+  // a title can hold several tails ("Song (feat. A) [Remix]"): only the LAST group is looked at, then the rest again
+  const g = FEAT_GROUPED.exec(t);
+  if (g) { names = g[1]; t = t.slice(0, g.index).trim(); }
+  else { const b = FEAT_BARE.exec(t); if (b) { names = b[1]; t = t.slice(0, b.index).trim(); } }
+  if (!names || !t) return { title: title.trim(), featured: [] };
+  const featured = names.split(/\s*(?:,|&|\+|\band\b|\bx\b|\bwith\b)\s*/i).map((n) => n.trim()).filter(Boolean);
+  return { title: t, featured: [...new Set(featured)] };
+}

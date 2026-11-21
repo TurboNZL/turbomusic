@@ -10,6 +10,8 @@ export interface Vote {
   isEqual?: boolean;
   /** A thumbs up (+1) or down (-1) on one track (trackBId is then ''): worth half a win/loss against an equal opponent. */
   boost?: 1 | -1;
+  /** how much this answer counts (1 = ordinary, 2.5 = "much better"); only the preference model reads it */
+  weight?: number;
   timestamp: number;
 }
 

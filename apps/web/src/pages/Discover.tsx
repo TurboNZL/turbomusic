@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { CalendarClock, Compass, Disc3, ListEnd, ListPlus, Music4, Play, RefreshCw, Shuffle, Sparkles, Users } from 'lucide-react';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
-import { heardTrackIds, tryNewPlaylist } from '../lib/heard.ts';
+import { PlayControls } from '../components/PlayControls.tsx';
+import { heardTrackIds, tasteScorer, tryNewPlaylist } from '../lib/heard.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { usePlayer } from '../lib/player.ts';
 import { useStore } from '../lib/store.ts';
@@ -43,10 +44,8 @@ function MixCard({ title, blurb, tracks, wide, accent, onReroll }: { title: stri
         <div className="min-w-0 flex-1 space-y-1"><h2 className="font-semibold">{title}</h2><p className="text-sm text-muted">{blurb}</p><p className="text-xs text-muted">{plural(tracks.length, 'track')}</p></div>
       </div>
       {tracks.length > 0 ? <div className="flex flex-wrap gap-2">
-        <button className="btn btn-accent" onClick={() => play(ids[0], ids, { type: 'search', id: 'Discover mix' })}><Play size={15} fill="currentColor" />Play</button>
-        <button className="btn" title="Play this mix in a random order (your playback rules still apply)" onClick={() => { const s = shuffleWithRules(ids, lib.rules); play(s[0], s, { type: 'search', id: 'Discover mix' }); }}><Shuffle size={15} />Shuffle</button>
+        <PlayControls ids={ids} source={{ type: 'search', id: 'Discover mix' }} label="this mix" />
         {onReroll && <button className="btn btn-ghost" title="Pick a different set" onClick={onReroll}><RefreshCw size={15} />New mix</button>}
-        {hasCurrent && <button className="btn" title="Add to the end of what is coming next" onClick={() => appendRest(ids)}><ListEnd size={15} />Add to Then</button>}
         <button className="btn btn-ghost" disabled={saved} onClick={save}><ListPlus size={15} />{saved ? 'Saved as a playlist' : 'Save as playlist'}</button>
         <button className="btn btn-ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide tracks' : 'Show tracks'}</button></div>
         : <p className="text-sm text-muted">Nothing to put here yet.</p>}
@@ -102,7 +101,7 @@ export function DiscoverPage() {
       forgotten: back(forgottenFavourites(mixables, plays, now)),
       gems: back(hiddenGems(mixables, plays)),
       cuts: back(deepCuts(mixables, plays, w)),
-      fresh: freshRef.current.seed === seed && freshRef.current.ids.length ? freshRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t) : (() => { const f = tryNewPlaylist(playable, heard, canPlay); freshRef.current = { seed, ids: f.map((t) => t.id) }; return f; })(),
+      fresh: freshRef.current.seed === seed && freshRef.current.ids.length ? freshRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t) : (() => { const f = tryNewPlaylist(playable, heard, canPlay, 25, 2, Math.random, tasteScorer(lib.tracks)); freshRef.current = { seed, ids: f.map((t) => t.id) }; return f; })(),
     };
   }, [mixables, plays, now, playable, seed]); // eslint-disable-line react-hooks/exhaustive-deps
   const genres = useMemo(() => genreBuckets(mixables).map((b) => ({ ...b, tracks: back(b.tracks) })), [mixables]); // eslint-disable-line react-hooks/exhaustive-deps

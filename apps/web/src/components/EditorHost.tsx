@@ -5,7 +5,7 @@ import { MergeTracksDialog } from './MergeTracksDialog.tsx';
 import { MergePlaylistDialog, SyncedPlaylistDialog } from './SyncedPlaylist.tsx';
 import { MergeWithDialog, type MergeKind } from './MergeWith.tsx';
 import { SpotifyLinks } from './SpotifyLinks.tsx';
-import { X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { makePrimary } from '../lib/autofill.ts';
 import { Select, albumOptions } from './Select.tsx';
 import { useState } from 'react';
@@ -15,7 +15,7 @@ import type { AlbumData, ArtistData, Credit, EraData, GroupData, ReleaseData, Gr
 import { resolveEntity } from '../lib/entities.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { useEditor, type EditTarget } from '../lib/editor.ts';
-import { useStore } from '../lib/store.ts';
+import { api, useStore } from '../lib/store.ts';
 import { ImportIntoAlbumDialog } from './ImportIntoAlbumDialog.tsx';
 import { SpotifyImportDialog } from './SpotifyImportDialog.tsx';
 import { MatchLinksDialog } from './MatchLinksDialog.tsx';
@@ -167,6 +167,19 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
         <SpotifyLinks primary={t.spotifyUrl ?? null} others={t.spotifyUrls ?? []} onChange={(f) => setT((p) => ({ ...p!, ...f }))} /></Field>
       <Field label="Genius URL"><input className="input" value={t.geniusUrl ?? ''} onChange={(e) => set('geniusUrl', e.target.value || null)} /></Field>
       <div className="space-y-2 rounded-theme border border-line p-3">
+        <div className="text-sm font-medium">Same song, different recording</div>
+        {!track.versions.length && <>
+          <div className="text-xs text-muted">Is this a remaster, a live take, a radio edit or the music-video audio of a song you already have? Link it to the main version: it keeps its own audio and its own place on its album, but shares the main version’s votes, rating and thumbs, and is not asked about twice in Rank. If it is the very same audio on another album, merge the two tracks instead (one song listed on both albums): use “Merge with another track…” in its menu.</div>
+          <TrackPicker value={t.versionOf ?? null} onChange={(v) => set('versionOf', v)} exclude={id} />
+          {t.versionOf && lib.trackById.get(t.versionOf)?.versionOf && <div className="text-xs text-warn">“{lib.trackById.get(t.versionOf)?.title}” is itself another version, so this link does nothing until you pick the main one.</div>}</>}
+        {track.versions.length > 0 && <>
+          <div className="text-xs text-muted">These recordings share this track’s votes and rating:</div>
+          {track.versions.map((vid) => { const p = lib.trackById.get(vid); return p && (
+            <div key={vid} className="flex items-center gap-2 text-sm"><span className="min-w-0 flex-1 truncate">{p.title}{p.albumTitle ? ` · ${p.albumTitle}` : ''}</span>
+              <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => useEditor.getState().open({ kind: 'track', id: vid })}>Edit</button>
+              <button type="button" className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => patch('tracks', vid, { versionOf: null } as Partial<TrackData>)}>Unlink</button></div>); })}</>}
+      </div>
+      <div className="space-y-2 rounded-theme border border-line p-3">
         <div className="text-sm font-medium">Pre-release version</div>
         {!track.preReleaseIds.length && <>
           <div className="text-xs text-muted">Is this a leak, demo or other unreleased version of a song that has come out? Tie it to the released track: it keeps its own info and stats, but stops showing up as an entry of its own (lists, shuffle, ranking) until you untie it.</div>
@@ -254,10 +267,34 @@ function ArtistEditor({ id, onClose }: { id: string; onClose: () => void }) {
         put('artists', { ...a, name: a.name.trim() || artist.name }, id); onClose();
       }}>Save</button></div></>}>
       <ImagePicker kind="artist" hash={a.image ?? null} onChange={(h) => setA({ ...a, image: h })} seed={artist.name} />
+      <DeezerLookup name={a.name || artist.name} aliases={a.aliases} onFound={(hash) => setA({ ...a, image: hash })} />
       <Field label="Name" hint="The name shown everywhere (the primary alias)."><input className="input" value={a.name ?? ''} onChange={(e) => setA({ ...a, name: e.target.value })} /></Field>
       <AliasEditor name={a.name ?? ''} aliases={a.aliases ?? []} onChange={(name, aliases) => setA({ ...a, name, aliases })} />
     </Modal>
   );
+}
+
+/** One artist's picture from Deezer (exact name or one of their other names); the picture is only put in the form, Save keeps it. */
+function DeezerLookup({ name, aliases, onFound }: { name: string; aliases?: string[]; onFound: (hash: string) => void }) {
+  const configured = useStore((st) => !!st.settings.token);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  async function run() {
+    setBusy(true); setNote(null);
+    try {
+      const { results } = await api().artistImages([{ id: 'one', name, aliases }]);
+      const r = results[0];
+      if (r?.hash) { onFound(r.hash); setNote(`Found “${r.matched ?? name}” on Deezer. Press Save to keep the picture.`); }
+      else setNote('Deezer has no artist with exactly that name (or one of the other names). Add the stage name as an alias and try again, or upload a picture.');
+    } catch (e) { setNote((e as Error).message === 'Failed to fetch' ? 'Cannot reach the server.' : (e as Error).message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="space-y-1">
+      <button type="button" className="btn" disabled={busy || !configured || !name.trim()} onClick={run}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}Look up on Deezer</button>
+      {!configured && <p className="text-xs text-muted">Needs your server (Settings).</p>}
+      {note && <p className="text-xs text-muted" role="status">{note}</p>}
+    </div>);
 }
 
 /** Other names an artist goes by. Imports recognise them; one of them can become the displayed name. */

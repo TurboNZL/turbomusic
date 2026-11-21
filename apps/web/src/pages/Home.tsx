@@ -1,11 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { readSession, takeCutShortPlay } from '../lib/session.ts';
+import { useStore } from '../lib/store.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { Link } from 'react-router-dom';
 import { HeartPulse, Play, Shuffle, Sparkles, Swords } from 'lucide-react';
 import { useMemo } from 'react';
 import { usePlayer } from '../lib/player.ts';
 import { buildListens } from '../lib/listens.ts';
-import { heardTrackIds, tryNewPlaylist } from '../lib/heard.ts';
+import { heardTrackIds, tasteScorer, tryNewPlaylist } from '../lib/heard.ts';
 import { computeListenStats, dayKey } from '../lib/listenStats.ts';
 import { Bars, fmtHours } from '../components/charts.tsx';
 import { healthScore } from '../components/HealthHero.tsx';
@@ -64,12 +66,25 @@ export function HomePage() {
     }
     return null;
   }, [listens, lib]);
+  // the player's own saved state (kept every few seconds, so it survives a crash or a killed tab): it brings the queue back too
+  const nowId = usePlayer((st) => st.queue.currentId);
+  const saved = useMemo(() => {
+    const sv = readSession();
+    const t = sv?.snap.trackId ? lib.trackById.get(sv.snap.trackId) : undefined;
+    return sv && t && canPlay(t) ? { sv, t } : null;
+  }, [lib, nowId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const restore = usePlayer((st) => st.restore);
+  const hereNow = !!saved && saved.t.id === nowId;
+  const cutShort = !!saved && (!!saved.sv.interrupted || (saved.sv.snap.duration > 0 && saved.sv.snap.position > 1 && saved.sv.snap.position < 0.9 * saved.sv.snap.duration));
+  const last2 = saved && !hereNow && cutShort ? { t: saved.t, at: saved.sv.at, pos: saved.sv.snap.position, interrupted: !!saved.sv.interrupted, queued: saved.sv.snap.queue.user.length + saved.sv.snap.queue.active.length } : null;
   const resume = () => {
+    if (saved && !hereNow) { restore(saved.sv.snap, { play: true }); return; }
     if (!last) return;
     const album = last.t.albumId ? lib.albumById.get(last.t.albumId) : undefined;
     const ids = album ? album.trackIds.filter((id) => canPlay(lib.trackById.get(id))) : [last.t.id];
     play(last.t.id, ids.length ? ids : [last.t.id], album ? { type: 'album', id: album.id } : { type: 'track', id: last.t.id }, last.pos);
   };
+  const resumeInfo = last2 ?? (last ? { ...last, interrupted: false, queued: 0 } : null);
   // albums heard lately, newest first
   const recentAlbums = useMemo(() => {
     const seen = new Set<string>(), out: typeof lib.albums = [];
@@ -90,7 +105,7 @@ export function HomePage() {
   const tryRef = useRef<{ seed: number; ids: string[] }>({ seed: -1, ids: [] });
   const tryNew = useMemo(() => {
     if (tryRef.current.seed === shuffleSeed && tryRef.current.ids.length) return tryRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t);
-    const f = tryNewPlaylist(lib.tracks, heardTrackIds(listens), canPlay);
+    const f = tryNewPlaylist(lib.tracks, heardTrackIds(listens), canPlay, 25, 2, Math.random, tasteScorer(lib.tracks));
     tryRef.current = { seed: shuffleSeed, ids: f.map((t) => t.id) };
     return f;
   }, [listens, lib, shuffleSeed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -107,14 +122,14 @@ export function HomePage() {
       <RecapPrompt lib={lib} />
       <section className="card relative overflow-hidden p-5 sm:p-6">
         <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-accent/20 blur-3xl" aria-hidden />
-        <div className="relative flex flex-wrap items-center gap-5" onContextMenu={last ? menu.onContextMenu(trackItems(last.t, resume), `Actions for ${last.t.title}`, 'resume') : undefined}>
-          {last ? <>
-            <Cover hash={last.t.cover} seed={last.t.albumTitle ?? last.t.title} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" />
+        <div className="relative flex flex-wrap items-center gap-5" onContextMenu={resumeInfo ? menu.onContextMenu(trackItems(resumeInfo.t, resume), `Actions for ${resumeInfo.t.title}`, 'resume') : undefined}>
+          {resumeInfo ? <>
+            <Cover hash={resumeInfo.t.cover} seed={resumeInfo.t.albumTitle ?? resumeInfo.t.title} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" />
             <div className="min-w-0 flex-1 space-y-1">
-              <div className="text-xs uppercase tracking-wider text-muted">Pick up where you left off</div>
-              <div className="truncate text-2xl font-bold">{last.t.title}</div>
-              <div className="truncate text-sm text-muted">{last.t.artistName}{last.t.albumTitle ? ` · ${last.t.albumTitle}` : ''} · {ago(last.at)}</div>
-              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(last.pos / 60)}:{String(Math.floor(last.pos % 60)).padStart(2, '0')}</button>
+              <div className="text-xs uppercase tracking-wider text-muted">{resumeInfo?.interrupted ? 'Playback was interrupted: pick up where you left off' : 'Pick up where you left off'}</div>
+              <div className="truncate text-2xl font-bold">{resumeInfo.t.title}</div>
+              <div className="truncate text-sm text-muted">{resumeInfo.t.artistName}{resumeInfo.t.albumTitle ? ` · ${resumeInfo.t.albumTitle}` : ''} · {ago(resumeInfo.at)}</div>
+              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(resumeInfo.pos / 60)}:{String(Math.floor(resumeInfo.pos % 60)).padStart(2, '0')}{resumeInfo.queued > 0 ? ` · ${resumeInfo.queued} more queued` : ''}</button>
                 <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div>
             </div></>
           : pick ? <>
@@ -142,10 +157,9 @@ export function HomePage() {
           {month.plays ? <><Bars data={days} format={fmtHours} height={110} /><p className="text-sm text-muted"><b className="text-fg">{fmtHours(month.ms)}</b> across {month.plays.toLocaleString()} plays{month.currentStreak ? ` · ${month.currentStreak}-day streak` : ''}{month.topArtists[0] ? ` · most played ${month.topArtists[0].label}` : ''}</p></>
             : <p className="py-6 text-sm text-muted">No listening in the last 30 days. <Link to="/stats" className="underline">Import your Spotify history</Link> to fill this in.</p>}
         </section>
-        <section className="card space-y-2 p-5"><div><h2 className="font-semibold">Rediscover</h2><p className="text-xs text-muted">Songs you rated 8 or higher that you have not played for a month.</p></div>
-          {comeback.length ? <ul className="space-y-1">{comeback.map((t) => <li key={t.id}><button className="flex w-full items-center gap-2 rounded-theme px-1 py-1 text-left text-sm hover:bg-raised" onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Try something new' })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Try something new' })}><Play size={12} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{t.title}<span className="text-muted"> · {t.artistName}</span></span><span className="text-xs tabular-nums text-muted">{t.effectiveRating.toFixed(1)}</span></button></li>)}</ul>
-            : <p className="text-sm text-muted">Nothing yet: your favourites have all been played lately.</p>}
-        </section>
+        {comeback.length > 0 && <section className="card space-y-2 p-5"><div><h2 className="font-semibold">Rediscover</h2><p className="text-xs text-muted">Songs you rated 8 or higher that you have not played for a month.</p></div>
+          <ul className="space-y-1">{comeback.map((t) => <li key={t.id}><button className="flex w-full items-center gap-2 rounded-theme px-1 py-1 text-left text-sm hover:bg-raised" onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Rediscover' })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Rediscover' })}><Play size={12} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{t.title}<span className="text-muted"> · {t.artistName}</span></span><span className="text-xs tabular-nums text-muted">{t.effectiveRating.toFixed(1)}</span></button></li>)}</ul>
+        </section>}
       </div>
       {tryNew.length > 0 && <section className="card space-y-3 p-5">
         <div className="flex flex-wrap items-center gap-2">

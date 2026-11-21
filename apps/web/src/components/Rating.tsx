@@ -9,7 +9,7 @@ export function Rating({ track, size = 'md' }: { track: Track; size?: 'sm' | 'md
   const label = unrated && track.comparisons < 3 ? '?' : track.tenStarRank ? `#${track.tenStarRank}` : r.toFixed(1);
   const color = unrated ? 'text-muted' : track.tenStarRank ? 'text-top' : r >= 7 ? 'text-good' : r >= 4 ? 'text-warn' : 'text-bad';
   return (
-    <span title={`${track.comparisons} comparisons · Elo ${Math.round(track.elo)}`}
+    <span title={`${track.comparisons} comparisons · score ${Math.round(track.elo)}${track.thumbs ? ` · ${track.thumbs > 0 ? '+' : ''}${track.thumbs} thumbs` : ''}`}
       className={cn('inline-flex items-center gap-1 rounded-full border border-line bg-surface font-bold tabular-nums', color,
         size === 'sm' && 'h-6 px-2 text-[10px]', size === 'md' && 'h-7 px-2.5 text-xs', size === 'lg' && 'h-8 px-3 text-sm')}>
       <Star size={size === 'sm' ? 10 : 12} fill="currentColor" className="opacity-60" />

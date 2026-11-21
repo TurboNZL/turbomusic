@@ -37,3 +37,19 @@ describe('album order after an import', () => {
     expect(mergeAllTracksOrder(['a', 'b', 'c'], [row('a'), row(null, 'n'), row('c')])).toEqual(['a', 'n', 'b', 'c']);
   });
 });
+
+import { tasteScorer, isFiller } from '../src/lib/heard.ts';
+describe('try something new, by taste', () => {
+  const R = (id: string, artistId: string, rating: number, albumId = 'x') => ({ id, title: id, artistId, albumId, effectiveRating: rating, comparisons: 5, allGenres: [] as string[] });
+  it('prefers artists whose other songs you rate highly and skips filler', () => {
+    const rated = [R('l1', 'loved', 9), R('l2', 'loved', 9.5), R('h1', 'hated', 2), R('h2', 'hated', 1.5)];
+    const fresh = [{ ...R('new-loved', 'loved', 0, 'n1'), comparisons: 0 }, { ...R('new-hated', 'hated', 0, 'n2'), comparisons: 0 }, { ...R('Intro', 'loved', 0, 'n3'), comparisons: 0 }];
+    const all = [...rated, ...fresh];
+    const score = tasteScorer(all);
+    expect(score(fresh[0])).toBeGreaterThan(score(fresh[1]));
+    const out = tryNewPlaylist(all, new Set(rated.map((t) => t.id)), () => true, 1, 2, () => 0.5, score);
+    expect(out.map((t) => t.id)).toEqual(['new-loved']);
+    expect(isFiller('Intro')).toBe(true);
+    expect(isFiller('Intro to the Night Sky')).toBe(false);
+  });
+});

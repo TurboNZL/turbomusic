@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarDays, Gift, Clock, Download, Flame, History, LayoutGrid, List, Upload, Users, SkipForward, Shuffle } from 'lucide-react';
+import { CalendarDays, Gift, Clock, Download, Flame, History, LayoutGrid, List, Upload, Filter, Users, SkipForward, Shuffle } from 'lucide-react';
 import { useLibraryLive } from '../lib/derive.ts';
 import { computeStats } from '../lib/stats.ts';
 import { buildListens, type Listen } from '../lib/listens.ts';
@@ -13,6 +13,7 @@ import { TopGrid } from '../components/TopGrid.tsx';
 import { useNearEnd } from '../lib/useChunks.ts';
 import { cn } from '../lib/cn.ts';
 import { Area, Bars, Calendar, Donut, fmtHours, Heatgrid, Kpi, Panel, RankList } from '../components/charts.tsx';
+import { HistoryManager } from '../components/HistoryManager.tsx';
 import { ExportHistoryDialog, ImportHistoryDialog } from '../components/HistoryTools.tsx';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -232,7 +233,7 @@ export function StatsPage() {
   const [filter, setFilterState] = useState<StatsFilter>(loadFilter);
   const setFilter = (f: StatsFilter) => { setFilterState(f); saveFilter(f); };
   const [byTime, setByTime] = useState(false);
-  const [dialog, setDialog] = useState<'import' | 'export' | null>(null);
+  const [dialog, setDialog] = useState<'import' | 'export' | 'manage' | null>(null);
   const listens = useMemo(() => buildListens(lib), [lib]);
   // the extras (source, skips, platform, time of day, words, library chips), then the range and the shortest play that counts
   const narrowed = useMemo(() => applyFilter(lib, listens, filter), [lib, listens, filter]);
@@ -247,6 +248,7 @@ export function StatsPage() {
         <Link to="/recaps" className="btn"><CalendarDays size={15} />Weekly recap</Link>
         <Link to="/wrapped" className="btn"><Gift size={15} />Wrapped</Link>
         <button className="btn" onClick={() => setDialog('import')}><Upload size={15} />Import listening history</button>
+        <button className="btn" onClick={() => setDialog('manage')} title="Hide or delete imported plays by artist, album, account or year"><Filter size={15} />Manage imported history</button>
         <button className="btn" onClick={() => setDialog('export')}><Download size={15} />Export listening history</button>
       </div>
       <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line pb-px">
@@ -265,6 +267,7 @@ export function StatsPage() {
       {tab === 'library' && <LibraryTab />}
       <p className="flex items-center gap-1.5 text-xs text-muted"><History size={12} />{listens.length.toLocaleString()} plays in total{imported ? `, ${imported.toLocaleString()} imported from Spotify` : ''}.</p>
       {dialog === 'import' && <ImportHistoryDialog onClose={() => setDialog(null)} />}
+      {dialog === 'manage' && <HistoryManager onClose={() => setDialog(null)} />}
       {dialog === 'export' && <ExportHistoryDialog onClose={() => setDialog(null)} />}
     </div>
   );

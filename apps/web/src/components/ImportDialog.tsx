@@ -1,5 +1,5 @@
 import { CandidateArt } from './CandidateArt.tsx';
-import { cleanAlbumTitle, cleanArtistName, genresFor, matchArtist } from '../lib/autofill.ts';
+import { cleanAlbumTitle, cleanArtistName, genresFor, matchArtist, splitFeaturing } from '../lib/autofill.ts';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, ImagePlus, Loader2 } from 'lucide-react';
@@ -12,9 +12,12 @@ import { logJournal } from '../lib/journal.ts';
 import { api, useStore } from '../lib/store.ts';
 import { saveImage } from '../lib/files.ts';
 import { Cover } from './Cover.tsx';
-import { ArtistSelect, Field, Modal, TagInput } from './forms.tsx';
+import { Field, Modal, TagInput } from './forms.tsx';
+import { Select } from './Select.tsx';
+import { FEATURED_ROLE } from '../lib/defaults.ts';
 
-interface Row { id: string; title: string; url: string; on: boolean }
+const NEW = '__new__';
+interface Row { id: string; title: string; url: string; on: boolean; /** the length YouTube gives the song (seconds), kept to spot music-video audio later */ seconds: number | null; /** featured artists named in the title: they become credits, not part of the title */ feat: string[] }
 
 /** Import an album from a YouTube / YouTube Music link: look up, review and edit, then create it and queue the audio. */
 export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => void; /** opened from the Singles page: start in "as a single" */ singleFirst?: boolean }) {
@@ -67,7 +70,7 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
         setLinkCover({ state: 'loading' });
         fetchCoverFromLinks(links).then((hash) => setLinkCover({ state: 'ok', hash }), (e: Error) => setLinkCover({ state: 'failed', error: e.message }));
       } else setLinkCover({ state: 'failed', error: 'YouTube gave no cover image for this link.' });
-      setTitle(cleanAlbumTitle(p.title)); setAsSingle(p.entries.length === 1); setRows(p.entries.map((e) => ({ id: e.id, title: e.title, url: e.url, on: true })));
+      setTitle(cleanAlbumTitle(p.title)); setAsSingle(p.entries.length === 1); setRows(p.entries.map((e) => { const sp = splitFeaturing(e.title); return { id: e.id, title: sp.title, url: e.url, on: true, seconds: e.duration ? Math.round(e.duration) : null, feat: sp.featured }; }));
       const hit = matchArtist(lib.artists, p.artist);
       setArtistId(hit?.id ?? ''); setNewArtist(hit ? null : cleanArtistName(p.artist));
       setGenres(hit ? genresFor(lib, hit.id) : []); // a known artist: start from the genres of their other albums
@@ -92,6 +95,15 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
       const known = new Set(lib.genres.map((g) => g.name.toLowerCase()));
       for (const g of genres) if (!known.has(g.toLowerCase())) put('genres', { name: g });
       const credits = leadCredit(aid);
+      // featured artists named in a title become "Featured artist" credits (matched to an artist you have, else created once)
+      const artistByName = new Map<string, string>();
+      const featCredits = (names: string[]) => names.map((n) => {
+        const key = n.toLowerCase();
+        let id = artistByName.get(key) ?? matchArtist(lib.artists, n)?.id;
+        if (!id) id = put('artists', { name: n, image: null } satisfies ArtistData);
+        artistByName.set(key, id);
+        return { artistId: id, role: [FEATURED_ROLE] };
+      });
       // the release date: the one the link gave, else the first exact answer of the date lookup (Spotify, iTunes, MusicBrainz); empty if neither knows
       let releaseDate: string | null = pv.releaseDate ?? null;
       if (!releaseDate) {
@@ -102,12 +114,12 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
       let ids: string[], to: string, what: string;
       if (asSingle) {
         // a single: no album, its own cover and release date, its own genres
-        ids = picked.map((r) => put('tracks', newTrackData({ title: r.title.trim(), credits, genres, cover, releaseDate, youtubeMusicUrl: r.url, syncWithAlbumCredits: false })));
+        ids = picked.map((r) => put('tracks', newTrackData({ title: r.title.trim(), credits: [...credits, ...featCredits(r.feat)], genres, cover, releaseDate, youtubeMusicUrl: r.url, sourceSeconds: r.seconds, syncWithAlbumCredits: false })));
         to = '/singles'; what = ids.length === 1 ? 'The single' : 'The singles';
         logJournal('add', `Imported ${ids.length === 1 ? 'single' : 'singles'}: ${picked.map((r) => r.title.trim()).join(', ')}`, 'from YouTube', ids[0]);
       } else {
         const albumId = put('albums', newAlbumData({ title: title.trim(), credits, genres, cover: null, covers: cover ? [cover] : [], coverPicked: false }));
-        ids = picked.map((r, i) => put('tracks', newTrackData({ title: r.title.trim(), credits, youtubeMusicUrl: r.url, albums: [{ albumId, order: i }] })));
+        ids = picked.map((r, i) => put('tracks', newTrackData({ title: r.title.trim(), credits: [...credits, ...featCredits(r.feat)], youtubeMusicUrl: r.url, sourceSeconds: r.seconds, albums: [{ albumId, order: i }] })));
         // the imported edition is the album's default release: it carries the cover and the tracklist
         const releaseId = put('releases', { albumId, title: '', cover, releaseDate, trackIds: ids });
         useStore.getState().patch('albums', albumId, { trackOrder: ids, defaultReleaseId: releaseId });
@@ -169,17 +181,21 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
               }} />
             </div></div>
         </div>
-        <Field label="Lead artist (becomes the first credit)" hint={!artistId ? `No match in your library; “${newArtist}” will be created.` : asSingle ? 'Added as a “Lead artist” credit on the single.' : 'Added as a “Lead artist” credit on the album and every track.'}>
-          {artistId || newArtist === null ? <ArtistSelect value={artistId} onChange={(id) => { setArtistId(id); setNewArtist(null); }} />
-            : <div className="flex gap-2"><input className="input" value={newArtist ?? ''} onChange={(e) => setNewArtist(e.target.value)} />
-              <button className="btn shrink-0" onClick={() => { setArtistId(lib.artists[0]?.id ?? ''); setNewArtist(null); }} disabled={!lib.artists.length}>Pick existing</button></div>}
+        <Field label="Lead artist (becomes the first credit)" hint={!artistId && newArtist ? `Nothing in your library matches, so “${newArtist}” will be created. Search to pick a different artist instead.` : asSingle ? 'Added as a “Lead artist” credit on the single.' : 'Added as a “Lead artist” credit on the album and every track.'}>
+          <Select value={artistId || (newArtist ? NEW : '')} placeholder="Search artists…" searchable
+            onChange={(v) => { if (v === NEW) { setArtistId(''); return; } setArtistId(v); setNewArtist(null); }}
+            options={[...(newArtist ? [{ value: NEW, label: `Create artist: “${newArtist}”` }] : []),
+              ...[...lib.artists].sort((x, y) => x.name.localeCompare(y.name)).map((x) => ({ value: x.id, label: x.name, hint: x.aliases?.length ? `aka ${x.aliases.slice(0, 2).join(', ')}` : undefined }))]}
+            creatable={{ label: (n) => `Create artist: “${n}”`, create: (n) => put('artists', { name: n, image: null } satisfies ArtistData) }} />
         </Field>
         <Field label="Genres"><TagInput value={genres} onChange={setGenres} suggestions={lib.genres.map((g) => g.name)} /></Field>
         <div className="space-y-1"><div className="text-sm text-muted">Tracks ({count} of {rows.length})</div>
           {rows.map((r, i) => (
             <div key={r.id} className="flex items-center gap-2"><input type="checkbox" aria-label={`Include track ${i + 1}`} checked={r.on} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
               <span className="w-6 text-right text-xs text-muted">{i + 1}</span>
-              <input className="input !py-1" value={r.title} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} /></div>))}</div>
+              <input className="input !py-1" value={r.title} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+              <input className="input !w-40 shrink-0 !py-1 max-sm:!w-28" aria-label={`Featured artists on track ${i + 1}`} placeholder="Featured…" title="Featured artists (comma separated): added as credits, not kept in the title" value={r.feat.join(', ')}
+                onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, feat: e.target.value.split(',').map((n) => n.trim()).filter(Boolean) } : x)))} /></div>))}</div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={download} onChange={(e) => setDownload(e.target.checked)} />Download the audio now (needs yt-dlp and ffmpeg on the server)</label>
       </>)}
       {done && <div role="alert" className="rounded-theme bg-warn/15 p-3 text-sm text-warn">{done.what} was imported, but its cover could not be fetched: {done.coverError} Add one from its Edit button, or use Library health → “Try YouTube thumbnails”.</div>}
