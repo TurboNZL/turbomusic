@@ -21,6 +21,7 @@ import { SpotifyAccount, SpotifyError, oembed, parseRef, resolveLink } from './s
 import { streamSSE } from 'hono/streaming';
 import { ConnectHub, parseCommand, parseSnapshot } from './connect.ts';
 import { checkTools } from './tools.ts';
+import { lanAddresses } from './lan.ts';
 import { assessHealth, collectHealth } from './health.ts';
 import { StorageError, StorageMover, describeStorage, isKind } from './storage.ts';
 import { BackupError, databaseSnapshot, filesArchive, importFiles, readDatabaseRecords, readStream, saveUpload } from './backup.ts';
@@ -81,6 +82,7 @@ export function createApp(
       cursor: store.cursor(),
       files: { count: files.length, bytes: files.reduce((n, f) => n + f.size, 0) },
       disk: diskUsage(config.dataDir),
+      lan: lanAddresses(config.port),
       tools: { ...(await checkTools({ ytdlp: config.ytdlp, ffmpegDir: config.ffmpegDir })), cookies: !!config.ytdlpArgs?.includes('--cookies') },
     });
   });

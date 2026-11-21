@@ -79,8 +79,8 @@ export function SearchPage() {
             className={cn('btn !py-1', kind === k && 'btn-accent')} onClick={() => { setShown(CHUNK); nav(where(k), { replace: true }); }}>{LABEL[k]}{n !== null && <span className="ml-1 text-xs opacity-70">{n}</span>}</button>;
         })}
       </div>
-      {visible('artists') && <section>{heading('artists')}<div className="flex flex-wrap gap-3">{cap(results.artists!, 'artists').map((a) => (
-        <Link key={a.id} to={`/artists/${a.id}`} className="card flex w-48 items-center gap-3 p-2" onContextMenu={(e) => menu.onContextMenu(artistItems(a.id), `Actions for ${a.name}`, a.id)(e)}><Cover kind="artist" hash={a.image} seed={a.name} className="w-10" /><span className="truncate text-sm">{a.name}</span></Link>))}</div>{more('artists')}</section>}
+      {visible('artists') && <section>{heading('artists')}<div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] sm:gap-3">{cap(results.artists!, 'artists').map((a) => (
+        <Link key={a.id} to={`/artists/${a.id}`} className="card flex min-w-0 items-center gap-3 p-2" onContextMenu={(e) => menu.onContextMenu(artistItems(a.id), `Actions for ${a.name}`, a.id)(e)}><Cover kind="artist" hash={a.image} seed={a.name} className="w-10 shrink-0" /><span className="min-w-0 truncate text-sm">{a.name}</span></Link>))}</div>{more('artists')}</section>}
       {visible('albums') && <section>{heading('albums')}
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
           {cap(results.albums!, 'albums').map((a: Library['albums'][number]) => (

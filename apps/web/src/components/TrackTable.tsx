@@ -61,7 +61,9 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
       {tracks.map((t, i) => (
         <div key={t.id}>
         <div data-track-id={t.id} className={cn('bt-row group flex items-center gap-3 px-3', current === t.id && 'bt-row-current')} style={{ paddingBlock: 'var(--row-y)' }}
-          onContextMenu={(e) => menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}>
+          onContextMenu={(e) => menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}
+          // double-click anywhere on the row that is not a button, link or field plays it
+          onDoubleClick={(e) => { if ((e.target as Element).closest('a, button, input, select, textarea, [role="menu"]') || !canPlay(t)) return; window.getSelection()?.removeAllRanges(); playRow(t.id); }}>
           {covers ? <>
             {numbered && <span className={cn('w-6 shrink-0 text-center text-sm text-muted', current === t.id && 'text-accent')}>{i + 1}</span>}
             {/* the cover is the play button: the Play glyph appears over it on hover or focus (and a tap on a phone plays) */}

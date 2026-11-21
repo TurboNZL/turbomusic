@@ -5,6 +5,7 @@ import { albumSubject, eraSubject, matchesAll, splitTyped, trackSubject, type Ch
 import { ERA_ITEM_SORTS, ERA_SORTS, eraRows, sortEraItems, sortEras, type EraItem } from '../lib/listSort.ts';
 import { usePageState } from '../lib/pageState.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
+import { PlayControls } from '../components/PlayControls.tsx';
 import { Link, useParams } from 'react-router-dom';
 import { idChip, searchHref } from '../lib/searchUrl.ts';
 import { statsPath } from '../lib/entityStats.ts';
@@ -104,9 +105,8 @@ export function EraPage() {
           <h1 className="text-3xl font-bold">{era.name}</h1>
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{plural(total.albums, 'album')}</Link> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{plural(total.singles, 'single')}</Link>{playlists.length > 0 && ` · ${plural(playlists.length, 'playlist')}`}</div>
           {era.description && <p className="max-w-prose text-sm">{era.description}</p>}
-          <div className="flex gap-2 pt-1">
-            <button className="btn btn-accent" disabled={!ids.length} onClick={() => play(ids[0], ids, { type: 'search', id: `Era: ${era.name}` })}><Play size={16} fill="currentColor" />Play</button>
-            <button className="btn" disabled={!ids.length} onClick={() => { const s = shuffleWithRules(ids, lib.rules); play(s[0], s, { type: 'search', id: `Era: ${era.name}` }); }}><Shuffle size={15} />Shuffle</button>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <PlayControls ids={ids} source={{ type: 'search', id: `Era: ${era.name}` }} label={era.name} />
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, the tracks in this era…" onClick={(e) => menu.toggle(e.currentTarget, 'era', [
               { label: 'Tracks in this era', icon: <Layers size={15} />, to: where('tracks') },
               { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('era', era.id) },

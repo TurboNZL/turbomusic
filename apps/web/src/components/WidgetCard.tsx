@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Eye, EyeOff, MonitorPlay } from 'lucide-react';
-import { useStore } from '../lib/store.ts';
+import { api, useStore } from '../lib/store.ts';
 import { DEFAULT_WIDGET, WIDGET_COVERS, WIDGET_SKINS, widgetUrl, type WidgetOptions } from '../lib/widgetUrl.ts';
 import { cn } from '../lib/cn.ts';
 import { Select } from './Select.tsx';
@@ -15,6 +15,11 @@ export function WidgetCard() {
   const set = (change: Partial<WidgetOptions>) => setO((cur) => { const next = { ...cur, ...change }; try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ } return next; });
   const guess = settings.serverUrl || location.origin;
   const [base, setBase] = useState(guess);
+  // OBS and a second-screen browser cannot send Cloudflare Access headers, so a tunnel address is blocked for them: the server's own
+  // network address works (same Wi-Fi/LAN), and it is picked here when the server tells us what it is
+  const [lan, setLan] = useState<string[]>([]);
+  const viaTunnel = /^https:\/\//i.test(base) && !/\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base);
+  useEffect(() => { if (!settings.token) return; api().status().then((st) => { setLan(st.lan ?? []); if (st.lan?.length && (/^https:\/\//i.test(guess) || /\/\/(localhost|127\.)/.test(guess))) setBase(st.lan[0]); }).catch(() => undefined); }, [settings.token]); // eslint-disable-line react-hooks/exhaustive-deps
   const [reveal, setReveal] = useState(false);
   const [copied, setCopied] = useState(false);
   const url = useMemo(() => widgetUrl(base, settings.token, o), [base, settings.token, o]);
@@ -56,6 +61,8 @@ export function WidgetCard() {
       <div className="space-y-1.5">
         <label className="block text-sm font-medium">Address of this server <span className="font-normal text-muted">(what OBS or another computer types to reach it)</span>
           <input className="input mt-1" value={base} onChange={(e) => setBase(e.target.value)} placeholder="http://192.168.1.20:47813" /></label>
+        {lan.length > 0 && <div className="flex flex-wrap items-center gap-2 text-xs text-muted">Use this server's network address:{lan.map((a) => <button key={a} type="button" className={cn('chip', base === a && '!border-accent !text-accent')} onClick={() => setBase(a)}>{a}</button>)}</div>}
+        {viaTunnel && <p className="text-xs text-warn">This address goes through your tunnel. OBS cannot send the Cloudflare Access sign-in, so Access will block it: use the network address above (same Wi-Fi or cable as the server), or add a Cloudflare Access “Bypass” policy for <code>/widget</code> and <code>/api/nowplaying</code> (the link's token still protects it).</p>}
         {loopback && <p className="text-xs text-warn">“localhost” only works on this computer. For OBS on another machine use this server’s network address (for example http://192.168.1.20:47813).</p>}
         <div className="flex items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-theme bg-raised px-3 py-2 text-xs" title="Contains your access token: treat it like a password">{shown}</code>
           <button type="button" className="btn btn-ghost !p-2" aria-label={reveal ? 'Hide the token' : 'Show the token'} onClick={() => setReveal((r) => !r)}>{reveal ? <EyeOff size={15} /> : <Eye size={15} />}</button>

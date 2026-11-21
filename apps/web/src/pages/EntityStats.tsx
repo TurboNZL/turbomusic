@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { PlayControls } from '../components/PlayControls.tsx';
 import { Link, useParams } from 'react-router-dom';
 import { Clock, ExternalLink, MoreHorizontal, Pencil, Play, Shuffle, SkipForward, Star, Swords, Music2, StickyNote } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
@@ -93,8 +94,7 @@ export function EntityStatsPage() {
             {(artist || era || playlist) && plural(ids.length, 'track')}
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <button className="btn btn-accent" disabled={!playable.length} onClick={() => play(playable[0], playable, { type: 'search', id: 'Stats page' })}><Play size={16} fill="currentColor" />Play</button>
-            {kind !== 'track' && <button className="btn" disabled={!playable.length} onClick={() => { const s = shuffleWithRules(playable, lib.rules); play(s[0], s, { type: 'search', id: 'Stats page' }); }}><Shuffle size={15} />Shuffle</button>}
+            <PlayControls ids={playable} source={{ type: 'search', id: 'Stats page' }} label="this" />
             <button className={editing ? 'btn btn-accent' : 'btn'} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Pencil size={15} />{editing ? 'Close editor' : 'Edit'}</button>
             {kind !== 'artist' && <button className="btn btn-ghost" onClick={() => edit({ kind: 'new-note', id: `${kind}:${id}` })}><StickyNote size={15} />Note</button>}
             <Link className="btn btn-ghost" to={pageOf(kind, id, track)}><ExternalLink size={15} />Open page</Link>

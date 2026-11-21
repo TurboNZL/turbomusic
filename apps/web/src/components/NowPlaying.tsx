@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus } from 'lucide-react';
+import { Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus, Volume2, Info, ListOrdered } from 'lucide-react';
 import { desktop } from '../lib/settings.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { usePlaybackView } from '../lib/connect.ts';
@@ -10,6 +10,9 @@ import { useLyrics } from '../lib/lyrics.ts';
 import { activeLine } from '../lib/lrc.ts';
 import { cn, fmtTime } from '../lib/cn.ts';
 import { ArtistLinks } from './ArtistLinks.tsx';
+import { Rating } from './Rating.tsx';
+import { RateBlock } from './RateBlock.tsx';
+import { useEditor } from '../lib/editor.ts';
 
 /**
  * The full-screen now-playing view: the cover large over a blurred copy of itself, the lyrics scrolling with the song (synced when
@@ -60,6 +63,9 @@ export function NowPlaying() {
   const clock = useSmoothTime(v.time, v.playing);
   const active = lines ? activeLine(lines, clock + 0.3 + offset) : -1;
   const listRef = useRef<HTMLDivElement>(null);
+  /** the lyrics follow the song until you scroll them yourself; "Back to the current line" (or tapping a line) hands the scrolling back */
+  const [follow, setFollow] = useState(true);
+  const stopFollowing = () => setFollow(false);
   const idleTimer = useRef<number>(0);
 
   /** From the screensaver the Lyrics button leaves it and shows the lyrics (it used to toggle them off as well); otherwise it toggles them. */
@@ -93,9 +99,12 @@ export function NowPlaying() {
 
   // the sung line stays in the middle of the lyrics
   useEffect(() => {
+    if (!follow) return;
     const el = listRef.current?.querySelector<HTMLElement>(`[data-line="${active}"]`);
     if (el && listRef.current) listRef.current.scrollTo({ top: el.offsetTop - listRef.current.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
-  }, [active]);
+  }, [active, follow]);
+  // a new song starts following again
+  useEffect(() => { setFollow(true); }, [track?.id]);
   useEffect(() => { if (open && !track) setNow(false); }, [open, track, setNow]);
   // in full screen the desktop app's drawn title bar is covered but its drag area (an OS-level region) would still take clicks: switch it off
   useEffect(() => { const on = open && full; document.documentElement.classList.toggle('bt-now-fs', on); return () => document.documentElement.classList.remove('bt-now-fs'); }, [open, full]);
@@ -128,12 +137,14 @@ export function NowPlaying() {
             <div className="truncate text-base text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}
         </div>
         {showLyrics && !saver && (
-          <div ref={listRef} className="relative min-h-0 w-full max-w-2xl flex-1 overflow-y-auto scroll-smooth py-[20vh] md:h-full md:py-[30vh] [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)]" aria-label="Lyrics">
+          <div ref={listRef} className="relative min-h-0 w-full max-w-2xl flex-1 overflow-y-auto scroll-smooth py-[20vh] md:h-full md:py-[30vh] [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)]" aria-label="Lyrics"
+            onWheel={stopFollowing} onTouchMove={stopFollowing} onPointerDown={(e) => { if (e.target === e.currentTarget) stopFollowing(); /* the scrollbar itself */ }}
+            onKeyDown={(e) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) stopFollowing(); }}>
             {lyrics.state === 'loading' && <p className="text-center text-muted">Looking for lyrics…</p>}
             {(lyrics.state === 'none' || lyrics.state === 'error') && <p className="text-center text-muted">{lyrics.message ?? 'No lyrics found for this track.'}</p>}
             {lyrics.state === 'ready' && lyrics.instrumental && !lines && !plain && <p className="text-center text-muted">Instrumental.</p>}
             {lines && lines.map((l, i) => (
-              <button key={i} data-line={i} className={cn('block w-full px-2 py-2 text-left text-2xl font-bold leading-[1.35] [overflow-wrap:anywhere] transition-all duration-300 md:text-4xl', i === active ? 'text-fg' : i < active ? 'text-fg/30' : 'text-fg/45', !l.text && 'opacity-60')} onClick={() => v.seek(l.time)}>{l.text || '♪'}</button>))}
+              <button key={i} data-line={i} className={cn('block w-full px-2 py-2 text-left text-2xl font-bold leading-[1.35] [overflow-wrap:anywhere] transition-all duration-300 md:text-4xl', i === active ? 'text-fg' : i < active ? 'text-fg/30' : 'text-fg/45', !l.text && 'opacity-60')} onClick={() => { setFollow(true); v.seek(l.time); }}>{l.text || '♪'}</button>))}
             {plain && <p className="whitespace-pre-wrap px-2 text-xl font-semibold leading-relaxed text-fg/85 md:text-2xl">{plain}</p>}
             {lyrics.state === 'ready' && <p className="mt-8 text-center text-xs text-muted/70">Lyrics from {lyrics.source}{lines ? ' · tap a line to jump to it' : ''}</p>}
             {lines && <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted">
@@ -144,6 +155,7 @@ export function NowPlaying() {
             </div>}
           </div>)}
       </div>
+      {showLyrics && !saver && lines && !follow && !hidden && <button className="btn btn-accent absolute bottom-28 left-1/2 z-20 -translate-x-1/2 shadow-lg max-md:bottom-36" onClick={() => setFollow(true)}><Mic2 size={15} />Back to the current line</button>}
       {saver && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[60vw] opacity-80"><div className="truncate text-lg font-semibold">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
       <footer className={cn('relative z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', (hidden || saver) && 'pointer-events-none opacity-0')}>
         <div className="flex items-center gap-2 text-xs tabular-nums text-muted">
@@ -155,6 +167,17 @@ export function NowPlaying() {
           <button className="btn" title="Previous" onClick={v.prev}><SkipBack size={20} /></button>
           <button className="btn btn-accent !rounded-full !p-3.5" title={v.playing ? 'Pause' : 'Play'} onClick={v.toggle}>{v.loading ? <Loader2 size={22} className="animate-spin" /> : v.playing ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}</button>
           <button className="btn" title="Next" onClick={v.next}><SkipForward size={20} /></button>
+        </div>
+        {/* the rest of the expanded player: rating, thumbs and memories, volume, info and the queue */}
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <Rating track={track} />
+          <RateBlock track={track} />
+          <label className="flex items-center gap-2 text-muted"><Volume2 size={16} className="shrink-0" />
+            <input type="range" aria-label="Volume" className="bt-range bt-hit w-28" style={{ '--p': `${Math.min(100, v.volume * 100)}%` } as React.CSSProperties} min={0} max={1} step={0.01} value={v.volume} onChange={(e) => v.setVolume(Number(e.target.value))} /></label>
+          <div className="flex gap-1">
+            <button type="button" className="btn btn-ghost !p-2" title="Track info" aria-label="Track info" onClick={() => { setNow(false); useEditor.getState().open({ kind: 'track-details', id: track.id }); }}><Info size={16} /></button>
+            <Link to="/queue" className="btn btn-ghost !p-2" title="The queue" aria-label="The queue" onClick={() => setNow(false)}><ListOrdered size={16} /></Link>
+          </div>
         </div>
       </footer>
     </div>
