@@ -109,6 +109,9 @@ const SCOPES = 'playlist-read-private playlist-read-collaborative user-library-r
 const STREAMING_SCOPES = 'streaming user-read-email user-read-private';
 /** only asked for when playlists are to be changed on Spotify (synced playlists): a plain sign-in stays read-only */
 const WRITE_SCOPES = 'playlist-modify-public playlist-modify-private';
+/** only asked for when the automatic listening-history check is wanted: Spotify's "recently played" */
+const HISTORY_SCOPES = 'user-read-recently-played';
+export interface RecentPlay { playedAt: number; uri: string; name: string; artist: string; album: string; durationMs: number }
 export const DEFAULT_REDIRECT = 'http://127.0.0.1:47813/api/spotify/callback';
 const b64url = (b: Buffer) => b.toString('base64url');
 
@@ -124,7 +127,7 @@ export class SpotifyAccount {
   private load(): SpotifyAuthState { try { return JSON.parse(readFileSync(this.file, 'utf8')) as SpotifyAuthState; } catch { return {}; } }
   private save(s: SpotifyAuthState) { mkdirSync(dirname(this.file), { recursive: true }); writeFileSync(this.file, JSON.stringify(s, null, 2), { mode: 0o600 }); }
 
-  status() { const s = this.load(); return { clientId: this.envClient || s.clientId || '', redirectUri: s.redirectUri || DEFAULT_REDIRECT, signedIn: !!s.token, streaming: !!(s.token?.scope ?? '').split(' ').includes('streaming'), canWrite: (s.token?.scope ?? '').split(' ').includes('playlist-modify-private'), configured: !!(this.envClient || s.clientId) }; }
+  status() { const s = this.load(); return { clientId: this.envClient || s.clientId || '', redirectUri: s.redirectUri || DEFAULT_REDIRECT, signedIn: !!s.token, streaming: !!(s.token?.scope ?? '').split(' ').includes('streaming'), canWrite: (s.token?.scope ?? '').split(' ').includes('playlist-modify-private'), canHistory: (s.token?.scope ?? '').split(' ').includes('user-read-recently-played'), configured: !!(this.envClient || s.clientId) }; }
   configure(clientId: string, redirectUri?: string) {
     if (!/^[0-9a-f]{32}$/i.test(clientId.trim())) throw new SpotifyError(400, 'A Spotify client id is 32 letters and digits (from your app on developer.spotify.com/dashboard)');
     const s = this.load(); s.clientId = clientId.trim(); if (redirectUri) s.redirectUri = redirectUri.trim(); this.save(s);
@@ -132,12 +135,12 @@ export class SpotifyAccount {
   signOut() { const s = this.load(); delete s.token; delete s.pending; this.save(s); }
 
   /** Step 1: the page the user opens to allow TurboMusic to read their playlists. */
-  authUrl(opts: { streaming?: boolean; write?: boolean } = {}): string {
+  authUrl(opts: { streaming?: boolean; write?: boolean; history?: boolean } = {}): string {
     const s = this.load(); const clientId = this.envClient || s.clientId;
     if (!clientId) throw new SpotifyError(400, 'Enter your Spotify client id first');
     const verifier = b64url(randomBytes(48)), state = b64url(randomBytes(12));
     s.pending = { verifier, state }; this.save(s);
-    const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: s.redirectUri || DEFAULT_REDIRECT, scope: [SCOPES, ...(opts.streaming ? [STREAMING_SCOPES] : []), ...(opts.write ? [WRITE_SCOPES] : [])].join(' '), state, code_challenge_method: 'S256', code_challenge: b64url(createHash('sha256').update(verifier).digest()) });
+    const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: s.redirectUri || DEFAULT_REDIRECT, scope: [SCOPES, ...(opts.streaming ? [STREAMING_SCOPES] : []), ...(opts.write ? [WRITE_SCOPES] : []), ...(opts.history ? [HISTORY_SCOPES] : [])].join(' '), state, code_challenge_method: 'S256', code_challenge: b64url(createHash('sha256').update(verifier).digest()) });
     return `https://accounts.spotify.com/authorize?${q}`;
   }
   /** Step 2: Spotify sent the browser to `redirectUri?code=…&state=…`; give that address (or just the code) here. Works even if the page itself did not load. */
@@ -236,6 +239,22 @@ export class SpotifyAccount {
       throw new SpotifyError(502, `Spotify answered ${res.status}${msg?.message ? `: ${msg.message}` : ''}`);
     }
     throw new SpotifyError(429, 'Spotify is rate limiting this app; try again in a minute');
+  }
+
+  /**
+   * The plays Spotify remembers (at most the last 50, only songs played for 30 seconds or more), newest first. `afterMs` asks only for
+   * plays after that moment. `playedAt` is when the play ended. One small request: cheap to repeat every few minutes.
+   */
+  async recentlyPlayed(afterMs?: number): Promise<RecentPlay[]> {
+    if (!(this.load().token?.scope ?? '').split(' ').includes('user-read-recently-played')) throw new SpotifyError(403, 'Tracking plays needs one more Spotify permission: turn it on in Settings > Spotify and sign in again');
+    const j = await this.get<{ items?: { played_at?: string; track?: { id?: string | null; uri?: string; name?: string; duration_ms?: number; is_local?: boolean; type?: string; artists?: { name: string }[]; album?: { name?: string; artists?: { name: string }[] } } | null }[] }>(`/me/player/recently-played?limit=50${afterMs ? `&after=${Math.floor(afterMs)}` : ''}`);
+    const out: RecentPlay[] = [];
+    for (const it of j.items ?? []) {
+      const t = it.track; const at = it.played_at ? Date.parse(it.played_at) : NaN;
+      if (!t?.uri || !t.id || t.is_local || (t.type && t.type !== 'track') || !t.name || !Number.isFinite(at)) continue;
+      out.push({ playedAt: at, uri: t.uri, name: t.name, artist: t.album?.artists?.[0]?.name ?? t.artists?.[0]?.name ?? '', album: t.album?.name ?? '', durationMs: t.duration_ms ?? 0 });
+    }
+    return out;
   }
 
   /** Spotify Connect devices of the account: the phone, the PC app, Soloist on the Pi, a speaker. */

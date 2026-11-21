@@ -194,6 +194,12 @@ export interface PlaybackLogData {
   /** spotify:track:<id> */
   uri?: string;
   shuffle?: boolean | null; platform?: string | null; reasonStart?: string | null; reasonEnd?: string | null;
+  /** which of the owner's accounts an imported play came from ("Old account"): lets a whole account's history be hidden at once */
+  account?: string;
+  /** the play was found by the server's automatic check of Spotify's recently played (not from an export file): it has no exact length and is dropped when the same play is in an export or in TurboMusic's own log */
+  via?: 'api';
+  /** left out of every list and statistic, but kept so it can be brought back (the history manager) */
+  hidden?: boolean;
 }
 export interface ProfileData {
   name: string; theme: string; accentColor: string; playbackMode: string;

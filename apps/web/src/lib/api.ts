@@ -5,6 +5,9 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
+/** the server's automatic check of Spotify's recently played */
+export interface SpotifyHistoryStatus { enabled: boolean; canHistory: boolean; signedIn: boolean; cursor: number; lastCheck: number | null; lastError: string | null; added: number; lastAdded: number; everyMinutes: number }
+
 export interface ServerStatus {
   apiVersion: number; cursor: number;
   files: { count: number; bytes: number };
@@ -117,11 +120,14 @@ export class Api {
   importCover(urls: string | string[]) { return this.req<{ hash: string; url: string }>('/api/import/cover', { method: 'POST', body: JSON.stringify(Array.isArray(urls) ? { urls } : { url: urls }) }); }
   analyzeAudio(hash: string) { return this.req<{ codec: string; kbps: number; sampleRate: number; durationSec: number; cutoffHz: number; looksLike: number; verdict: 'ok' | 'transcode' | 'unknown' }>('/api/audio/analyze', { method: 'POST', body: JSON.stringify({ hash }) }); }
   // ---- Spotify (server/src/spotify.ts) and YouTube matching (match.ts) ----
-  spotifyStatus() { return this.req<{ clientId: string; redirectUri: string; signedIn: boolean; streaming?: boolean; canWrite?: boolean; configured: boolean }>('/api/spotify/status'); }
+  spotifyStatus() { return this.req<{ clientId: string; redirectUri: string; signedIn: boolean; streaming?: boolean; canWrite?: boolean; canHistory?: boolean; configured: boolean }>('/api/spotify/status'); }
   spotifyDiagnose() { return this.req<SpotifyDiagnosis>('/api/spotify/diagnose'); }
   spotifySdkToken() { return this.req<{ token: string; expiresInMs: number }>('/api/spotify/sdk-token'); }
   spotifyConfig(clientId: string, redirectUri?: string) { return this.req<{ clientId: string; redirectUri: string; signedIn: boolean; configured: boolean }>('/api/spotify/config', { method: 'POST', body: JSON.stringify({ clientId, redirectUri }) }); }
-  spotifyAuthUrl(streaming = false, write = false) { return this.req<{ url: string }>(`/api/spotify/auth-url?${[streaming && 'streaming=1', write && 'write=1'].filter(Boolean).join('&')}`); }
+  spotifyAuthUrl(streaming = false, write = false, history = false) { return this.req<{ url: string }>(`/api/spotify/auth-url?${[streaming && 'streaming=1', write && 'write=1', history && 'history=1'].filter(Boolean).join('&')}`); }
+  spotifyHistory() { return this.req<SpotifyHistoryStatus>('/api/spotify/history'); }
+  spotifyHistoryEnable(enabled: boolean) { return this.req<SpotifyHistoryStatus>('/api/spotify/history', { method: 'POST', body: JSON.stringify({ enabled }) }); }
+  spotifyHistoryCheck() { return this.req<SpotifyHistoryStatus>('/api/spotify/history/check', { method: 'POST' }); }
   spotifyCreatePlaylist(name: string, description: string, uris: string[]) { return this.req<{ id: string; url: string }>('/api/spotify/playlists', { method: 'POST', body: JSON.stringify({ name, description, uris }) }); }
   spotifySetPlaylistTracks(id: string, uris: string[]) { return this.req<{ ok: true }>(`/api/spotify/playlist/${id}/tracks`, { method: 'PUT', body: JSON.stringify({ uris }) }); }
   spotifyExchange(url: string) { return this.req<{ signedIn: boolean }>('/api/spotify/exchange', { method: 'POST', body: JSON.stringify({ url }) }); }

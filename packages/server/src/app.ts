@@ -22,6 +22,7 @@ import { streamSSE } from 'hono/streaming';
 import { ConnectHub, parseCommand, parseSnapshot } from './connect.ts';
 import { checkTools } from './tools.ts';
 import { lanAddresses } from './lan.ts';
+import { SpotifyHistory } from './spotifyHistory.ts';
 import { assessHealth, collectHealth } from './health.ts';
 import { StorageError, StorageMover, describeStorage, isKind } from './storage.ts';
 import { BackupError, databaseSnapshot, filesArchive, importFiles, readDatabaseRecords, readStream, saveUpload } from './backup.ts';
@@ -57,8 +58,10 @@ export function createApp(
   soloist = new Soloist(config.dataDir, { ffmpegDir: config.ffmpegDir }),
   lyricsFinder = new LyricsFinder(),
   mirror = new Mirror(config.dataDir, store),
+  spotifyHistory = new SpotifyHistory(config.dataDir, spotify, store),
 ) {
   const app = new Hono();
+  spotifyHistory.start(); // only runs when the automatic check was switched on (it is off until then)
 
   // Native apps ignore CORS; browsers need it because the web client may be served from another origin.
   app.use('*', cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type', 'Range', 'CF-Access-Client-Id', 'CF-Access-Client-Secret'], exposeHeaders: ['Content-Range', 'Accept-Ranges'] }));
@@ -299,7 +302,17 @@ export function createApp(
     const b = (await c.req.json().catch(() => ({}))) as { clientId?: unknown; redirectUri?: unknown };
     try { spotify.configure(String(b.clientId ?? ''), typeof b.redirectUri === 'string' && b.redirectUri ? b.redirectUri : undefined); return c.json(spotify.status()); } catch (e) { return spotifyFail(e); }
   });
-  app.get('/api/spotify/auth-url', (c) => { try { return c.json({ url: spotify.authUrl({ streaming: c.req.query('streaming') === '1', write: c.req.query('write') === '1' }) }); } catch (e) { return spotifyFail(e); } });
+  app.get('/api/spotify/auth-url', (c) => { try { return c.json({ url: spotify.authUrl({ streaming: c.req.query('streaming') === '1', write: c.req.query('write') === '1', history: c.req.query('history') === '1' }) }); } catch (e) { return spotifyFail(e); } });
+  // the automatic listening-history check (spotifyHistory.ts)
+  app.get('/api/spotify/history', (c) => c.json(spotifyHistory.status()));
+  app.post('/api/spotify/history', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { enabled?: unknown };
+    if (typeof b.enabled !== 'boolean') return c.json({ error: 'enabled must be true or false' }, 400);
+    if (b.enabled && !spotify.status().canHistory) return c.json({ error: 'Sign in to Spotify again with the listening-history permission first' }, 409);
+    spotifyHistory.setEnabled(b.enabled);
+    return c.json(spotifyHistory.status());
+  });
+  app.post('/api/spotify/history/check', async (c) => { await spotifyHistory.check(); return c.json(spotifyHistory.status()); });
   app.post('/api/spotify/exchange', async (c) => {
     const b = (await c.req.json().catch(() => ({}))) as { url?: unknown };
     try { await spotify.exchange(String(b.url ?? '')); return c.json(spotify.status()); } catch (e) { return spotifyFail(e); }

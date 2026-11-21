@@ -25,6 +25,8 @@ export interface Listen {
   length?: number | null;
   /** the silent mirror streamed it on Spotify too */
   mirrored?: boolean;
+  /** found by the server's automatic check of Spotify's recently played (no exact length) */
+  viaApi?: boolean;
   shuffle: boolean | null;
   platform: string | null;
   reasonEnd: string | null;
@@ -66,7 +68,7 @@ export function buildListens(lib: Library): Listen[] {
       const trackId = l.trackId || match(l.uri, l.name ?? '', l.artist ?? '');
       const t = trackId ? lib.trackById.get(trackId) : undefined;
       out.push({ id: l.id, ts: l.timestamp, ms: Math.round((l.duration ?? 0) * 1000), trackId: t?.id ?? null, artistId: t?.leads[0]?.id ?? null, albumId: t?.albumId ?? null, title: t?.title ?? l.name ?? '', artist: t ? (t.leads[0]?.name ?? t.artistName) : l.artist ?? '',
-        album: t?.albumTitle ?? l.album ?? '', uri: l.uri ?? null, skipped: !!l.isSkip, shuffle: l.shuffle ?? null, platform: canonicalPlatform(l.platform), reasonEnd: l.reasonEnd ?? null, source: 'spotify' });
+        album: t?.albumTitle ?? l.album ?? '', uri: l.uri ?? null, skipped: !!l.isSkip, shuffle: l.shuffle ?? null, platform: canonicalPlatform(l.platform), reasonEnd: l.reasonEnd ?? null, source: 'spotify', ...(l.via === 'api' ? { viaApi: true } : {}) });
     } else {
       const t = lib.trackById.get(l.trackId);
       if (!t) continue;
@@ -75,7 +77,7 @@ export function buildListens(lib: Library): Listen[] {
     }
   }
   out.sort((a, b) => a.ts - b.ts);
-  const merged = dropMirrorTwins(out);
+  const merged = dropApiTwins(dropMirrorTwins(out));
   cache.set(lib, merged);
   return merged;
 }
@@ -90,6 +92,19 @@ export function dropMirrorTwins(listens: Listen[]): Listen[] {
   for (const l of listens) if (l.source === 'spotify' && l.trackId) spotify.set(l.trackId, [...(spotify.get(l.trackId) ?? []), l.ts]);
   if (!spotify.size) return listens;
   return listens.filter((l) => !(l.mirrored && l.trackId && (spotify.get(l.trackId) ?? []).some((ts) => Math.abs(ts - l.ts) <= 180_000)));
+}
+
+/**
+ * The server's automatic check of Spotify's recently played (`viaApi`) sees plays that are also somewhere better: in an export file
+ * (it has the real length), or in TurboMusic's own log (the song was played here through Spotify). An API play with the same song
+ * ending within five minutes of one of those is the same play and is dropped; the rest are new plays, kept.
+ */
+export function dropApiTwins(listens: Listen[]): Listen[] {
+  if (!listens.some((l) => l.viaApi)) return listens;
+  const keyOf = (l: Listen) => l.trackId ?? l.uri ?? `${norm(l.title)}|${norm(l.artist)}`;
+  const better = new Map<string, number[]>();
+  for (const l of listens) if (!l.viaApi) { const k = keyOf(l); (better.get(k) ?? better.set(k, []).get(k)!).push(l.ts); }
+  return listens.filter((l) => !(l.viaApi && (better.get(keyOf(l)) ?? []).some((ts) => Math.abs(ts - l.ts) <= 300_000)));
 }
 
 /**

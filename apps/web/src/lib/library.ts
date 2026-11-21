@@ -72,6 +72,8 @@ export interface Library {
   /** how the albums ranked against each other (votes with `album: true`) */
   albumRank: Map<string, { elo: number; comparisons: number }>;
   logs: Row<PlaybackLogData>[];
+  /** plays left out with "hide" in the history manager (kept, so they can come back) */
+  hiddenLogs: Row<PlaybackLogData>[];
   /** when each memory was added (only memories added since this was recorded) */
   memoryLogs: Row<MemoryLogData>[];
   profile: Row<ProfileData> | null;
@@ -122,7 +124,8 @@ const by = <T extends { id: string }>(xs: T[]) => new Map(xs.map((x) => [x.id, x
 
 /** The same library with a fresh play history: logs are the one part that changes on every play, so they are swapped in instead of rebuilding everything. */
 export function withLogs(lib: Library, rows: Record<string, Map<string, SyncRecord>>): Library {
-  return { ...lib, logs: live<PlaybackLogData>(rows.playbackLogs) };
+  const all = live<PlaybackLogData>(rows.playbackLogs);
+  return { ...lib, logs: all.filter((l) => !l.hidden), hiddenLogs: all.filter((l) => l.hidden) };
 }
 
 export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Library {
@@ -132,6 +135,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const rawTracks = live<TrackData>(rows.tracks);
   const votes = live<VoteData>(rows.votes);
   const profile = live<ProfileData>(rows.profiles)[0] ?? null;
+  const allLogs = live<PlaybackLogData>(rows.playbackLogs);
 
   // votes between albums rank the albums; a ranked album lifts the starting Elo of its tracks (a little: the tracks' own votes decide the rest)
   const albumVotes = votes.filter((v) => v.album);
@@ -248,7 +252,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     eras: eras, eraById: by(eras), singles: tracks.filter((t) => !t.albumId),
     releases, releaseNames: live<ReleaseNameData>(rows.releaseNames), playlists: live<PlaylistData>(rows.playlists),
     genres: live<GenreData>(rows.genres), roles: live<RoleCategoryData>(rows.roleCategories), timeline: live<TimelineData>(rows.timeline), groups: live<GroupData>(rows.groups), noteCategories: live<NoteCategoryData>(rows.noteCategories), legacyNotes: live<NoteData>(rows.notes),
-    votes: votes.filter((v) => !v.album), albumRank, logs: live<PlaybackLogData>(rows.playbackLogs), memoryLogs: live<MemoryLogData>(rows.memoryLogs), profile, rules: profile?.playbackRules ?? [],
+    votes: votes.filter((v) => !v.album), albumRank, logs: allLogs.filter((l) => !l.hidden), hiddenLogs: allLogs.filter((l) => l.hidden), memoryLogs: live<MemoryLogData>(rows.memoryLogs), profile, rules: profile?.playbackRules ?? [],
   };
 }
 

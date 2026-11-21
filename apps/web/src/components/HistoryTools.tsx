@@ -1,12 +1,14 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ThemedSelect } from './ThemedSelect.tsx';
 import { Download, FileUp, Upload } from 'lucide-react';
 import { Modal } from './forms.tsx';
 import { useStore } from '../lib/store.ts';
+import { cn } from '../lib/cn.ts';
 import { useLibraryLive } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
 import { exportFiles, exportSpotifyFormat, historyRecords, type ExportPlay, type HistoryImport, type SpotifyHistoryEntry } from '../lib/spotify.ts';
 import { readZip } from '../lib/zipRead.ts';
+import { leaveOut } from '../lib/historyGroups.ts';
 import { writeZip } from '../lib/zipWrite.ts';
 
 /** Reads Spotify history out of .json files and .zip archives (the zip you get from Spotify's "Download your data"). */
@@ -38,7 +40,21 @@ export function ImportHistoryDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const preview: HistoryImport | null = state ? historyRecords(state.entries, deviceId, { minMs: minSec * 1000 }) : null;
+  /** which of your accounts this file is from ("Old account"): lets the history manager hide a whole account later */
+  const [account, setAccount] = useState('');
+  const [words, setWords] = useState('');
+  const [skipArtists, setSkipArtists] = useState<ReadonlySet<string>>(new Set());
+  // what is imported: the file's plays minus the artists ticked below and anything with the "leave out" words
+  const kept = useMemo(() => (state ? leaveOut(state.entries, { words, artists: skipArtists }) : []), [state, words, skipArtists]);
+  const preview: HistoryImport | null = state ? historyRecords(kept, deviceId, { minMs: minSec * 1000 }) : null;
+  if (preview && account.trim()) preview.records = preview.records.map((r) => ({ ...r, data: { ...r.data, account: account.trim() } }));
+  // the artists with the most listening time, so ASMR or a podcast-like album stands out at once
+  const top = useMemo(() => {
+    if (!state) return [];
+    const m = new Map<string, { name: string; ms: number; plays: number }>();
+    for (const e of state.entries) { const name = (e.master_metadata_album_artist_name ?? '').trim(); if (!name || !e.spotify_track_uri) continue; const g = m.get(name.toLowerCase()) ?? { name, ms: 0, plays: 0 }; g.ms += e.ms_played ?? 0; g.plays++; m.set(name.toLowerCase(), g); }
+    return [...m.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 12);
+  }, [state]);
 
   async function pick(list: FileList | null) {
     if (!list?.length) return;
@@ -72,6 +88,17 @@ export function ImportHistoryDialog({ onClose }: { onClose: () => void }) {
           <label className="flex flex-wrap items-center gap-2 text-xs text-muted">Skip plays shorter than
             <ThemedSelect className="input !w-auto !py-1" value={minSec} onChange={(e) => setMinSec(Number(e.target.value))}><option value={0}>nothing (keep all)</option><option value={5}>5 seconds</option><option value={30}>30 seconds (like stats.fm)</option></ThemedSelect>
             <span>Plays you skipped within seconds stay in the history otherwise, marked as skips.</span></label>
+          <label className="flex flex-wrap items-center gap-2 text-xs text-muted">Which account is this?
+            <input className="input !w-44 !py-1" placeholder="e.g. Old account (optional)" value={account} onChange={(e) => setAccount(e.target.value)} />
+            <span>Names the plays so a whole account can be hidden later from the history manager.</span></label>
+          <div className="space-y-1.5">
+            <div className="text-xs text-muted">Leave out what does not belong (ASMR played as albums, podcasts saved as albums…). You can also hide things after importing, from “Manage imported history”.</div>
+            <input className="input !py-1" placeholder="Leave out anything with these words in artist, album or title: asmr, sleep sounds" value={words} onChange={(e) => setWords(e.target.value)} />
+            <div className="max-h-44 overflow-y-auto rounded-theme border border-line bg-surface">{top.map(([k, a]) => (
+              <label key={k} className="flex cursor-pointer items-center gap-2 border-b border-line/50 px-2 py-1 text-xs last:border-b-0"><input type="checkbox" checked={skipArtists.has(k)} onChange={() => setSkipArtists((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; })} />
+                <span className={cn('min-w-0 flex-1 truncate', skipArtists.has(k) && 'text-muted line-through')}>{a.name}</span><span className="shrink-0 tabular-nums text-muted">{a.plays.toLocaleString()} plays · {Math.round(a.ms / 3_600_000)} h</span></label>))}</div>
+            <div className="text-xs text-muted">Tick an artist to leave all their plays out. The 12 with the most listening time are shown. {state ? `${(state.entries.length - kept.length).toLocaleString()} entries are being left out.` : ''}</div>
+          </div>
         </div>)}
       {busy && <div className="text-sm text-muted" role="status">{busy}</div>}
       {result && <div className="rounded-theme bg-good/10 p-3 text-sm text-good" role="status">{result} They match your library by Spotify link first, then by title and artist, and show up in Stats.</div>}
