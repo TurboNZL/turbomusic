@@ -101,8 +101,8 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
         // a group that has its own action: the row does it, the arrow opens the rest
         if (kids && (it.run || it.to)) return (
           <div key={k} className="flex items-stretch">
-            <button role="menuitem" disabled={it.disabled} className={`${cls} min-w-0 flex-1`} onClick={act}>{it.icon}<span className="min-w-0 flex-1">{labelOf(it)}</span></button>
-            <button type="button" role="menuitem" aria-haspopup="menu" aria-label={`More: ${labelOf(it)}`} className="flex w-9 shrink-0 items-center justify-center border-l border-line/50 text-muted hover:text-fg" onClick={open}><ChevronRight size={14} /></button>
+            <button role="menuitem" disabled={it.disabled} className={`${cls} !w-auto min-w-0 flex-1`} onClick={act}>{it.icon}<span className="min-w-0 flex-1">{labelOf(it)}</span></button>
+            <button type="button" aria-haspopup="menu" aria-label={`More: ${labelOf(it)}`} className="flex !w-9 shrink-0 items-center justify-center border-l border-line/50 text-muted hover:text-fg" onClick={open}><ChevronRight size={14} /></button>
           </div>);
         return <button key={k} role="menuitem" disabled={it.disabled} className={cls} aria-checked={on} aria-haspopup={kids ? 'menu' : undefined}
           onClick={kids ? open : act}>{it.icon}<span className="min-w-0 flex-1">{labelOf(it)}</span>
