@@ -1,6 +1,6 @@
 import { leadArtistId, leadArtistIds, hasLead, isFeatured } from './defaults.ts';
 import { albumCover, coverPool } from './covers.ts';
-import { albumStartElo, balancedRatings, replayVotes, type AlbumData, type Credit, type ArtistData, type PlaylistData, type PlaybackRule, type ReleaseData, type SyncRecord, type TrackData, type VoteData, type GenreData, type GroupData, type NoteData, type ProfileData, type PlaybackLogData, type RoleCategoryData, type TimelineData, type EraData, type NoteCategoryData, type ReleaseNameData, type MemoryLogData } from '@turbomusic/core';
+import { albumStartElo, balancedRatings, fitPreferences, preferenceRatings, replayVotes, type AlbumData, type Credit, type ArtistData, type PlaylistData, type PlaybackRule, type ReleaseData, type SyncRecord, type TrackData, type VoteData, type GenreData, type GroupData, type NoteData, type ProfileData, type PlaybackLogData, type RoleCategoryData, type TimelineData, type EraData, type NoteCategoryData, type ReleaseNameData, type MemoryLogData } from '@turbomusic/core';
 
 export type Row<T> = T & { id: string };
 
@@ -16,6 +16,8 @@ export interface Track extends Omit<Row<TrackData>, 'artistId'> {
   /** the credits as stored on the track (a track that follows its album shows the album's credits in `credits`) */
   storedCredits: Credit[];
   elo: number; comparisons: number;
+  /** thumbs up minus thumbs down this track has received */
+  thumbs: number;
   /** 0-10 from the votes (unfloored by comparisons); see effectiveRating */
   rating: number;
   /** what the UI should show as the rating (needs >=3 comparisons, else the manual initial rating) */
@@ -136,8 +138,14 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const albumRank = replayVotes(albumVotes.map((v) => ({ ...v })), rawAlbums.map((a) => a.id));
   const starts = new Map<string, number>();
   if (albumVotes.length) for (const t of rawTracks) { const al = (t.albums ?? [])[0]; const r = al ? albumRank.get(al.albumId) : undefined; if (r && r.comparisons > 0) starts.set(t.id, albumStartElo(r.elo)); }
-  const ranked = replayVotes(votes.filter((v) => !v.album).map((v) => ({ ...v })), rawTracks.map((t) => t.id), starts);
-  const ratings = balancedRatings(ranked, new Map(rawTracks.map((t) => [t.id, t.initialRating])));
+  // the rating model is a library setting (it syncs): "preference" fits every vote at once (core/preference.ts), "elo" replays them one by one
+  const useElo = profile?.settings?.ratingModel === 'elo';
+  const trackVotes = votes.filter((v) => !v.album).map((v) => ({ ...v }));
+  const initials = new Map(rawTracks.map((t) => [t.id, t.initialRating]));
+  const ranked = useElo ? replayVotes(trackVotes, rawTracks.map((t) => t.id), starts) : fitPreferences(trackVotes, rawTracks.map((t) => t.id), starts);
+  const thumbNet = new Map<string, number>();
+  for (const v of trackVotes) if (v.boost) thumbNet.set(v.trackAId, (thumbNet.get(v.trackAId) ?? 0) + v.boost);
+  const ratings = useElo ? balancedRatings(ranked, initials) : preferenceRatings(ranked as ReturnType<typeof fitPreferences>, initials);
 
   const albumTitles = new Map(rawAlbums.map((a) => [a.id, a.title]));
   const releases = live<ReleaseData>(rows.releases).map((r) => ({ ...r, named: !!r.title?.trim(), title: r.title?.trim() || albumTitles.get(r.albumId) || '' }));
@@ -200,7 +208,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
       // the released track plays a tied pre-release's audio only when that was chosen by hand
       file: t.primaryAudioFrom && tiedTo.get(t.primaryAudioFrom) === t.id ? rawTrackById.get(t.primaryAudioFrom)?.file ?? t.file : t.file,
       preReleaseOf: tiedTo.get(t.id) ?? null, preReleaseIds: preOf.get(t.id) ?? [],
-      credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, rating, effectiveRating: eff, tenStarRank: null,
+      credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, thumbs: thumbNet.get(t.id) ?? 0, rating, effectiveRating: eff, tenStarRank: null,
       artistName: namesOf(leads),
       albumId: album?.id ?? null, albumTitle: album?.title ?? null, cover: t.cover || album?.cover || null,
       releaseDate: album ? earliestRelease.get(t.id) ?? albumDate.get(album.id) ?? null : t.releaseDate || null, // a single keeps its own

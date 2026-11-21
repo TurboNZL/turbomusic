@@ -171,6 +171,8 @@ export interface VoteData {
   winnerId: string | null; isEqual: boolean;
   /** thumbs up/down on trackAId alone (trackBId is ''); see elo.ts */
   boost?: 1 | -1;
+  /** how much this answer counts: 1 = ordinary (the default), 2.5 = "much better" */
+  weight?: number;
   /** a head-to-head between two ALBUMS (trackAId/trackBId are album ids): it ranks albums, and a ranked album lifts the starting Elo of its tracks */
   album?: boolean;
   timestamp: number;

@@ -1,7 +1,8 @@
 import { haptic } from '../lib/haptics.ts';
 import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Check, Loader2, Pause, Play, Equal, SkipForward, Volume2 } from 'lucide-react';
+import { BarChart3, Check, Loader2, Pause, Play, Equal, SkipForward, Undo2, Volume2, ChevronsUp } from 'lucide-react';
+import { STRONG_WEIGHT } from '@turbomusic/core';
 import type { VoteData } from '@turbomusic/core';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
@@ -17,6 +18,8 @@ import { Cover } from '../components/Cover.tsx';
 import { Rating } from '../components/Rating.tsx';
 import { cn } from '../lib/cn.ts';
 import { cssMs } from '../lib/presence.ts';
+import { useSearchParams } from 'react-router-dom';
+import { PlaceRank } from '../components/PlaceRank.tsx';
 import { ArtistLinks } from '../components/ArtistLinks.tsx';
 
 /** how long the chosen card plays its "picked" animation before the next pair appears (0 where the UI style has no motion) */
@@ -66,6 +69,11 @@ function DuelRank() {
   const lib = useLibraryLive();
   const edit = useEditor((s) => s.open);
   const put = useStore((s) => s.put);
+  const removeRow = useStore((s) => s.remove);
+  /** the next pick counts as "much better" (weight in the preference fit); switches itself off after one vote */
+  const [strong, setStrong] = useState(false);
+  /** the last vote of this visit, so a slip can be taken back (the pair comes back too) */
+  const [last, setLast] = useState<{ id: string; pair: [string, string] } | null>(null);
   // the pair survives leaving the tab and coming back (kept in `keptPair`), so a visit does not hand out a new one
   const [pair, setPair] = useState<[string, string] | null>(() => (keptPair && lib.trackById.has(keptPair[0]) && lib.trackById.has(keptPair[1]) ? keptPair : null));
   useEffect(() => { keptPair = pair; }, [pair]);
@@ -141,10 +149,12 @@ function DuelRank() {
 
   const vote = useCallback((winnerId: string | null, isEqual = false) => {
     if (!pair || picked) return;
-    const data: VoteData = { trackAId: pair[0], trackBId: pair[1], winnerId, isEqual, timestamp: Date.now() };
-    put('votes', data);
+    const data: VoteData = { trackAId: pair[0], trackBId: pair[1], winnerId, isEqual, timestamp: Date.now(), ...(strong && !isEqual ? { weight: STRONG_WEIGHT } : {}) };
+    const voteId = put('votes', data);
+    setLast({ id: voteId, pair });
     haptic('confirm');
-    setFlash(isEqual ? 'Marked equal' : `Voted for ${lib.trackById.get(winnerId!)?.title}`);
+    setFlash(isEqual ? 'Marked equal' : `${strong ? 'Much better: ' : 'Voted for '}${lib.trackById.get(winnerId!)?.title}`);
+    setStrong(false);
     setTimeout(() => setFlash(null), 1500);
     lastArrow.current = null;
     const wait = pickDelay();
@@ -152,7 +162,13 @@ function DuelRank() {
     stop();
     setPicked(isEqual ? 'equal' : winnerId);
     setTimeout(() => { setPicked(null); setPair(null); }, wait);
-  }, [pair, picked, put, lib, stop]);
+  }, [pair, picked, put, lib, stop, strong]);
+  const undo = () => {
+    if (!last || picked) return;
+    removeRow('votes', last.id);
+    stop(); setPair(last.pair); setLast(null);
+    setFlash('Vote taken back'); setTimeout(() => setFlash(null), 1500);
+  };
 
   /** Starts a preview (never stops one: the key that previews is also the first half of "pick") */
   const previewRef = useRef<(t: Track) => void>(() => undefined);
@@ -172,12 +188,14 @@ function DuelRank() {
           const t = lib.trackById.get(id);
           if (t) previewRef.current(t);
         }
-      } else if (e.key === 'ArrowDown') { e.preventDefault(); vote(null, true); }
+      } else if (e.key.toLowerCase() === 'm') { setStrong((x) => !x); }
+      else if (e.key.toLowerCase() === 'z' && last) { undo(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); vote(null, true); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); if (!picked) next(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [pair, picked, vote, next, lib]);
+  }, [pair, picked, vote, next, lib, last]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Play 15 s from the middle of the track, as the original cleanup page did. The music player is paused meanwhile. */
   function snippet(t: Track, onlyStart = false) {
@@ -280,6 +298,8 @@ function DuelRank() {
       <div className={cn('flex shrink-0 flex-col items-center gap-1.5', compact ? 'mt-1.5' : 'mt-3')}>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={16} />{compact ? 'Equal' : 'They’re equal (↓)'}</button>
+          <button className={cn('btn', strong && 'btn-accent')} aria-pressed={strong} onClick={() => setStrong((x) => !x)} title="Your next pick counts for more: use it when the difference is obvious to you (M)"><ChevronsUp size={16} />{compact ? 'Much better' : 'Next pick: much better (M)'}</button>
+          {last && <button className="btn btn-ghost" onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={16} />Undo</button>}
           <button className="btn btn-ghost" onClick={() => !picked && next()} title="Not sure, or you don't want to rank this pair. Nothing is saved; you just get a new pair."><SkipForward size={16} />{compact ? 'Skip' : 'Skip, save nothing (↑)'}</button>
         </div>
         <div className={cn('min-h-4 text-center text-xs text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap a card to preview, swipe it right to pick it. </span>Equal records a draw. Skip records nothing.</span>}</div>
@@ -289,9 +309,10 @@ function DuelRank() {
 }
 
 const MODE_KEY = 'turbomusic.rankMode';
-type Mode = 'duel' | 'albums' | 'triple' | 'quad' | 'odd' | 'benchmark' | 'love';
+type Mode = 'duel' | 'place' | 'albums' | 'triple' | 'quad' | 'odd' | 'benchmark' | 'love';
 const MODES: { id: Mode; label: string; hint: string }[] = [
   { id: 'duel', label: 'Head to head', hint: 'Two songs: which is better?' },
+  { id: 'place', label: 'Place a song', hint: 'Find where one song you love belongs, by comparing it with a few others.' },
   { id: 'albums', label: 'Albums', hint: 'Two albums: which is better? A ranked album lifts the starting Elo of its tracks.' },
   { id: 'triple', label: 'Best of three', hint: 'Three close songs: pick your favourite, which settles two matches at once.' },
   { id: 'quad', label: 'Best of four', hint: 'Four close songs: pick your favourite, which settles three matches at once.' },
@@ -303,8 +324,10 @@ const loadMode = (): Mode => { try { const m = localStorage.getItem(MODE_KEY); r
 
 /** The Rank page: choose how to rank (remembered), then answer. Head to head is the classic page; the others are the questions Home offers a taste of. */
 export function VotePage() {
-  const [mode, setModeState] = useState<Mode>(loadMode);
-  const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* private mode */ } };
+  const [params, setParams] = useSearchParams();
+  const place = params.get('place') ?? undefined; // "Rank it against others" in a track's menu
+  const [mode, setModeState] = useState<Mode>(() => (place ? 'place' : loadMode()));
+  const setMode = (m: Mode) => { setModeState(m); if (params.has('place')) setParams({}, { replace: true }); try { localStorage.setItem(MODE_KEY, m); } catch { /* private mode */ } };
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mx-auto mb-3 flex w-full max-w-4xl shrink-0 items-center gap-2 text-sm">
@@ -312,7 +335,7 @@ export function VotePage() {
         <ThemedSelect className="input !w-auto !py-1" aria-label="How to rank" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>{MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</ThemedSelect>
         <span className="min-w-0 truncate text-xs text-muted max-sm:hidden">{MODES.find((m) => m.id === mode)?.hint}</span>
       </div>
-      {mode === 'duel' ? <DuelRank /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
+      {mode === 'duel' ? <DuelRank /> : mode === 'place' ? <PlaceRank key={place ?? 'pick'} initialId={place} /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-4xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
     </div>
   );
 }

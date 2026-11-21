@@ -1,5 +1,5 @@
 import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, Info, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Minus, Disc3, GitMerge, StickyNote, User } from 'lucide-react';
+import { BarChart3, Swords, Info, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Minus, Disc3, GitMerge, StickyNote, User } from 'lucide-react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import type { Track } from '../lib/derive.ts';
 import type { EditTarget } from '../lib/editor.ts';
@@ -31,6 +31,7 @@ export function useTrackMenuItems() {
       ...group('Info, notes and stats', <Info size={15} />, [
         { label: 'Info', icon: <Info size={15} />, run: open({ kind: 'track-details', id: t.id }) },
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('track', t.id) },
+        { label: 'Rank it against other songs…', icon: <Swords size={15} />, to: `/vote?place=${t.id}` },
         { label: 'Write a note…', icon: <StickyNote size={15} />, run: open({ kind: 'new-note', id: `track:${t.id}` }) },
       ]),
       ...group('Go to', <User size={15} />, [
