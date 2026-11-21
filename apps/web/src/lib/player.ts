@@ -1,4 +1,5 @@
 import { PlayLog } from './playLog.ts';
+import { playLogged, startSessionSaving } from './session.ts';
 import { create } from 'zustand';
 import { advance, crossfadeFor, crossfadeShapeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
 import { moveTrack } from './defaults.ts';
@@ -259,6 +260,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const s = get().source;
     const len = get().duration; const data: PlaybackLogData = { trackId: id, timestamp: Date.now(), duration: dur, length: len > 0 ? Math.round(len) : null, ...(mirrorProbe.counted?.(id, dur) ? { mirrored: true } : {}), sourceType: s.type, sourceId: s.id, isSkip };
     useStore.getState().put('playbackLogs', data);
+    playLogged(id);
   }
 
   /** Can the Android app's own player play this track? (needs the server's address, and no copy that only this page holds) */
@@ -548,7 +550,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const id = h[h.length - 1];
       const q = get().queue;
       set({ history: h.slice(0, -1) });
-      go({ ...q, currentId: id, user: q.currentId ? [q.currentId, ...q.user] : q.user });
+      // the track you leave goes back to the front of "Then" (the rest of the album or list), NOT into your own play-next queue: you never queued it
+      go({ ...q, currentId: id, active: q.currentId ? [q.currentId, ...q.active.filter((x) => x !== q.currentId)] : q.active });
     },
 
     seek(t) { if (spotifyEngine.active()) void spotifyEngine.seek(t * 1000); else if (native) nativeAudio.seek(t); else el().currentTime = t; set({ time: t }); },
@@ -604,6 +607,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
     applyEq() { setEq(el(), eqConfig(useStore.getState().settings)); },
   };
 });
+
+startSessionSaving(usePlayer as never);
 
 // the queue changed while the app's player is playing: tell it about its neighbours
 usePlayer.subscribe((s, prev) => {

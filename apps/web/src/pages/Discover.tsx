@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { CalendarClock, Compass, Disc3, ListEnd, ListPlus, Music4, Play, RefreshCw, Shuffle, Sparkles, Users } from 'lucide-react';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
-import { heardTrackIds, tryNewPlaylist } from '../lib/heard.ts';
+import { heardTrackIds, tasteScorer, tryNewPlaylist } from '../lib/heard.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { usePlayer } from '../lib/player.ts';
 import { useStore } from '../lib/store.ts';
@@ -102,7 +102,7 @@ export function DiscoverPage() {
       forgotten: back(forgottenFavourites(mixables, plays, now)),
       gems: back(hiddenGems(mixables, plays)),
       cuts: back(deepCuts(mixables, plays, w)),
-      fresh: freshRef.current.seed === seed && freshRef.current.ids.length ? freshRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t) : (() => { const f = tryNewPlaylist(playable, heard, canPlay); freshRef.current = { seed, ids: f.map((t) => t.id) }; return f; })(),
+      fresh: freshRef.current.seed === seed && freshRef.current.ids.length ? freshRef.current.ids.map((id) => lib.trackById.get(id)).filter((t): t is Track => !!t) : (() => { const f = tryNewPlaylist(playable, heard, canPlay, 25, 2, Math.random, tasteScorer(lib.tracks)); freshRef.current = { seed, ids: f.map((t) => t.id) }; return f; })(),
     };
   }, [mixables, plays, now, playable, seed]); // eslint-disable-line react-hooks/exhaustive-deps
   const genres = useMemo(() => genreBuckets(mixables).map((b) => ({ ...b, tracks: back(b.tracks) })), [mixables]); // eslint-disable-line react-hooks/exhaustive-deps
