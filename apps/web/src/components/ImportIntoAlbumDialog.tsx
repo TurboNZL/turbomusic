@@ -2,7 +2,8 @@ import { CandidateArt } from './CandidateArt.tsx';
 import { ThemedSelect } from './ThemedSelect.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, Loader2, Search } from 'lucide-react';
-import { newTrackData, inheritFromAlbum } from '../lib/defaults.ts';
+import { newTrackData, inheritFromAlbum, FEATURED_ROLE } from '../lib/defaults.ts';
+import { matchArtist, splitFeaturing } from '../lib/autofill.ts';
 import { fetchCoverFromLinks } from '../lib/cover.ts';
 import { mergeAllTracksOrder, matchEntries, type MergeRow } from '../lib/albumMerge.ts';
 import type { ImportPreview, MatchCandidate } from '../lib/api.ts';
@@ -94,7 +95,9 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
     try {
       const included = rows.filter((r) => r.include && (r.trackId || r.title.trim()));
       const newIds = new Map<number, string>();
-      included.forEach((r, i) => { if (!r.trackId) newIds.set(i, put('tracks', newTrackData({ title: r.title.trim(), credits: album.credits, ...inheritFromAlbum(album, album.credits), youtubeMusicUrl: r.entry.url, albums: [{ albumId: album.id, order: album.trackIds.length + newIds.size }] }))); });
+      const featIds = new Map<string, string>(); // featured names in titles become credits (an artist you have, else created once)
+      const featCredits = (names: string[]) => names.map((n) => { const k = n.toLowerCase(); let id = featIds.get(k) ?? matchArtist(lib.artists, n)?.id; if (!id) id = put('artists', { name: n, image: null }); featIds.set(k, id); return { artistId: id, role: [FEATURED_ROLE] }; });
+      included.forEach((r, i) => { if (!r.trackId) { const sp = splitFeaturing(r.title.trim()); const credits = [...(album.credits ?? []), ...featCredits(sp.featured)]; newIds.set(i, put('tracks', newTrackData({ title: sp.title, credits, ...inheritFromAlbum(album, credits), youtubeMusicUrl: r.entry.url, albums: [{ albumId: album.id, order: album.trackIds.length + newIds.size }] }))); } });
       // the existing songs the link has: give them the link when they have none
       const needDownload: string[] = [...newIds.values()];
       for (const r of included) {

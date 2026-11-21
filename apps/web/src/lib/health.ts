@@ -1,3 +1,4 @@
+import { splitFeaturing } from './autofill.ts';
 import { findDuplicates } from './duplicates.ts';
 import { hasLead } from './defaults.ts';
 import type { Library } from './library.ts';
@@ -12,6 +13,8 @@ export interface HealthCheck {
   fix?: { label: string; table: 'artists' | 'genres' | 'roleCategories' | 'noteCategories' };
   /** one-click: write a "Lead artist" credit from the stored artistId onto each item */
   addLead?: { label: string };
+  /** one-click: take "(feat. X)" out of the title and add X as a Featured artist credit */
+  moveFeatured?: boolean;
   /** paste many links at once, album by album */
   bulk?: 'youtubeMusicUrl' | 'spotifyUrl' | 'geniusUrl';
   /** open the tool that looks for YouTube links of the tracks */
@@ -89,6 +92,8 @@ export function computeHealth(lib: Library): HealthCheck[] {
         ...lib.albums.filter((a) => !hasLead(a.credits ?? [])).map((a) => ({ kind: 'album' as const, id: a.id, label: `${a.title} · ${a.artistName}` })),
         ...lib.tracks.filter((x) => !hasLead(x.credits ?? [])).map((x) => t(x)),
       ] },
+    { id: 'title-features', moveFeatured: true, title: 'Titles that name a featured artist', why: 'Featured artists belong in the credits, not in the title. “Move to credits” cuts “(feat. X)” / “(with X)” from the title and adds X as a Featured artist credit (an artist you already have is reused). Plays in your listening history still match.',
+      items: lib.tracks.filter((x) => splitFeaturing(x.title).featured.length).map((x) => t(x, `→ ${splitFeaturing(x.title).title} + ${splitFeaturing(x.title).featured.join(', ')}`)) },
     { id: 'dead-links', title: 'Dead YouTube links', why: 'YouTube said these videos are no longer available (removed, private or blocked), so the audio cannot be downloaded from them. Open the track and paste a working link, then download again. The mark goes away by itself once the link changes.', clearDead: true,
       items: lib.tracks.filter(isDead).map((x) => t(x, x.youtubeDead?.reason || 'video unavailable')) },
     { id: 'no-audio', title: 'Tracks without audio', why: 'They cannot be played. Tracks with a YouTube link can be downloaded with “Download missing audio” above.',

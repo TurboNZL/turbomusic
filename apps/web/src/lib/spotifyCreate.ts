@@ -1,3 +1,4 @@
+import { splitFeaturing } from './autofill.ts';
 import type { ArtistData } from '@turbomusic/core';
 import { leadCredit, newAlbumData, newTrackData } from './defaults.ts';
 import type { Library } from './library.ts';
@@ -39,8 +40,12 @@ export function createFromPlan(lib: Library, plan: ImportPlan, ops: Ops, o: { ma
       if (!a.existingAlbumId) albumsMade++;
       const ids: string[] = [];
       for (const [i, pt] of a.tracks.entries()) {
-        const feats = pt.src.artists.filter((n) => norm(n) !== norm(a.artist)).map((n) => ({ artistId: artist(n), role: ['Featured artist'] }));
-        const id = put('tracks', newTrackData({ title: pt.src.title, credits: [...credits, ...feats], youtubeMusicUrl: null, spotifyUrl: `https://open.spotify.com/track/${pt.src.id}`, albums: [{ albumId, order: i }] }));
+        // featured artists come from Spotify's artist list AND from "(feat. X)" in its title; the title keeps only the song's name
+        const sp = splitFeaturing(pt.src.title);
+        const names = [...pt.src.artists.filter((n) => norm(n) !== norm(a.artist)), ...sp.featured.filter((n) => norm(n) !== norm(a.artist))];
+        const seen = new Set<string>();
+        const feats = names.filter((n) => !seen.has(norm(n)) && seen.add(norm(n))).map((n) => ({ artistId: artist(n), role: ['Featured artist'] }));
+        const id = put('tracks', newTrackData({ title: sp.title, credits: [...credits, ...feats], youtubeMusicUrl: null, spotifyUrl: `https://open.spotify.com/track/${pt.src.id}`, albums: [{ albumId, order: i }] }));
         trackIdOf.set(pt.src.uri, id); ids.push(id); tracksMade++;
       }
       if (!a.existingAlbumId) {

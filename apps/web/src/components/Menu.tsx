@@ -1,11 +1,26 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
 export type MenuItem =
   | { separator: true }
-  /** `checked` draws a tick (a switch); `keepOpen` runs the item without closing the menu, and the tick flips at once */
-  | { label: string; icon?: ReactNode; run?: () => void; to?: string; disabled?: boolean; danger?: boolean; checked?: boolean; keepOpen?: boolean };
+  /**
+   * `checked` draws a tick (a switch); `keepOpen` runs the item without closing the menu, and the tick flips at once.
+   * `label` may be a function: it is read on every draw, so a switch can change the words of its neighbours.
+   * `children` makes a group: pressing it opens its items in the same menu (with a Back row), which works the same by touch and mouse.
+   */
+  | { label: string | (() => string); icon?: ReactNode; run?: () => void; to?: string; disabled?: boolean; danger?: boolean; checked?: boolean; keepOpen?: boolean; children?: MenuItem[] };
+
+/** A submenu entry; hidden when it would be empty, and just the item itself when it would hold only one. */
+export function group(label: string, icon: ReactNode, items: MenuItem[]): MenuItem[] {
+  const real = items.filter((i) => !('separator' in i));
+  if (!real.length) return [];
+  if (real.length === 1) return real;
+  return [{ label, icon, children: items }];
+}
+
+const labelOf = (it: { label: string | (() => string) }) => (typeof it.label === 'function' ? it.label() : it.label);
 
 export interface MenuAt { x: number; y: number; items: MenuItem[]; label: string; key?: string }
 
@@ -18,7 +33,11 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
   const ref = useRef<HTMLDivElement>(null);
   const nav = useNavigate();
   const [pos, setPos] = useState({ left: at.x, top: at.y });
-  const [flipped, setFlipped] = useState<ReadonlySet<number>>(new Set());
+  const [flipped, setFlipped] = useState<ReadonlySet<string>>(new Set());
+  // the groups opened so far: each entry is the group's label and items
+  const [stack, setStack] = useState<{ label: string; items: MenuItem[] }[]>([]);
+  const items = stack.length ? stack[stack.length - 1].items : at.items;
+  const level = stack.length;
 
   // keep the menu on screen
   useLayoutEffect(() => {
@@ -27,7 +46,7 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
     // offset sizes, not getBoundingClientRect: the opening animation scales the menu, which would measure it too small
     const w = el.offsetWidth, h = el.offsetHeight;
     setPos({ left: Math.max(8, Math.min(at.x, window.innerWidth - w - 8)), top: Math.max(8, Math.min(at.y, window.innerHeight - h - 8)) });
-  }, [at.x, at.y]);
+  }, [at.x, at.y, level]);
   useEffect(() => {
     const down = (e: MouseEvent) => {
       const el = e.target as Element;
@@ -35,22 +54,38 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
       onClose();
     };
     const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('mousedown', down); window.addEventListener('keydown', key); window.addEventListener('scroll', onClose, true); window.addEventListener('resize', onClose);
-    return () => { window.removeEventListener('mousedown', down); window.removeEventListener('keydown', key); window.removeEventListener('scroll', onClose, true); window.removeEventListener('resize', onClose); };
+    // scrolling the MENU (a long one on a phone) must not close it; only the page moving underneath does
+    const scroll = (e: Event) => { if (e.target instanceof Node && ref.current?.contains(e.target)) return; onClose(); };
+    // a phone's address bar growing or shrinking fires a resize that only changes the height: not a reason to close
+    let w = window.innerWidth;
+    const resize = () => { if (window.innerWidth !== w) onClose(); w = window.innerWidth; };
+    window.addEventListener('mousedown', down); window.addEventListener('keydown', key); window.addEventListener('scroll', scroll, true); window.addEventListener('resize', resize);
+    return () => { window.removeEventListener('mousedown', down); window.removeEventListener('keydown', key); window.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', resize); };
   }, [onClose]);
 
+  const back = () => { setStack((st) => st.slice(0, -1)); if (ref.current) ref.current.scrollTop = 0; };
   return createPortal(
-    <div ref={ref} role="menu" aria-label={at.label} className="bt-menu fixed z-[60] max-h-[calc(100vh-1rem)] w-56 overflow-y-auto py-1"
-      style={{ ...pos, transformOrigin: `${Math.max(0, at.x - pos.left)}px ${Math.max(0, at.y - pos.top)}px` }}
+    <div ref={ref} role="menu" aria-label={at.label} className="bt-menu fixed z-[60] max-h-[calc(100dvh-1rem)] w-60 overflow-y-auto overscroll-contain py-1 [-webkit-overflow-scrolling:touch]"
+      style={{ ...pos, touchAction: 'pan-y', transformOrigin: `${Math.max(0, at.x - pos.left)}px ${Math.max(0, at.y - pos.top)}px` }}
       onContextMenu={(e) => e.preventDefault()}>
-      {at.items.map((it, i) => 'separator' in it
-        ? <div key={i} role="separator" className="my-1 border-t border-line/60" />
-        : <button key={i} role="menuitem" disabled={it.disabled} className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm disabled:opacity-40 ${it.danger ? 'text-bad' : ''}`}
-            aria-checked={it.checked === undefined ? undefined : it.checked !== flipped.has(i)}
-            onClick={() => {
-              if (it.keepOpen) { it.run?.(); setFlipped((f) => { const n = new Set(f); if (n.has(i)) n.delete(i); else n.add(i); return n; }); return; }
-              onClose(); if (it.to) nav(it.to); it.run?.();
-            }}>{it.icon}<span className="min-w-0 flex-1">{it.label}</span>{it.checked !== undefined && <span className="w-4 shrink-0 text-accent" aria-hidden>{it.checked !== flipped.has(i) ? '✓' : ''}</span>}</button>)}
+      {level > 0 && <>
+        <button role="menuitem" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium" onClick={back}><ChevronLeft size={15} /><span className="min-w-0 flex-1 truncate">{stack[level - 1].label}</span></button>
+        <div role="separator" className="my-1 border-t border-line/60" />
+      </>}
+      {items.map((it, i) => {
+        if ('separator' in it) return <div key={i} role="separator" className="my-1 border-t border-line/60" />;
+        const k = `${level}:${i}`;
+        const kids = it.children;
+        const on = it.checked === undefined ? undefined : it.checked !== flipped.has(k);
+        return <button key={k} role="menuitem" disabled={it.disabled} className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm disabled:opacity-40 ${it.danger ? 'text-bad' : ''}`}
+          aria-checked={on} aria-haspopup={kids ? 'menu' : undefined}
+          onClick={() => {
+            if (kids) { setStack((st) => [...st, { label: labelOf(it), items: kids }]); if (ref.current) ref.current.scrollTop = 0; return; }
+            if (it.keepOpen) { it.run?.(); if (it.checked === undefined) { setFlipped((f) => new Set(f)); return; } setFlipped((f) => { const n = new Set(f); if (n.has(k)) n.delete(k); else n.add(k); return n; }); return; }
+            onClose(); if (it.to) nav(it.to); it.run?.();
+          }}>{it.icon}<span className="min-w-0 flex-1">{labelOf(it)}</span>
+          {kids ? <ChevronRight size={14} className="shrink-0 text-muted" /> : on !== undefined && <span className="w-4 shrink-0 text-accent" aria-hidden>{on ? '✓' : ''}</span>}</button>;
+      })}
     </div>, document.body);
 }
 
