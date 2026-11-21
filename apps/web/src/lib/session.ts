@@ -1,4 +1,5 @@
 import type { PlaybackSnapshot } from '@turbomusic/core';
+import { useStore } from './store.ts';
 
 /**
  * The player's state, written to this device every few seconds while something plays, so a crash, a killed browser tab or a phone
@@ -9,7 +10,7 @@ const KEY = 'turbomusic.session';
 const EVERY_MS = 3000;
 
 export interface PendingPlay { id: string; seconds: number; length: number | null; started: number; sourceType: string; sourceId: string | null }
-export interface SavedSession { snap: PlaybackSnapshot; at: number; pending: PendingPlay | null }
+export interface SavedSession { snap: PlaybackSnapshot; at: number; pending: PendingPlay | null; /** sound was playing at the last save: the app was closed or killed mid-song, not paused by you */ interrupted?: boolean }
 
 export function readSession(): SavedSession | null {
   try { const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as SavedSession | null; return v?.snap?.trackId ? v : null; } catch { return null; }
@@ -55,12 +56,17 @@ export function startSessionSaving(player: Playerish) {
     const pending: PendingPlay | null = s.playing || s.time >= 1
       ? { id, seconds: Math.round(s.time), length: s.duration > 0 ? Math.round(s.duration) : null, started: startedAt, sourceType: s.source.type, sourceId: s.source.id }
       : prev?.pending && prev.pending.id === id ? prev.pending : null;
-    write({ snap: { ...snap, playing: false, meta: undefined }, at: Date.now(), pending });
+    write({ snap: { ...snap, playing: false, meta: undefined }, at: Date.now(), pending, interrupted: s.playing });
   };
   player.subscribe((s, p) => {
     if (s.queue !== p.queue || s.playing !== p.playing || s.queue.currentId !== p.queue.currentId) save(true);
     else if (s.playing && s.time !== p.time) save(false);
   });
+  // a play that a killed app (Android reclaiming it, a crash) left unwritten goes into the history as soon as the app is back, wherever it opens
+  setTimeout(() => {
+    const p = takeCutShortPlay();
+    if (p && p.seconds >= 1) useStore.getState().put('playbackLogs', { trackId: p.id, timestamp: p.started, duration: p.seconds, length: p.length, sourceType: p.sourceType, sourceId: p.sourceId, isSkip: false } as never);
+  }, 4000);
   window.addEventListener('pagehide', () => save(true));
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(true); });
 }

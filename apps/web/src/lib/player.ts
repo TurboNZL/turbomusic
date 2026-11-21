@@ -1,7 +1,7 @@
 import { PlayLog } from './playLog.ts';
 import { playLogged, startSessionSaving } from './session.ts';
 import { create } from 'zustand';
-import { advance, crossfadeFor, crossfadeShapeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
+import { advance, ruleFor, crossfadeFor, crossfadeShapeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
 import { moveTrack } from './defaults.ts';
 import { audioSource, cancelPrefetch, imageSource, localAudio, prefetchAudio, streamUrl } from './files.ts';
 import { nativeAudio, nativeAudioAvailable, type NativeEvent, type NativeItem } from './nativeAudio.ts';
@@ -551,7 +551,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const q = get().queue;
       set({ history: h.slice(0, -1) });
       // the track you leave goes back to the front of "Then" (the rest of the album or list), NOT into your own play-next queue: you never queued it
-      go({ ...q, currentId: id, active: q.currentId ? [q.currentId, ...q.active.filter((x) => x !== q.currentId)] : q.active });
+      const back = { ...q, currentId: id, active: q.currentId ? [q.currentId, ...q.active.filter((x) => x !== q.currentId)] : q.active };
+      // going back to a track that has a "play B after A" rule brings B in again, as playing it any other way does (startTrack/advance)
+      const rule = ruleFor(rules(), id, get().source.type);
+      if (rule && back.user[0] !== rule.trackBId && back.active[0] !== rule.trackBId) back.user = [rule.trackBId, ...back.user];
+      go(back);
     },
 
     seek(t) { if (spotifyEngine.active()) void spotifyEngine.seek(t * 1000); else if (native) nativeAudio.seek(t); else el().currentTime = t; set({ time: t }); },

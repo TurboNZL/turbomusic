@@ -24,19 +24,17 @@ export function useTrackMenuItems() {
       { label: 'Play next', icon: <ListStart size={15} />, run: () => enqueue(t.id, 'next'), disabled: !canPlay(t) },
       { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => enqueue(t.id, 'last'), disabled: !canPlay(t) },
       { label: 'Add to playlist…', icon: <ListPlus size={15} />, run: open({ kind: 'add-to-playlist', id: t.id }) },
-      ...group(`Memories (${memories})`, <Plus size={15} />, [
-        { label: `Add memory (${memories})`, icon: <Plus size={15} />, run: () => addMemory(t.id) },
-        { label: 'Remove a memory', icon: <Minus size={15} />, run: () => removeMemory(t.id), disabled: memories < 1 },
-      ]),
+      { counter: { label: 'Memories', icon: <Plus size={15} />, value: memories, onMinus: () => removeMemory(t.id), onPlus: () => addMemory(t.id), minusDisabled: memories < 1 } },
       ...group('Info, notes and stats', <Info size={15} />, [
         { label: 'Info', icon: <Info size={15} />, run: open({ kind: 'track-details', id: t.id }) },
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('track', t.id) },
-        { label: 'Rank it against other songs…', icon: <Swords size={15} />, to: `/vote?place=${t.id}` },
         { label: 'Write a note…', icon: <StickyNote size={15} />, run: open({ kind: 'new-note', id: `track:${t.id}` }) },
+        { label: 'Rank it against other songs…', icon: <Swords size={15} />, to: `/vote?place=${t.id}` },
       ]),
-      ...group('Go to', <User size={15} />, [
+      // pressing "Go to" opens the track's own page (its album, or its stats page for a single); the arrow lists the artists too
+      ...group('Go to', <Disc3 size={15} />, [
+        { label: t.albumId ? 'Go to album' : 'Go to this single', icon: <Disc3 size={15} />, to: t.albumId ? trackPath(t) : statsPath('track', t.id) },
         ...t.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),
-        ...(t.albumId ? [{ label: 'Go to album', icon: <Disc3 size={15} />, to: trackPath(t) }] : []),
       ]),
       ...group('Edit and organise', <Pencil size={15} />, [
         { label: 'Edit…', icon: <Pencil size={15} />, run: open({ kind: 'track', id: t.id }) },

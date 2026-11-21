@@ -9,7 +9,7 @@ import { groupLogs, matchWords, type GroupBy, type LogRow } from '../lib/history
 import { fmtHours } from './charts.tsx';
 
 const BY: { id: GroupBy; label: string }[] = [
-  { id: 'artist', label: 'Artists' }, { id: 'album', label: 'Albums' }, { id: 'account', label: 'Accounts' }, { id: 'year', label: 'Years' }, { id: 'source', label: 'How they arrived' },
+  { id: 'artist', label: 'Artists' }, { id: 'album', label: 'Albums' }, { id: 'track', label: 'Tracks' }, { id: 'account', label: 'Accounts' }, { id: 'year', label: 'Years' }, { id: 'source', label: 'How they arrived' },
 ];
 
 /**

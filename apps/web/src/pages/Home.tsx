@@ -74,13 +74,9 @@ export function HomePage() {
     return sv && t && canPlay(t) ? { sv, t } : null;
   }, [lib, nowId]); // eslint-disable-line react-hooks/exhaustive-deps
   const restore = usePlayer((st) => st.restore);
-  // a play that a crash cut short was never written to the history: write it now (once)
-  useEffect(() => {
-    const p = takeCutShortPlay();
-    if (p && p.seconds >= 1) useStore.getState().put('playbackLogs', { trackId: p.id, timestamp: p.started, duration: p.seconds, length: p.length, sourceType: p.sourceType, sourceId: p.sourceId, isSkip: false } as never);
-  }, []);
   const hereNow = !!saved && saved.t.id === nowId;
-  const last2 = saved && !hereNow ? { t: saved.t, at: saved.sv.at, pos: saved.sv.snap.position, queued: saved.sv.snap.queue.user.length + saved.sv.snap.queue.active.length } : null;
+  const cutShort = !!saved && (!!saved.sv.interrupted || (saved.sv.snap.duration > 0 && saved.sv.snap.position > 1 && saved.sv.snap.position < 0.9 * saved.sv.snap.duration));
+  const last2 = saved && !hereNow && cutShort ? { t: saved.t, at: saved.sv.at, pos: saved.sv.snap.position, interrupted: !!saved.sv.interrupted, queued: saved.sv.snap.queue.user.length + saved.sv.snap.queue.active.length } : null;
   const resume = () => {
     if (saved && !hereNow) { restore(saved.sv.snap, { play: true }); return; }
     if (!last) return;
@@ -88,7 +84,7 @@ export function HomePage() {
     const ids = album ? album.trackIds.filter((id) => canPlay(lib.trackById.get(id))) : [last.t.id];
     play(last.t.id, ids.length ? ids : [last.t.id], album ? { type: 'album', id: album.id } : { type: 'track', id: last.t.id }, last.pos);
   };
-  const resumeInfo = last2 ?? (last ? { ...last, queued: 0 } : null);
+  const resumeInfo = last2 ?? (last ? { ...last, interrupted: false, queued: 0 } : null);
   // albums heard lately, newest first
   const recentAlbums = useMemo(() => {
     const seen = new Set<string>(), out: typeof lib.albums = [];
@@ -130,7 +126,7 @@ export function HomePage() {
           {resumeInfo ? <>
             <Cover hash={resumeInfo.t.cover} seed={resumeInfo.t.albumTitle ?? resumeInfo.t.title} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" />
             <div className="min-w-0 flex-1 space-y-1">
-              <div className="text-xs uppercase tracking-wider text-muted">Pick up where you left off</div>
+              <div className="text-xs uppercase tracking-wider text-muted">{resumeInfo?.interrupted ? 'Playback was interrupted: pick up where you left off' : 'Pick up where you left off'}</div>
               <div className="truncate text-2xl font-bold">{resumeInfo.t.title}</div>
               <div className="truncate text-sm text-muted">{resumeInfo.t.artistName}{resumeInfo.t.albumTitle ? ` · ${resumeInfo.t.albumTitle}` : ''} · {ago(resumeInfo.at)}</div>
               <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(resumeInfo.pos / 60)}:{String(Math.floor(resumeInfo.pos % 60)).padStart(2, '0')}{resumeInfo.queued > 0 ? ` · ${resumeInfo.queued} more queued` : ''}</button>

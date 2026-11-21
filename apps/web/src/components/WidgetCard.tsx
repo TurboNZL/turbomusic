@@ -23,7 +23,7 @@ export function WidgetCard() {
   const [reveal, setReveal] = useState(false);
   const [copied, setCopied] = useState(false);
   const url = useMemo(() => widgetUrl(base, settings.token, o), [base, settings.token, o]);
-  const shown = reveal ? url : url.replace(/token=[^&]+/, 'token=••••••••');
+  const shown = reveal ? url : url.replace(/token=[^&]+/, 'token=••••••••').replace(viaTunnel ? /^https?:\/\/[^/]+/ : /$^/, 'https://••••••••');
   const loopback = /\/\/(localhost|127\.|\[::1\])/.test(base);
   const copy = async () => { try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { setReveal(true); } };
   const px = Math.round(320 * o.scale);
@@ -54,13 +54,15 @@ export function WidgetCard() {
       <div className="space-y-1.5">
         <div className="text-sm font-medium">Preview</div>
         <div className="overflow-hidden rounded-theme border border-line" style={{ background: 'repeating-conic-gradient(rgba(128,128,128,.18) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px' }}>
-          <iframe key={url} title="Widget preview" src={url} className="block w-full" style={{ height: Math.max(150, o.skin === 'gallery' ? px * 1.5 : px * 0.5), border: 0 }} />
+          {viaTunnel
+            ? <div className="flex h-36 items-center justify-center p-4 text-center text-xs text-muted">No preview for a tunnel address: it would show Cloudflare’s sign-in page, with your address in it. Pick the network address below to preview.</div>
+            : <iframe key={url} title="Widget preview" src={url} className="block w-full" style={{ height: Math.max(150, o.skin === 'gallery' ? px * 1.5 : px * 0.5), border: 0 }} />}
         </div>
         <p className="text-xs text-muted">Play something in the app to see it. The preview needs this page to be able to reach the server at the address below.</p>
       </div>
       <div className="space-y-1.5">
         <label className="block text-sm font-medium">Address of this server <span className="font-normal text-muted">(what OBS or another computer types to reach it)</span>
-          <input className="input mt-1" value={base} onChange={(e) => setBase(e.target.value)} placeholder="http://192.168.1.20:47813" /></label>
+          <input className="input mt-1" type={viaTunnel && !reveal ? 'password' : 'text'} autoComplete="off" value={base} onChange={(e) => setBase(e.target.value)} placeholder="http://192.168.1.20:47813" /></label>
         {lan.length > 0 && <div className="flex flex-wrap items-center gap-2 text-xs text-muted">Use this server's network address:{lan.map((a) => <button key={a} type="button" className={cn('chip', base === a && '!border-accent !text-accent')} onClick={() => setBase(a)}>{a}</button>)}</div>}
         {viaTunnel && <p className="text-xs text-warn">This address goes through your tunnel. OBS cannot send the Cloudflare Access sign-in, so Access will block it: use the network address above (same Wi-Fi or cable as the server), or add a Cloudflare Access “Bypass” policy for <code>/widget</code> and <code>/api/nowplaying</code> (the link's token still protects it).</p>}
         {loopback && <p className="text-xs text-warn">“localhost” only works on this computer. For OBS on another machine use this server’s network address (for example http://192.168.1.20:47813).</p>}
