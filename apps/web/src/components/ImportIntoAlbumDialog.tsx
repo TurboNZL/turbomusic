@@ -97,7 +97,7 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
       const newIds = new Map<number, string>();
       const featIds = new Map<string, string>(); // featured names in titles become credits (an artist you have, else created once)
       const featCredits = (names: string[]) => names.map((n) => { const k = n.toLowerCase(); let id = featIds.get(k) ?? matchArtist(lib.artists, n)?.id; if (!id) id = put('artists', { name: n, image: null }); featIds.set(k, id); return { artistId: id, role: [FEATURED_ROLE] }; });
-      included.forEach((r, i) => { if (!r.trackId) { const sp = splitFeaturing(r.title.trim()); const credits = [...(album.credits ?? []), ...featCredits(sp.featured)]; newIds.set(i, put('tracks', newTrackData({ title: sp.title, credits, ...inheritFromAlbum(album, credits), youtubeMusicUrl: r.entry.url, albums: [{ albumId: album.id, order: album.trackIds.length + newIds.size }] }))); } });
+      included.forEach((r, i) => { if (!r.trackId) { const sp = splitFeaturing(r.title.trim()); const credits = [...(album.credits ?? []), ...featCredits(sp.featured)]; newIds.set(i, put('tracks', newTrackData({ title: sp.title, credits, ...inheritFromAlbum(album, credits), youtubeMusicUrl: r.entry.url, sourceSeconds: r.entry.duration ? Math.round(r.entry.duration) : null, albums: [{ albumId: album.id, order: album.trackIds.length + newIds.size }] }))); } });
       // the existing songs the link has: give them the link when they have none
       const needDownload: string[] = [...newIds.values()];
       for (const r of included) {

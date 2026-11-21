@@ -45,7 +45,7 @@ export function createFromPlan(lib: Library, plan: ImportPlan, ops: Ops, o: { ma
         const names = [...pt.src.artists.filter((n) => norm(n) !== norm(a.artist)), ...sp.featured.filter((n) => norm(n) !== norm(a.artist))];
         const seen = new Set<string>();
         const feats = names.filter((n) => !seen.has(norm(n)) && seen.add(norm(n))).map((n) => ({ artistId: artist(n), role: ['Featured artist'] }));
-        const id = put('tracks', newTrackData({ title: sp.title, credits: [...credits, ...feats], youtubeMusicUrl: null, spotifyUrl: `https://open.spotify.com/track/${pt.src.id}`, albums: [{ albumId, order: i }] }));
+        const id = put('tracks', newTrackData({ title: sp.title, credits: [...credits, ...feats], youtubeMusicUrl: null, spotifyUrl: `https://open.spotify.com/track/${pt.src.id}`, sourceSeconds: pt.src.durationMs ? Math.round(pt.src.durationMs / 1000) : null, albums: [{ albumId, order: i }] }));
         trackIdOf.set(pt.src.uri, id); ids.push(id); tracksMade++;
       }
       if (!a.existingAlbumId) {

@@ -28,7 +28,7 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
   // one kind only (the Rank page's modes) or a mix (home): the question to ask next
   const ask = (pool: Q[], prev?: Question['kind']) => (fixedKind ? makeQuestion(pool, fixedKind) ?? nextQuestion(pool, prev) : nextQuestion(pool, prev));
   // only tracks that were played at least once get asked about (the rest are on the home page's "Try something new")
-  const pool = useMemo(() => onlyHeard(lib.tracks.filter((t) => t.file), heardTrackIds(buildListens(lib))).pool.map((t) => ({ id: t.id, elo: t.elo, comparisons: t.comparisons, rating: t.rating })), [lib]);
+  const pool = useMemo(() => onlyHeard(lib.tracks.filter((t) => t.file && !t.versionOf), heardTrackIds(buildListens(lib))).pool.map((t) => ({ id: t.id, elo: t.elo, comparisons: t.comparisons, rating: t.rating })), [lib]);
   const [q, setQ] = useState<Question | null>(() => (!fixedKind && kept) || ask(pool));
   useEffect(() => { if (!fixedKind) kept = q; }, [q, fixedKind]);
   const [answered, setAnswered] = useState(0);

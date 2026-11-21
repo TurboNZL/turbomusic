@@ -100,11 +100,19 @@ export interface TrackData {
   preReleaseOf?: string | null;
   /** On the RELEASED track: the id of a tied pre-release whose audio file is used as this track's primary audio. Set by hand, never automatically. */
   primaryAudioFrom?: string | null;
+  /**
+   * This track is another RECORDING of the song `versionOf` (a remaster, a live take, a radio edit, the music-video audio): it keeps
+   * its own audio file and its own place on its own album, but it shares the main version's votes, rating and thumbs, so one song is
+   * ranked once. Songs that are simply the same audio on two albums should be merged instead (one track listed on both albums).
+   */
+  versionOf?: string | null;
+  /** how long the song should be, in seconds, according to where it came from (the album's entry on YouTube, or Spotify): lets a download be checked for music-video junk */
+  sourceSeconds?: number | null;
   syncWithAlbumCredits: boolean;
   queueRules: Record<string, unknown>;
 }
 /** The result of measuring a track's audio file. `cutoffHz`: highest frequency with sound; `looksLike`: the bit rate class that points to. */
-export interface AudioCheck { kbps: number; codec: string; cutoffHz: number; looksLike: number; verdict: 'ok' | 'transcode' | 'unknown'; file: string; at: number }
+export interface AudioCheck { /** the file's length in seconds (older checks have none) */ seconds?: number; kbps: number; codec: string; cutoffHz: number; looksLike: number; verdict: 'ok' | 'transcode' | 'unknown'; file: string; at: number }
 export interface PlaylistData {
   name: string;
   description: string | null;

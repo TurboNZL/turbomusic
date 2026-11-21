@@ -18,6 +18,12 @@ export interface Track extends Omit<Row<TrackData>, 'artistId'> {
   elo: number; comparisons: number;
   /** thumbs up minus thumbs down this track has received */
   thumbs: number;
+  /** the OTHER albums this song is listed on (the same recording on several albums), by name */
+  alsoOn: { id: string; title: string }[];
+  /** set on another recording of a song: the main version whose votes and rating it shares */
+  versionOf: string | null;
+  /** on a main version: the other recordings that share its votes */
+  versions: string[];
   /** 0-10 from the votes (unfloored by comparisons); see effectiveRating */
   rating: number;
   /** what the UI should show as the rating (needs >=3 comparisons, else the manual initial rating) */
@@ -144,7 +150,19 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   if (albumVotes.length) for (const t of rawTracks) { const al = (t.albums ?? [])[0]; const r = al ? albumRank.get(al.albumId) : undefined; if (r && r.comparisons > 0) starts.set(t.id, albumStartElo(r.elo)); }
   // the rating model is a library setting (it syncs): "preference" fits every vote at once (core/preference.ts), "elo" replays them one by one
   const useElo = profile?.settings?.ratingModel === 'elo';
-  const trackVotes = votes.filter((v) => !v.album).map((v) => ({ ...v }));
+  // other recordings of a song share the main version's votes, rating and thumbs: every id in the votes is read as its main version
+  const rawIds = new Set(rawTracks.map((t) => t.id));
+  const versionRoot = new Map<string, string>();
+  for (const t of rawTracks) {
+    const to = t.versionOf;
+    if (!to || to === t.id || !rawIds.has(to)) continue;
+    const target = rawTracks.find((x) => x.id === to);
+    if (target?.versionOf) continue; // a chain: only a main version can be pointed at
+    versionRoot.set(t.id, to);
+  }
+  const root = (id: string) => versionRoot.get(id) ?? id;
+  const trackVotes = votes.filter((v) => !v.album).map((v) => ({ ...v, trackAId: root(v.trackAId), trackBId: v.trackBId ? root(v.trackBId) : v.trackBId, winnerId: v.winnerId ? root(v.winnerId) : v.winnerId }))
+    .filter((v) => v.boost || v.trackAId !== v.trackBId); // two versions of one song compared with each other say nothing
   const initials = new Map(rawTracks.map((t) => [t.id, t.initialRating]));
   const ranked = useElo ? replayVotes(trackVotes, rawTracks.map((t) => t.id), starts) : fitPreferences(trackVotes, rawTracks.map((t) => t.id), starts);
   const thumbNet = new Map<string, number>();
@@ -194,9 +212,11 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
     }
   }
 
+  const versionsOf = new Map<string, string[]>();
+  for (const [v, main] of versionRoot) versionsOf.set(main, [...(versionsOf.get(main) ?? []), v]);
   const allTracks: Track[] = rawTracks.map((t) => {
-    const r = ranked.get(t.id)!;
-    const rating = ratings.get(t.id) ?? 0;
+    const r = ranked.get(root(t.id))!;
+    const rating = ratings.get(root(t.id)) ?? 0;
     const album = albumOf.get(t.id) ?? null;
     const eff = r.comparisons >= 3 && rating > 0.001 ? rating : (t.initialRating ?? 0) > 0.001 ? t.initialRating! : 0;
     const genres = t.syncWithAlbumCredits && album ? album.genres : t.genres;
@@ -212,7 +232,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
       // the released track plays a tied pre-release's audio only when that was chosen by hand
       file: t.primaryAudioFrom && tiedTo.get(t.primaryAudioFrom) === t.id ? rawTrackById.get(t.primaryAudioFrom)?.file ?? t.file : t.file,
       preReleaseOf: tiedTo.get(t.id) ?? null, preReleaseIds: preOf.get(t.id) ?? [],
-      credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, thumbs: thumbNet.get(t.id) ?? 0, rating, effectiveRating: eff, tenStarRank: null,
+      credits, storedCredits: t.credits ?? [], artistId, leads, featured: featuredOf(credits, leads, artistById), elo: r.elo, comparisons: r.comparisons, thumbs: thumbNet.get(root(t.id)) ?? 0, alsoOn: (t.albums ?? []).filter((l) => l.albumId !== album?.id && albumsById.has(l.albumId)).map((l) => ({ id: l.albumId, title: albumsById.get(l.albumId)!.title })), versionOf: versionRoot.get(t.id) ?? null, versions: versionsOf.get(t.id) ?? [], rating, effectiveRating: eff, tenStarRank: null,
       artistName: namesOf(leads),
       albumId: album?.id ?? null, albumTitle: album?.title ?? null, cover: t.cover || album?.cover || null,
       releaseDate: album ? earliestRelease.get(t.id) ?? albumDate.get(album.id) ?? null : t.releaseDate || null, // a single keeps its own
@@ -259,7 +279,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
 /** 10-star tracks are shown by rank (#1 = highest Elo), as in the original app. */
 function tenStarRanks(tracks: Track[]) {
   // like the legacy store, the ranked list is keyed on the (initialRating-floored) rating...
-  const top = tracks.filter((t) => t.rating >= 9.9999 && t.comparisons > 0).sort((a, b) => b.elo - a.elo);
+  const top = tracks.filter((t) => !t.versionOf && t.rating >= 9.9999 && t.comparisons > 0).sort((a, b) => b.elo - a.elo);
   // ...but the badge only shows a rank when the displayed rating is 10 as well
   top.forEach((t, i) => { if (t.effectiveRating >= 9.9999) t.tenStarRank = i + 1; });
 }

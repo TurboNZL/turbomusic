@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { CalendarCheck, CheckCircle2, ChevronDown, ClipboardPaste, Eraser, GitMerge, ImageDown, Search, Tags, UserRound, X } from 'lucide-react';
+import { Layers, CalendarCheck, CheckCircle2, ChevronDown, ClipboardPaste, Eraser, GitMerge, ImageDown, Search, Tags, UserRound, X } from 'lucide-react';
 import { HealthHero } from '../components/HealthHero.tsx';
 import { AudioQualityCard, MissingAudioCard } from '../components/AudioTools.tsx';
 import { AlbumSuggestions } from '../components/AlbumSuggestions.tsx';
@@ -10,6 +10,7 @@ import { BulkLinks } from '../components/BulkLinks.tsx';
 import type { LinkKind } from '../lib/bulkLinks.ts';
 import { fetchCoverFromLinks } from '../lib/cover.ts';
 import { thumbnailUrls, youtubeId } from '../lib/youtube.ts';
+import { suggestKeeper } from '../lib/mergeTracks.ts';
 import { computeHealth, dupeSignature, ignoredDupes, type HealthItem } from '../lib/health.ts';
 import { updateProfile } from '../lib/profile.ts';
 import { useLibraryLive } from '../lib/derive.ts';
@@ -151,7 +152,7 @@ export function HealthPage() {
                 <div key={g} className="rounded-theme border border-line">
                   {group[0]?.note && <div className="border-b border-line/60 px-3 py-1 text-xs text-muted">Looks like: {group[0].note}</div>}
                   {group.map((i) => <button key={i.id} className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-raised/60" onClick={() => openItem(i)}><span className="truncate">{i.label}</span>{i.detail && <span className="shrink-0 text-xs text-muted">{i.detail}</span>}</button>)}
-                  <div className="flex justify-end gap-2 border-t border-line/60 px-3 py-1.5"><button className="btn btn-ghost !py-1 text-xs" title="These are different songs: stop listing them" onClick={() => updateProfile(lib, (p) => ({ ...p, settings: { ...p.settings, notDuplicates: [...ignoredDupes(lib), dupeSignature(group.map((i) => i.id))] } }))}><X size={13} />Not duplicates</button><button className="btn btn-accent !py-1 text-xs" onClick={() => edit({ kind: 'merge-tracks', id: group.map((i) => i.id).join(',') })}><GitMerge size={13} />Merge these {group.length}</button></div>
+                  <div className="flex justify-end gap-2 border-t border-line/60 px-3 py-1.5"><button className="btn btn-ghost !py-1 text-xs" title="These are different songs: stop listing them" onClick={() => updateProfile(lib, (p) => ({ ...p, settings: { ...p.settings, notDuplicates: [...ignoredDupes(lib), dupeSignature(group.map((i) => i.id))] } }))}><X size={13} />Not duplicates</button><button className="btn btn-ghost !py-1 text-xs" title="Different audio (a remaster, a live take, the music-video audio): keep every track with its own file and album place, but share one set of votes and one rating" onClick={() => { const keep = suggestKeeper(group.flatMap((i) => lib.trackById.get(i.id) ?? [])); if (confirm(`Treat these as recordings of one song? “${keep.title}” stays the main version; the others keep their audio and albums but share its votes and rating.`)) group.filter((i) => i.id !== keep.id).forEach((i) => patch('tracks', i.id, { versionOf: keep.id })); }}><Layers size={13} />Different recordings of one song</button><button className="btn btn-accent !py-1 text-xs" title="The very same audio: one track, listed on every album it is on" onClick={() => edit({ kind: 'merge-tracks', id: group.map((i) => i.id).join(',') })}><GitMerge size={13} />Merge these {group.length}</button></div>
                 </div>); })}</div> :
               c.unmarkNoYoutube ? <div className="max-h-80 divide-y divide-line/60 overflow-y-auto">{c.items.map((i) => (
                 <div key={i.id} className="flex items-center gap-2 px-4 py-2 text-sm"><button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => edit({ kind: 'album', id: i.id })}>{i.label}{i.detail && <span className="text-xs text-muted"> · {i.detail}</span>}</button><button className="btn !py-1 text-xs" onClick={() => patch('albums', i.id, { noYoutube: false })}>Put back</button></div>))}</div> :

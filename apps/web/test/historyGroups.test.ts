@@ -31,3 +31,16 @@ describe('API twins', () => {
     expect(out.map((l) => l.id)).toEqual(['file', 'api2', 'own']);
   });
 });
+
+import { lengthMismatch } from '../src/lib/health.ts';
+describe('music-video audio check', () => {
+  const t = (want: number | null, got: number | undefined, file = 'f') => ({ sourceSeconds: want, audioCheck: got === undefined ? null : { seconds: got, file }, file: 'f' });
+  it('flags a file much longer or shorter than the song, and needs a measured length', () => {
+    expect(lengthMismatch(t(200, 232))).toBe(true);   // an intro added
+    expect(lengthMismatch(t(200, 203))).toBe(false);  // normal fade differences
+    expect(lengthMismatch(t(200, 190))).toBe(true);
+    expect(lengthMismatch(t(null, 232))).toBe(false);
+    expect(lengthMismatch(t(200, undefined))).toBe(false);
+    expect(lengthMismatch(t(200, 232, 'other-file'))).toBe(false); // the check was for a different file
+  });
+});

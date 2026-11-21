@@ -84,6 +84,7 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
               <ArtistLinks leads={t.leads} featured={t.featured} />
               {showAlbum && t.albumTitle && <> · <Link to={`/albums/${t.albumId}`} className="hover:text-fg hover:underline">{t.albumTitle}</Link></>}
               {!t.albumId && t.releaseDate && <> · {fmtDate(t.releaseDate)}</>}
+              {t.alsoOn.length > 0 && <span className="ml-1.5 rounded-full border border-line px-1.5 text-[10px] text-muted" title={`Also on: ${t.alsoOn.map((a) => a.title).join(', ')}`}>also on {t.alsoOn.length === 1 ? t.alsoOn[0].title : `${t.alsoOn.length} albums`}</span>}
             </div>
           </div>
           <div className="hidden w-40 justify-end gap-1 overflow-hidden [@container(min-width:36rem)]:flex">{t.allGenres.slice(0, 2).map((g) => <span key={g} className="chip">{g}</span>)}</div>

@@ -102,7 +102,7 @@ function DuelRank() {
   const setTier = (t: TierChoice) => { setTierState(t); try { localStorage.setItem('turbomusic.rankTier', JSON.stringify(t)); } catch { /* ignore */ } };
   // only tracks that were played at least once are ranked: ranking is about songs you know (the "Try something new" list on the home page is for the rest)
   const heard = useMemo(() => heardTrackIds(buildListens(lib)), [lib]);
-  const { pool: knownPool, fellBack: noHistory } = useMemo(() => onlyHeard(lib.tracks, heard), [lib, heard]);
+  const { pool: knownPool, fellBack: noHistory } = useMemo(() => onlyHeard(lib.tracks.filter((t) => !t.versionOf), heard), [lib, heard]); // another recording of a song shares the main one's votes: it is not asked about twice
   const { pool: audioPool, fellBack } = useMemo(() => rankPool(knownPool, onlyPlayable), [knownPool, onlyPlayable]);
   const tiered = useMemo(() => tierPool(audioPool, tier), [audioPool, tier]);
   const tooFew = tiered.length < 2;

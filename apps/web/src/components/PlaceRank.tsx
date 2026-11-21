@@ -33,7 +33,7 @@ export function PlaceRank({ initialId }: { initialId?: string }) {
   const suggestions = useMemo(() => placementCandidates(lib.tracks.filter((t) => t.file || heard.has(t.id))), [lib, heard]);
 
   function begin(id: string) {
-    const list = lib.tracks.filter((t) => t.id !== id && t.comparisons >= 3 && t.file).sort((a, b) => b.elo - a.elo);
+    const list = lib.tracks.filter((t) => t.id !== id && !t.versionOf && t.comparisons >= 3).sort((a, b) => b.elo - a.elo);
     setSubjectId(id); setRanked(list); setP(list.length ? startPlacement(list.length) : null); setSettle(null);
   }
   // opened from a track's menu: start straight away (once the library is there)

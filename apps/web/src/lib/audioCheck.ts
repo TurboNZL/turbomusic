@@ -43,7 +43,7 @@ export async function runAudioCheck(tracks: Track[], onProgress: (p: CheckProgre
     for (const t of todo) {
       try {
         const r = await api().analyzeAudio(t.file!);
-        pending.push([t.id, { kbps: r.kbps, codec: r.codec, cutoffHz: r.cutoffHz, looksLike: r.looksLike, verdict: r.verdict, file: t.file!, at: Date.now() }]);
+        pending.push([t.id, { seconds: r.durationSec ? Math.round(r.durationSec) : undefined, kbps: r.kbps, codec: r.codec, cutoffHz: r.cutoffHz, looksLike: r.looksLike, verdict: r.verdict, file: t.file!, at: Date.now() }]);
         if (pending.length >= 20) flush();
       } catch { p.failed++; }
       p.done++; onProgress({ ...p });
