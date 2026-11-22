@@ -95,7 +95,7 @@ export class Api {
   artistImages(artists: { id: string; name: string; aliases?: string[] }[]) { return this.req<{ results: { id: string; hash: string | null; source: string | null; matched: string | null }[] }>('/api/artist-images', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artists }) }); }
   albumGenres(albums: { id: string; album: string; artist: string }[]) { return this.req<{ results: { id: string; genres: { name: string; source: 'itunes' | 'musicbrainz' }[] }[] }>('/api/album-genres', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ albums }) }); }
   soloist() { return this.req<SoloistInfo>('/api/soloist'); }
-  soloistConfig(c: { deviceName?: string; apiKey?: string; autoStart?: boolean; outputDevice?: string; beam?: boolean }) { return this.req<SoloistInfo>('/api/soloist/config', { method: 'POST', body: JSON.stringify(c) }); }
+  soloistConfig(c: { deviceName?: string; apiKey?: string; autoStart?: boolean; outputDevice?: string; beam?: boolean; bufferSec?: number }) { return this.req<SoloistInfo>('/api/soloist/config', { method: 'POST', body: JSON.stringify(c) }); }
   soloistInstall() { return this.req<SoloistInfo>('/api/soloist/install', { method: 'POST' }); }
   soloistStart() { return this.req<SoloistInfo>('/api/soloist/start', { method: 'POST' }); }
   soloistStop() { return this.req<SoloistInfo>('/api/soloist/stop', { method: 'POST' }); }
@@ -190,7 +190,7 @@ export interface SoloistInfo {
   /** the machine Soloist runs on (the server) */
   host: { name: string; model: string | null; isPi: boolean };
   audio: { ok: boolean; server: 'pipewire' | 'pulseaudio' | null; runtimeDir: string | null; hint: string | null };
-  beam: { enabled: boolean; sink: 'ready' | 'missing' | 'error' | 'unchecked'; sinkMessage: string | null; streamPath: string; listeners: number; running: boolean; error: string | null; bytes: number };
+  beam: { enabled: boolean; bufferSec: number; buffered: number; sink: 'ready' | 'missing' | 'error' | 'unchecked'; sinkMessage: string | null; streamPath: string; listeners: number; running: boolean; error: string | null; bytes: number };
   running: boolean; state: 'stopped' | 'starting' | 'running' | 'expired' | 'installing' | 'error'; message: string | null; log: string[]; downloadsUrl: string;
 }
 export interface SpotifyDiagnosis { signedIn: boolean; permissions: string[]; clientIdStart: string; refresh?: string; me?: { status: number; product?: string | null; country?: string | null; body?: string }; devices?: { status: number; devices?: string[]; body?: string } }

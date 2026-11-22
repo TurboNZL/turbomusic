@@ -37,6 +37,19 @@ function SoloistVolume({ name }: { name: string }) {
   );
 }
 
+/** The stream's safety buffer: seconds of sound held back so a busy moment on the server (a request from an app, a sync) is not heard as a stutter. */
+function BufferSlider({ info, disabled, onChange }: { info: SoloistInfo; disabled: boolean; onChange: (n: number) => void }) {
+  const [v, setV] = useState(info.beam.bufferSec);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-3"><span className="font-medium">Safety buffer</span><span className="text-xs tabular-nums text-muted">{v === 0 ? 'Off' : `${v} s`}{info.beam.running && v > 0 ? ` · holding ${info.beam.buffered} s now` : ''}</span></div>
+      <input type="range" aria-label="Safety buffer in seconds" className="bt-range bt-hit w-full" style={{ ['--p' as string]: `${(v / 20) * 100}%` }} min={0} max={20} step={1} value={v} disabled={disabled}
+        onChange={(e) => setV(Number(e.target.value))} onPointerUp={() => v !== info.beam.bufferSec && onChange(v)} onKeyUp={() => v !== info.beam.bufferSec && onChange(v)} />
+      <p className="text-xs text-muted">If Spotify stutters whenever something else asks the server for data, raise this. The sound then arrives a few seconds late (the start of a song takes that much longer) but a busy moment on the server is smoothed over. Off is the quickest start.</p>
+    </div>
+  );
+}
+
 /**
  * Spotify Soloist, installed and run by the server: Spotify's own headless Connect client. Once it runs, a device with the name chosen here
  * appears in the player's device list (the cast button) and TurboMusic plays Spotify tracks on it, with no phone or PC app open. Three steps:
@@ -109,6 +122,7 @@ export function SoloistPanel() {
           {info.beam.enabled && info.beam.sinkMessage && <div className="rounded-theme bg-bad/15 p-2 text-xs text-bad">{info.beam.sinkMessage}</div>}
           {info.beam.enabled && info.beam.error && <div className="rounded-theme bg-bad/15 p-2 text-xs text-bad">{info.beam.error}</div>}
           {info.beam.enabled && <p className="text-xs text-muted">{info.beam.running ? `Streaming now to ${info.beam.listeners} listener${info.beam.listeners === 1 ? '' : 's'}.` : 'The stream starts when a device plays Spotify.'}</p>}
+          {info.beam.enabled && <BufferSlider info={info} disabled={working} onChange={(n) => void act('Saving…', () => api().soloistConfig({ bufferSec: n }))} />}
           {info.beam.enabled && <label className="flex items-center gap-2 text-muted"><input type="checkbox" checked={spotifyBeam} onChange={(e) => updateSettings({ spotifyBeam: e.target.checked })} />Hear it on this device</label>}
           {info.beam.enabled && <label className="flex items-start gap-2 text-muted"><input type="checkbox" className="mt-0.5" checked={spotifyMirror} onChange={(e) => updateSettings({ spotifyMirror: e.target.checked })} /><span>Count my plays on Spotify <span className="text-warn">(silent mirror)</span>: while a song plays from its file here and has a Spotify link, Soloist plays it silently so Spotify counts the stream for Wrapped. Works only when this device uses this Soloist. Spotify’s terms forbid artificially inflating streams and can flag an account for it: use at your own risk.</span></label>}
         </li>
