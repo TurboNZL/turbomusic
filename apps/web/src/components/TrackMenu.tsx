@@ -1,5 +1,5 @@
 import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, Swords, Info, ListEnd, ListMusic, ListPlus, ListStart, Replace, Pencil, Play, Plus, Minus, Disc3, Disc, Brain, GitMerge, StickyNote, User } from 'lucide-react';
+import { BarChart3, Swords, Info, ListEnd, ListMusic, ListPlus, ListStart, Replace, Pencil, Play, Plus, Minus, Disc3, Disc, Brain, Flag, GitMerge, StickyNote, User } from 'lucide-react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import type { Track } from '../lib/derive.ts';
 import type { EditTarget } from '../lib/editor.ts';
@@ -7,6 +7,7 @@ import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
 import { addMemory, removeMemory } from '../lib/memories.ts';
 import { trackPath } from '../lib/trackPath.ts';
+import { updateProfile } from '../lib/profile.ts';
 import { group, type MenuItem } from './Menu.tsx';
 import { PlaylistFlyout } from './PlaylistFlyout.tsx';
 import { useLibrary } from '../lib/derive.ts';
@@ -50,6 +51,7 @@ export function useTrackMenuItems() {
       ...group('Edit and organise', <Pencil size={15} />, [
         { label: 'Edit…', icon: <Pencil size={15} />, run: open({ kind: 'track', id: t.id }) },
         ...(t.albumId ? [{ label: 'Make a single release (looks up its date)', icon: <Disc size={15} />, run: () => { void makeSingleRelease(lib, t).then((id) => id && edit({ kind: 'release', id })); } }] : [{ label: 'Add to album…', icon: <Disc3 size={15} />, run: open({ kind: 'add-to-album', id: t.id }) }]),
+        ...(t.comparisons > 0 ? [{ label: lib.profile?.settings?.tenLine === t.id ? 'Remove the 10/10 line from here' : 'This is my last 10/10 (draw the line here)', icon: <Flag size={15} />, run: () => updateProfile(lib, (p) => ({ ...p, settings: { ...p.settings, tenLine: p.settings?.tenLine === t.id ? null : t.id } })) } as MenuItem] : []),
         { label: 'Merge with another track…', icon: <GitMerge size={15} />, run: open({ kind: 'merge-with', id: `track:${t.id}` }) },
       ]),
     ];

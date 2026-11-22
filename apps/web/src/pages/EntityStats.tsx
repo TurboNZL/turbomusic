@@ -70,6 +70,8 @@ export function EntityStatsPage() {
   const info = track ? trackInfo(lib, id) : null;
   // the same menu as right-clicking this thing anywhere else: play next, queue, add to a playlist, edit...
   const menuItems = track ? trackItems(track, () => play(track.id, [track.id], { type: 'track', id: track.id })) : album ? albumItems(album) : artist ? artistItems(artist.id) : playlist ? playlistItems(playlist) : [];
+  // where this track sits among everything you have ranked (a manual rating is only a starting guess, so it is not shown)
+  const placeLabel = (() => { if (!track || track.comparisons < 1) return '—'; const ranked = lib.tracks.filter((x) => x.comparisons > 0 && !x.versionOf).sort((a, b) => b.elo - a.elo); const i = ranked.findIndex((x) => x.id === track.id); return i < 0 ? '—' : `#${i + 1} of ${ranked.length}`; })();
   const rateRows = (list: Track[]) => list.map((t) => ({ key: t.id, label: t.title, sub: t.artistName, value: t.effectiveRating, to: statsPath('track', t.id) }));
   const playRows = [...stats.playsByTrack.entries()].sort((a, b) => b[1].plays - a[1].plays || b[1].ms - a[1].ms).slice(0, 10)
     .flatMap(([tid, v]) => { const t = lib.trackById.get(tid); return t ? [{ key: tid, label: t.title, sub: t.artistName, value: v.plays, extra: fmtHours(v.ms), to: statsPath('track', t.id) }] : []; });
@@ -116,7 +118,7 @@ export function EntityStatsPage() {
       {track && info && (
         <Panel title="This track" right={<Rating track={track} size="lg" />}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {stat('Elo', Math.round(track.elo).toString())}{stat('Vote rating', track.rating.toFixed(2))}{stat('Manual rating', track.initialRating != null ? String(track.initialRating) : '—')}{stat('Comparisons', String(track.comparisons))}
+            {stat('Elo', Math.round(track.elo).toString())}{stat('Vote rating', track.rating.toFixed(2))}{stat('Place in your ranking', placeLabel)}{stat('Comparisons', String(track.comparisons))}
             {stat('Memories', String(track.memories ?? 0))}{stat(track.albumId ? 'Album released' : 'Released', track.releaseDate ?? '—')}{stat('Average play', info.plays ? fmtListened(info.secondsListened / info.plays) : '—')}{stat('Genres', track.genres.join(', ') || '—')}
           </div>
           <p className="text-xs text-muted">{track.comparisons < 3 ? `Needs ${3 - track.comparisons} more comparison${3 - track.comparisons === 1 ? '' : 's'} before the vote rating is used. ` : ''}

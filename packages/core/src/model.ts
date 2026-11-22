@@ -181,6 +181,8 @@ export interface VoteData {
   boost?: 1 | -1;
   /** how much this answer counts: 1 = ordinary (the default), 2.5 = "much better" */
   weight?: number;
+  /** made by putting several songs in order of preference (the album first-listen ranking): counts less the more the songs are compared otherwise, so a first impression does not outweigh later votes */
+  order?: boolean;
   /** a head-to-head between two ALBUMS (trackAId/trackBId are album ids): it ranks albums, and a ranked album lifts the starting Elo of its tracks */
   album?: boolean;
   timestamp: number;

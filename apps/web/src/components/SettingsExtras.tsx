@@ -6,6 +6,7 @@ import { cn } from '../lib/cn.ts';
 import type { PlaybackRule } from '@turbomusic/core';
 import { useLibrary } from '../lib/derive.ts';
 import { useStore } from '../lib/store.ts';
+import { Cover } from './Cover.tsx';
 import { saveDefaultImage, defaultImage, saveRules } from '../lib/profile.ts';
 import { useEditor } from '../lib/editor.ts';
 import { akaLine } from '../lib/autofill.ts';
@@ -37,7 +38,7 @@ export function PlaybackRules() {
           <div className="flex items-center gap-2 p-3">
             {who(r.trackAId)}<ArrowRight size={14} className="shrink-0 text-muted" />{who(r.trackBId)}
             <button className="p-1 text-muted hover:text-fg" aria-expanded={isOpen} aria-label={isOpen ? 'Hide options' : 'Show options'} onClick={() => setOpenRule(isOpen ? null : key)}><ChevronDown size={16} className={cn('transition-transform', isOpen && 'rotate-180')} /></button>
-            <button className="p-1 text-muted hover:text-bad" aria-label="Delete rule" onClick={() => saveRules(lib, lib.rules.filter((_, j) => j !== i))}><X size={15} /></button></div>
+            <button className="p-1 text-muted hover:text-bad" aria-label="Delete rule" onClick={() => confirm('Delete this playback rule?') && saveRules(lib, lib.rules.filter((_, j) => j !== i))}><X size={15} /></button></div>
           {isOpen && <div className="space-y-2 border-t border-line/60 p-3">
             <div className="flex flex-wrap gap-4 text-xs text-muted">
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.playFirstOnShuffle} onChange={(e) => setRule(i, { playFirstOnShuffle: e.target.checked })} />Keep together when shuffling</label>
@@ -144,15 +145,24 @@ export function AliasesManager() {
   );
 }
 
-/** The picture shown for albums / artists that have none. */
+/** The picture shown for albums / artists that have none. With no picture chosen, each one gets its own automatic colours (from its name): the samples show that, and a chosen picture can always be taken back. */
 export function DefaultImages() {
   const lib = useLibrary();
+  const one = (key: 'defaultAlbumCover' | 'defaultArtistImage', title: string, kind: 'album' | 'artist', seeds: string[]) => {
+    const hash = defaultImage(lib, key);
+    return (
+      <div className="space-y-2"><div className="text-sm font-medium">{title}</div>
+        <ImagePicker kind={kind} hash={hash} onChange={(h) => saveDefaultImage(lib, key, h)} seed={`default ${kind}`} removeLabel="Back to the automatic one" />
+        {hash
+          ? <p className="text-xs text-muted">Your picture is used for every {kind} without one.</p>
+          : <div className="space-y-1.5"><div className="flex gap-2">{seeds.map((x) => <Cover key={x} hash={null} seed={x} kind={kind} className="w-12 shrink-0" />)}</div>
+            <p className="text-xs text-muted">Automatic: every {kind} without a picture gets its own colours, chosen from its name. Choose an image to use one picture for all of them instead.</p></div>}
+      </div>);
+  };
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <div className="space-y-2"><div className="text-sm font-medium">Default album cover</div>
-        <ImagePicker hash={defaultImage(lib, 'defaultAlbumCover')} onChange={(h) => saveDefaultImage(lib, 'defaultAlbumCover', h)} seed="default album" /></div>
-      <div className="space-y-2"><div className="text-sm font-medium">Default artist image</div>
-        <ImagePicker kind="artist" hash={defaultImage(lib, 'defaultArtistImage')} onChange={(h) => saveDefaultImage(lib, 'defaultArtistImage', h)} seed="default artist" /></div>
+    <div className="grid gap-5 sm:grid-cols-2">
+      {one('defaultAlbumCover', 'Default album cover', 'album', ['Midnight', 'Sunrise', 'Static', 'Harbour'])}
+      {one('defaultArtistImage', 'Default artist image', 'artist', ['Ada', 'Bo', 'Cass', 'Dev'])}
     </div>
   );
 }

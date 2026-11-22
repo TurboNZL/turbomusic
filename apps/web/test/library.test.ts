@@ -79,10 +79,26 @@ describe('buildLibrary', () => {
     expect(t1.comparisons).toBe(3);
     expect(t1.effectiveRating).toBeCloseTo(10);
     expect(t1.tenStarRank).toBe(1);
-    expect(t2.rating).toBeCloseTo(6); // floored by initialRating
+    expect(t2.rating).toBeLessThan(6); // a typed-in rating is not a floor: the votes decide once there are three
     const few = buildLibrary(rows(...base.slice(0, 3), rec('tracks', 't2', track('Two', { initialRating: 6 })), vote('v', 't1', 't2', 't1', 1)));
     expect(few.trackById.get('t1')!.effectiveRating).toBe(0); // 1 comparison, no initial rating: unrated
-    expect(few.trackById.get('t2')!.effectiveRating).toBe(6);
+    // one comparison: the typed-in 6 still guides it, but the vote already pulls it down a third of the way
+    const t2few = few.trackById.get('t2')!;
+    expect(t2few.effectiveRating).toBeLessThan(6); expect(t2few.effectiveRating).toBeGreaterThan(3);
+    // none: exactly what was typed
+    expect(buildLibrary(rows(...base.slice(0, 3), rec('tracks', 't2', track('Two', { initialRating: 6 })))).trackById.get('t2')!.effectiveRating).toBe(6);
+  });
+
+  it('the 10/10 line: the named song and everything above it rate 10, the rest stretch to fit under it', () => {
+    const vs = [1, 2, 3, 4].flatMap((i) => [vote(`a${i}`, 't1', 't2', 't1', i), vote(`b${i}`, 't2', 't3', 't2', i + 10)]);
+    const plain = buildLibrary(rows(...base.slice(0, 3), rec('tracks', 't2', track('Two')), rec('tracks', 't3', track('Three')), ...vs));
+    const p2 = plain.trackById.get('t2')!.rating, p3 = plain.trackById.get('t3')!.rating;
+    expect(p2).toBeLessThan(10);
+    const withLine = buildLibrary(rows(...base.slice(0, 3), rec('tracks', 't2', track('Two')), rec('tracks', 't3', track('Three')), ...vs, rec('profiles', '1', { name: 'p', theme: 'dark', accentColor: '#fff', playbackMode: 'local', settings: { tenLine: 't2' }, playbackRules: [] })));
+    expect(withLine.trackById.get('t1')!.rating).toBe(10);
+    expect(withLine.trackById.get('t2')!.rating).toBe(10);
+    expect(withLine.trackById.get('t3')!.rating).toBeCloseTo(p3 * (9.4 / p2), 5);
+    expect(withLine.trackById.get('t3')!.rating).toBeLessThan(9.5);
   });
 });
 

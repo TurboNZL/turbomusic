@@ -82,7 +82,7 @@ export function ArtistSelect({ value, onChange }: { value: string; onChange: (id
 }
 
 /** Choose / replace an image; the file is resized, hashed and stored locally, then uploaded when a server is available. */
-export function ImagePicker({ hash, onChange, seed, kind = 'album' }: { hash: string | null; onChange: (hash: string | null) => void; seed: string; kind?: 'album' | 'artist' }) {
+export function ImagePicker({ hash, onChange, seed, kind = 'album', removeLabel = 'Remove' }: { hash: string | null; onChange: (hash: string | null) => void; seed: string; kind?: 'album' | 'artist'; removeLabel?: string }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -92,7 +92,7 @@ export function ImagePicker({ hash, onChange, seed, kind = 'album' }: { hash: st
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn" disabled={busy} onClick={() => input.current?.click()}><ImagePlus size={15} />{busy ? 'Saving…' : hash ? 'Replace' : 'Choose image'}</button>
-          {hash && <button type="button" className="btn btn-ghost" onClick={() => onChange(null)}>Remove</button>}
+          {hash && <button type="button" className="btn btn-ghost" onClick={() => onChange(null)}>{removeLabel}</button>}
         </div>
         {err && <div className="text-xs text-bad">{err}</div>}
         <input ref={input} type="file" accept="image/*" hidden onChange={async (e) => {
