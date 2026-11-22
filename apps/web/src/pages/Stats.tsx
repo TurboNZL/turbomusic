@@ -12,6 +12,7 @@ import { StatsFilters } from '../components/StatsFilters.tsx';
 import { TopGrid } from '../components/TopGrid.tsx';
 import { useNearEnd } from '../lib/useChunks.ts';
 import { cn } from '../lib/cn.ts';
+import { useEntityContext } from '../components/EntityContext.tsx';
 import { Area, Bars, Calendar, Donut, fmtHours, Heatgrid, Kpi, Panel, RankList } from '../components/charts.tsx';
 import { HistoryManager } from '../components/HistoryManager.tsx';
 import { ExportHistoryDialog, ImportHistoryDialog } from '../components/HistoryTools.tsx';
@@ -113,6 +114,7 @@ function Activity({ s }: { s: ListenStats }) {
 const PAGE = 200;
 /** Every play as a timeline, newest first, grouped by day. */
 function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof useLibraryLive> }) {
+  const { ctx, element } = useEntityContext();
   const [q, setQ] = useState('');
   const [source, setSource] = useState<'all' | 'turbomusic' | 'spotify'>('all');
   const [skips, setSkips] = useState<'all' | 'played' | 'skipped'>('all');
@@ -150,6 +152,7 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
       </div>
       {!rows.length && <div className="card p-6 text-center text-sm text-muted">{listens.length ? 'No plays match.' : 'No plays yet. Play something, or import your Spotify history.'}</div>}
       <div className="relative space-y-5 border-l border-line/70 pl-4">
+        {element}
         {groups.map((g) => (
           <section key={g.day}>
             <h3 className="sticky top-14 z-[1] -ml-[1.4rem] mb-1 flex items-center gap-2 bg-bg/85 py-1 pl-1 text-sm font-semibold backdrop-blur">
@@ -164,7 +167,7 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
                   <span className="block truncate text-sm font-medium">{t ? <Link to={statsPath('track', t.id)} className="hover:underline">{l.title}</Link> : l.title}</span>
                   <span className="block truncate text-xs text-muted">{l.artistId ? <Link to={statsPath('artist', l.artistId)} className="hover:underline">{l.artist}</Link> : l.artist}{l.album && <> · {l.albumId ? <Link to={statsPath('album', l.albumId)} className="hover:underline">{l.album}</Link> : l.album}</>}</span></>;
                 return (
-                  <li key={l.id} className="flex items-center gap-3 py-1.5">
+                  <li key={l.id} className="flex items-center gap-3 py-1.5" onContextMenu={ctx(t ? { kind: 'track', id: t.id } : null)}>
                     <time className="w-[4.5rem] shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-muted" dateTime={new Date(l.ts).toISOString()}>{new Date(l.ts - l.ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
                     <div className="min-w-0 flex-1">{body}</div>
                     {l.skipped && <span className="chip text-warn">skipped</span>}

@@ -21,6 +21,8 @@ import { cssMs } from '../lib/presence.ts';
 import { useSearchParams } from 'react-router-dom';
 import { PlaceRank } from '../components/PlaceRank.tsx';
 import { ArtistLinks } from '../components/ArtistLinks.tsx';
+import { useMenu } from '../components/Menu.tsx';
+import { useTrackMenuItems } from '../components/TrackMenu.tsx';
 
 /** how long the chosen card plays its "picked" animation before the next pair appears (0 where the UI style has no motion) */
 const pickDelay = () => cssMs('--vote-ms', 440);
@@ -68,6 +70,8 @@ let keptPair: [string, string] | null = null;
 function DuelRank() {
   const lib = useLibraryLive();
   const edit = useEditor((s) => s.open);
+  const menu = useMenu();
+  const trackItems = useTrackMenuItems();
   const put = useStore((s) => s.put);
   const removeRow = useStore((s) => s.remove);
   /** the next pick counts as "much better" (weight in the preference fit); switches itself off after one vote */
@@ -265,7 +269,7 @@ function DuelRank() {
       {/* each card fills its share of the height that is left (on a phone they stack and share it), and lays itself out inside that space */}
       <div className={cn('grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[repeat(2,minmax(0,1fr))] sm:grid-cols-2 sm:grid-rows-[minmax(0,1fr)] sm:gap-4', compact ? 'gap-1.5' : 'gap-3')}>
         {[a, b].map((t, i) => t && (
-          <div key={t.id} role="button" tabIndex={0} aria-pressed={playing === t.id} aria-label={`${playing === t.id ? 'Stop preview of' : 'Preview'} ${t.title}`}
+          <div key={t.id} role="button" tabIndex={0} aria-pressed={playing === t.id} onContextMenu={menu.onContextMenu(trackItems(t, () => usePlayer.getState().play(t.id, [t.id], { type: 'search', id: 'Rank' })), t.title)} aria-label={`${playing === t.id ? 'Stop preview of' : 'Preview'} ${t.title}`}
             onClick={(e) => { if (swallowClick.current || (e.target as Element).closest('a, button, input')) return; if (!picked) snippet(t); }} {...swipeHandlers(t)}
             style={{ touchAction: 'pan-y', ...(drag?.id === t.id ? { transform: `translateX(${drag.dx}px)`, transition: drag.settle ? 'transform 200ms ease-out' : 'none' } : null) }}
             onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!picked) snippet(t); } }}
@@ -284,7 +288,7 @@ function DuelRank() {
             </div>
             <div className={cn('flex min-h-0 min-w-0 flex-1 justify-center overflow-hidden', compact ? 'flex-row items-center gap-1.5' : 'flex-col gap-1.5 sm:w-full sm:flex-none sm:items-center')}>
               <div className={cn('min-w-0 text-left', compact ? 'flex-1' : 'sm:text-center')}><div className={cn('min-w-0 break-words font-semibold [overflow-wrap:anywhere]', compact ? 'truncate text-sm' : 'line-clamp-2 max-sm:[@container(max-height:14rem)]:line-clamp-1 text-base sm:text-lg')}>{t.title}</div>
-                <div className={cn('min-w-0 break-words text-muted [overflow-wrap:anywhere]', compact ? 'truncate text-xs' : 'line-clamp-1 text-sm')}><ArtistLinks leads={t.leads} featured={t.featured} />{t.albumTitle && ` · ${t.albumTitle}`}</div></div>
+                <div className={cn('min-w-0 break-words text-muted [overflow-wrap:anywhere]', compact ? 'truncate text-xs' : 'line-clamp-1 text-sm')}><ArtistLinks leads={t.leads} featured={t.featured} plain />{t.albumTitle && ` · ${t.albumTitle}`}</div></div>
               <div className={cn('flex min-w-0 items-center gap-2 sm:justify-center', compact ? 'shrink-0' : 'flex-wrap')}>
                 {!compact && <Rating track={t} />}
                 <button type="button" className="btn btn-ghost !p-1.5" title="Stats" aria-label={`Stats for ${t.title}`} onClick={(e) => { e.stopPropagation(); edit({ kind: 'track-details', id: t.id }); }}><BarChart3 size={14} /></button>
@@ -295,6 +299,7 @@ function DuelRank() {
           </div>
         ))}
       </div>
+      {menu.element}
       <div className={cn('flex shrink-0 flex-col items-center gap-1.5', compact ? 'mt-1.5' : 'mt-3')}>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={16} />{compact ? 'Equal' : 'They’re equal (↓)'}</button>
