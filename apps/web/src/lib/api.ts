@@ -51,7 +51,7 @@ export interface ImportPreview {
   thumbnails?: string[];
   /** when the album came out, if an exact match was found online */
   releaseDate?: string | null;
-  entries: { id: string; title: string; rawTitle: string; url: string; duration: number | null }[];
+  entries: { id: string; title: string; rawTitle: string; url: string; duration: number | null; artists?: string[] }[];
 }
 
 /** The headers a server behind Cloudflare Access wants on every request (blank when no service token is set). */

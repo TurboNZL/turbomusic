@@ -8,7 +8,7 @@ import { safeUrl } from './acquire.ts';
 import type { Store } from './db.ts';
 import { filePath } from './files.ts';
 
-export interface PreviewEntry { id: string; title: string; rawTitle: string; url: string; duration: number | null }
+export interface PreviewEntry { id: string; title: string; rawTitle: string; url: string; duration: number | null; /** the song's own artists when YouTube names them per track (a soundtrack or compilation); empty when it only names the uploader */ artists: string[] }
 /** `thumbnail` is the best candidate; `thumbnails` lists every candidate best-first so a failing one can be skipped. */
 export interface Preview { title: string; artist: string; thumbnail: string | null; thumbnails: string[]; entries: PreviewEntry[]; /** when the album came out, when an exact match was found online */ releaseDate?: string | null }
 
@@ -65,6 +65,12 @@ export function pickItunesArtwork(results: any[], title: string, artist: string)
 
 const cleanArtist = (s: string) => s.replace(/\s*-\s*Topic$/i, '').trim();
 
+/** A track's own artists: yt-dlp's `artists` list or `artist` text ("A, B"), else nothing (the uploader of a track is the album's channel, not its artist). */
+export function entryArtists(e: any): string[] {
+  const list: unknown[] = Array.isArray(e?.artists) ? e.artists : typeof e?.artist === 'string' ? e.artist.split(/\s*,\s*/) : [];
+  return [...new Set(list.map((x) => cleanArtist(String(x ?? ''))).filter(Boolean))];
+}
+
 /** Turn yt-dlp's `-J --flat-playlist` output into what the review screen needs (pure; tested without yt-dlp). */
 export function parsePreview(info: any): Preview {
   const isList = Array.isArray(info?.entries);
@@ -80,6 +86,7 @@ export function parsePreview(info: any): Preview {
       id: String(e.id), rawTitle: String(e.title ?? ''), title: cleanTitle(String(e.title ?? 'Unknown track'), artist),
       url: e.webpage_url ?? e.url ?? `https://www.youtube.com/watch?v=${e.id}`,
       duration: typeof e.duration === 'number' ? e.duration : null,
+      artists: entryArtists(e),
     })),
   };
 }

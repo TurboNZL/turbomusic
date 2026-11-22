@@ -171,3 +171,12 @@ describe('POST /api/import/cover', () => {
     expect((await post(app2, '/api/import/cover', { url: 'https://i.ytimg.com/x.jpg' })).status).toBe(502);
   });
 });
+
+import { entryArtists } from '../src/import.ts';
+describe('per-track artists', () => {
+  it('reads yt-dlp artists lists and "A, B" text, and ignores the uploader', () => {
+    expect(entryArtists({ artists: ['Justice - Topic', 'SZA'] })).toEqual(['Justice', 'SZA']);
+    expect(entryArtists({ artist: 'Yung Lean, Future' })).toEqual(['Yung Lean', 'Future']);
+    expect(entryArtists({ uploader: 'Grand Theft Auto VI' })).toEqual([]);
+  });
+});

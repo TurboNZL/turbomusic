@@ -14,10 +14,10 @@ import { saveImage } from '../lib/files.ts';
 import { Cover } from './Cover.tsx';
 import { Field, Modal, TagInput } from './forms.tsx';
 import { Select } from './Select.tsx';
-import { FEATURED_ROLE } from '../lib/defaults.ts';
+import { FEATURED_ROLE, LEAD_ROLE } from '../lib/defaults.ts';
 
 const NEW = '__new__';
-interface Row { id: string; title: string; url: string; on: boolean; /** the length YouTube gives the song (seconds), kept to spot music-video audio later */ seconds: number | null; /** featured artists named in the title: they become credits, not part of the title */ feat: string[] }
+interface Row { id: string; title: string; url: string; on: boolean; /** the length YouTube gives the song (seconds), kept to spot music-video audio later */ seconds: number | null; /** this song's own lead artists, when YouTube names them per song (soundtracks, compilations): empty = the album's artist */ artists: string[]; /** featured artists named in the title: they become credits, not part of the title */ feat: string[] }
 
 /** Import an album from a YouTube / YouTube Music link: look up, review and edit, then create it and queue the audio. */
 export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => void; /** opened from the Singles page: start in "as a single" */ singleFirst?: boolean }) {
@@ -70,7 +70,7 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
         setLinkCover({ state: 'loading' });
         fetchCoverFromLinks(links).then((hash) => setLinkCover({ state: 'ok', hash }), (e: Error) => setLinkCover({ state: 'failed', error: e.message }));
       } else setLinkCover({ state: 'failed', error: 'YouTube gave no cover image for this link.' });
-      setTitle(cleanAlbumTitle(p.title)); setAsSingle(p.entries.length === 1); setRows(p.entries.map((e) => { const sp = splitFeaturing(e.title); return { id: e.id, title: sp.title, url: e.url, on: true, seconds: e.duration ? Math.round(e.duration) : null, feat: sp.featured }; }));
+      setTitle(cleanAlbumTitle(p.title)); setAsSingle(p.entries.length === 1); setRows(p.entries.map((e) => { const sp = splitFeaturing(e.title); return { id: e.id, title: sp.title, url: e.url, on: true, seconds: e.duration ? Math.round(e.duration) : null, artists: (e.artists ?? []).filter((n) => n && matchArtist([{ name: cleanArtistName(p.artist) }], n) === undefined), feat: sp.featured }; }));
       const hit = matchArtist(lib.artists, p.artist);
       setArtistId(hit?.id ?? ''); setNewArtist(hit ? null : cleanArtistName(p.artist));
       setGenres(hit ? genresFor(lib, hit.id) : []); // a known artist: start from the genres of their other albums
@@ -97,6 +97,8 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
       const credits = leadCredit(aid);
       // featured artists named in a title become "Featured artist" credits (matched to an artist you have, else created once)
       const artistByName = new Map<string, string>();
+      // a song with its own artists (a soundtrack) gets them as leads; the playlist's artist then only owns the album
+      const trackCredits = (r: Row) => r.artists.length ? [...r.artists.map((n) => { const k = n.toLowerCase(); let id = artistByName.get(k) ?? matchArtist(lib.artists, n)?.id; if (!id) id = put('artists', { name: n, image: null } satisfies ArtistData); artistByName.set(k, id); return { artistId: id, role: [LEAD_ROLE] }; }), ...featCredits(r.feat)] : [...credits, ...featCredits(r.feat)];
       const featCredits = (names: string[]) => names.map((n) => {
         const key = n.toLowerCase();
         let id = artistByName.get(key) ?? matchArtist(lib.artists, n)?.id;
@@ -114,12 +116,12 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
       let ids: string[], to: string, what: string;
       if (asSingle) {
         // a single: no album, its own cover and release date, its own genres
-        ids = picked.map((r) => put('tracks', newTrackData({ title: r.title.trim(), credits: [...credits, ...featCredits(r.feat)], genres, cover, releaseDate, youtubeMusicUrl: r.url, sourceSeconds: r.seconds, syncWithAlbumCredits: false })));
+        ids = picked.map((r) => put('tracks', newTrackData({ title: r.title.trim(), credits: trackCredits(r), genres, cover, releaseDate, youtubeMusicUrl: r.url, sourceSeconds: r.seconds, syncWithAlbumCredits: false })));
         to = '/singles'; what = ids.length === 1 ? 'The single' : 'The singles';
         logJournal('add', `Imported ${ids.length === 1 ? 'single' : 'singles'}: ${picked.map((r) => r.title.trim()).join(', ')}`, 'from YouTube', ids[0]);
       } else {
         const albumId = put('albums', newAlbumData({ title: title.trim(), credits, genres, cover: null, covers: cover ? [cover] : [], coverPicked: false }));
-        ids = picked.map((r, i) => put('tracks', newTrackData({ title: r.title.trim(), credits: [...credits, ...featCredits(r.feat)], youtubeMusicUrl: r.url, sourceSeconds: r.seconds, albums: [{ albumId, order: i }] })));
+        ids = picked.map((r, i) => put('tracks', newTrackData({ title: r.title.trim(), credits: trackCredits(r), ...(r.artists.length ? { genres, syncWithAlbumCredits: false } : {}), youtubeMusicUrl: r.url, sourceSeconds: r.seconds, albums: [{ albumId, order: i }] })));
         // the imported edition is the album's default release: it carries the cover and the tracklist
         const releaseId = put('releases', { albumId, title: '', cover, releaseDate, trackIds: ids });
         useStore.getState().patch('albums', albumId, { trackOrder: ids, defaultReleaseId: releaseId });
@@ -194,6 +196,8 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
             <div key={r.id} className="flex items-center gap-2"><input type="checkbox" aria-label={`Include track ${i + 1}`} checked={r.on} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
               <span className="w-6 text-right text-xs text-muted">{i + 1}</span>
               <input className="input !py-1" value={r.title} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+              {rows.some((x) => x.artists.length) && <input className="input !w-40 shrink-0 !py-1 max-sm:!w-28" aria-label={`Artists of track ${i + 1}`} placeholder="Artists…" title="This song's own lead artists (comma separated)" value={r.artists.join(', ')}
+                onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, artists: e.target.value.split(',').map((n) => n.trim()).filter(Boolean) } : x)))} />}
               <input className="input !w-40 shrink-0 !py-1 max-sm:!w-28" aria-label={`Featured artists on track ${i + 1}`} placeholder="Featured…" title="Featured artists (comma separated): added as credits, not kept in the title" value={r.feat.join(', ')}
                 onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, feat: e.target.value.split(',').map((n) => n.trim()).filter(Boolean) } : x)))} /></div>))}</div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={download} onChange={(e) => setDownload(e.target.checked)} />Download the audio now (needs yt-dlp and ffmpeg on the server)</label>
