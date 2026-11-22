@@ -20,7 +20,7 @@ import { ServerAppCard } from '../components/ServerAppCard.tsx';
 import { TermuxServerCard } from '../components/TermuxServerCard.tsx';
 import { SpotifyCard } from '../components/SpotifyCard.tsx';
 import { BackupCard } from '../components/BackupCard.tsx';
-import { RatingModelCard } from '../components/RatingModelCard.tsx';
+import { RatingModelCard, TenLineCard } from '../components/RatingModelCard.tsx';
 import { RecapDismissals } from '../components/RecapDismissals.tsx';
 import { LibraryFilesCard } from '../components/LibraryFilesCard.tsx';
 import { WidgetCard } from '../components/WidgetCard.tsx';
@@ -122,6 +122,7 @@ export function SettingsPage() {
       <Section title="Backup: export and import"><BackupCard /></Section>
       <Section title="Library as files: browse it, take it with you"><LibraryFilesCard /></Section>
       <Section title="How votes become ratings"><RatingModelCard /></Section>
+      <Section title="Your 10/10 line"><TenLineCard /></Section>
       <Section title="Recap announcements on Home"><RecapDismissals /></Section>
       </>}
 

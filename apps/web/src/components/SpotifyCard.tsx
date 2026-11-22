@@ -4,6 +4,10 @@ import { isAndroidApp } from '../lib/native.ts';
 import { desktop } from '../lib/settings.ts';
 import { SoloistPanel } from './SoloistPanel.tsx';
 import { Section } from './Section.tsx';
+import { SettingsGroup } from './SettingsGroup.tsx';
+import { HistoryEntities } from './HistoryEntities.tsx';
+import { SpotifyIcon } from './BrandIcons.tsx';
+import { Library as LibraryIcon, Speaker } from 'lucide-react';
 import { SpotifyAccountPanel } from './SpotifyAccountPanel.tsx';
 
 const SDK_STATE = { off: 'Off', checking: 'Checking…', loading: 'Starting…', ready: 'Ready', unsupported: 'Not possible here', error: 'Problem' } as const;
@@ -43,12 +47,28 @@ function Options({ streaming }: { streaming: boolean }) {
   );
 }
 
+/** What the lists show of music that has no audio or YouTube Music link yet, and a way to make pages for what only your history knows. */
+function LibraryOptions() {
+  const { settings, updateSettings } = useStore();
+  return (
+    <SettingsGroup icon={<LibraryIcon size={18} />} title="Songs you have not imported" hint="Spotify imports and your listening history add artists, albums and songs that have no audio yet.">
+      <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={settings.showUnimported} onChange={(e) => updateSettings({ showUnimported: e.target.checked })} /><span>Show them in my lists <span className="text-muted">(off: they are hidden until imported; their pages and stats still open from links)</span></span></label>
+      <HistoryEntities />
+    </SettingsGroup>
+  );
+}
+
 /** Settings: Spotify account, which Spotify device plays, and whether file-less tracks go through it. */
 export function SpotifyCard() {
   return (
     <Section title="Spotify">
-      <p className="text-sm text-muted">Optional. Lets you import playlists, find recommendations and play tracks you do not have as files. Needs Spotify Premium. Setup runs on your server (Settings → Guides → Spotify).</p>
-      <SpotifyAccountPanel>{(s) => <Options streaming={s.streaming !== false} />}</SpotifyAccountPanel>
+      <p className="flex items-center gap-2 text-sm text-muted"><SpotifyIcon size={20} className="shrink-0" /><span>Optional. Import playlists and history, and play songs you have no file for. Needs Premium. Setup: Settings → Guides → Spotify.</span></p>
+      <SpotifyAccountPanel>{(s) => <>
+        <SettingsGroup icon={<Speaker size={18} />} title="Playing" hint="How Spotify songs play, and where.">
+          <Options streaming={s.streaming !== false} />
+        </SettingsGroup>
+        <LibraryOptions />
+      </>}</SpotifyAccountPanel>
       <SoloistPanel />
     </Section>
   );

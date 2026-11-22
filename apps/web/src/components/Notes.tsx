@@ -41,7 +41,7 @@ export function Notes({ lib, type, id }: { lib: Library; type: EntityType; id: s
     <section className="space-y-3">
       <div className="flex items-center gap-2"><h2 className="text-lg font-semibold">Notes</h2>
         <button className="btn btn-ghost !p-1.5" aria-label="New note" onClick={() => edit({ kind: 'new-note', id: `${type}:${id}` })}><Plus size={16} /></button></div>
-      {!notes.length && <p className="text-sm text-muted">None yet. A note is a write-up tied to this and anything else it belongs with: a feud, a collective, a story behind a song.</p>}
+      {!notes.length && <p className="text-sm text-muted">No notes yet.</p>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">{notes.map((n) => <NoteCard key={n.id} lib={lib} note={n} from={{ type, id }} />)}</div>
     </section>
   );

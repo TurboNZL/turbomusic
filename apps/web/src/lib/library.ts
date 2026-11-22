@@ -163,11 +163,21 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const root = (id: string) => versionRoot.get(id) ?? id;
   const trackVotes = votes.filter((v) => !v.album).map((v) => ({ ...v, trackAId: root(v.trackAId), trackBId: v.trackBId ? root(v.trackBId) : v.trackBId, winnerId: v.winnerId ? root(v.winnerId) : v.winnerId }))
     .filter((v) => v.boost || v.trackAId !== v.trackBId); // two versions of one song compared with each other say nothing
-  const initials = new Map(rawTracks.map((t) => [t.id, t.initialRating]));
+  // a vote from the "order by preference" tool goes stale: the more a song has been compared the ordinary way, the less its first-listen order counts
+  const headToHead = new Map<string, number>();
+  for (const v of trackVotes) if (!v.boost && !v.order) for (const id of [v.trackAId, v.trackBId]) headToHead.set(id, (headToHead.get(id) ?? 0) + 1);
+  for (const v of trackVotes) if (v.order) v.weight = (v.weight ?? 1) / (1 + 0.35 * (((headToHead.get(v.trackAId) ?? 0) + (headToHead.get(v.trackBId) ?? 0)) / 2));
   const ranked = useElo ? replayVotes(trackVotes, rawTracks.map((t) => t.id), starts) : fitPreferences(trackVotes, rawTracks.map((t) => t.id), starts);
   const thumbNet = new Map<string, number>();
   for (const v of trackVotes) if (v.boost) thumbNet.set(v.trackAId, (thumbNet.get(v.trackAId) ?? 0) + v.boost);
-  const ratings = useElo ? balancedRatings(ranked, initials) : preferenceRatings(ranked as ReturnType<typeof fitPreferences>, initials);
+  // a typed-in rating is no longer a floor under the vote rating: it only stands in (fading out) while a song has fewer than three comparisons (see `eff` below)
+  const noInitials = new Map<string, number>();
+  const ratings = useElo ? balancedRatings(ranked, noInitials) : preferenceRatings(ranked as ReturnType<typeof fitPreferences>, noInitials);
+  // "the 10/10 line": the song you named as your last 10/10 and everything above it rate 10; the songs below are stretched to fill 0..9.4, so a
+  // library with few songs you dislike still reads as you rate it (without the line, the best songs can sit in the sevens)
+  const lineId = typeof profile?.settings?.tenLine === 'string' ? root(profile.settings.tenLine) : null;
+  const lineAt = lineId ? ratings.get(lineId) : undefined;
+  const bend = (r: number) => (lineAt !== undefined && lineAt >= 4 && lineAt < 9.99 && r > 0.001 ? (r >= lineAt - 1e-9 ? 10 : r * (9.4 / lineAt)) : r);
 
   const albumTitles = new Map(rawAlbums.map((a) => [a.id, a.title]));
   const releases = live<ReleaseData>(rows.releases).map((r) => ({ ...r, named: !!r.title?.trim(), title: r.title?.trim() || albumTitles.get(r.albumId) || '' }));
@@ -216,9 +226,11 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   for (const [v, main] of versionRoot) versionsOf.set(main, [...(versionsOf.get(main) ?? []), v]);
   const allTracks: Track[] = rawTracks.map((t) => {
     const r = ranked.get(root(t.id))!;
-    const rating = ratings.get(root(t.id)) ?? 0;
+    const rating = bend(ratings.get(root(t.id)) ?? 0);
     const album = albumOf.get(t.id) ?? null;
-    const eff = r.comparisons >= 3 && rating > 0.001 ? rating : (t.initialRating ?? 0) > 0.001 ? t.initialRating! : 0;
+    // three or more comparisons: the votes decide. Fewer: a typed-in rating guides it, giving way a third at a time to what the votes say
+    const init = (t.initialRating ?? 0) > 0.001 ? t.initialRating! : 0;
+    const eff = r.comparisons >= 3 && rating > 0.001 ? rating : init ? (rating > 0.001 && r.comparisons > 0 ? (r.comparisons / 3) * rating + (1 - r.comparisons / 3) * init : init) : 0;
     const genres = t.syncWithAlbumCredits && album ? album.genres : t.genres;
     // a track that follows its album takes the album's credits (when the album has a lead artist)
     // ...plus the featured artists the track adds itself, so a featuring does not mean giving up the album's credits
@@ -278,7 +290,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
 
 /** 10-star tracks are shown by rank (#1 = highest Elo), as in the original app. */
 function tenStarRanks(tracks: Track[]) {
-  // like the legacy store, the ranked list is keyed on the (initialRating-floored) rating...
+  // the ranked list is keyed on the vote rating...
   const top = tracks.filter((t) => !t.versionOf && t.rating >= 9.9999 && t.comparisons > 0).sort((a, b) => b.elo - a.elo);
   // ...but the badge only shows a rank when the displayed rating is 10 as well
   top.forEach((t, i) => { if (t.effectiveRating >= 9.9999) t.tenStarRank = i + 1; });

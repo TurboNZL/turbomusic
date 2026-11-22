@@ -59,15 +59,15 @@ export function onThisDay(entries: Entry[], now = Date.now()): Entry[] {
   return entries.filter((e) => { const d = new Date(e.timestamp); return d.getFullYear() < t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate(); }).sort((a, b) => b.timestamp - a.timestamp);
 }
 
-/** The most played track within a day of this date in each earlier year (from a list of plays), newest year first. */
+/** The most played track on this calendar day (local time) in each earlier year, newest year first. Only that day: neighbouring days do not count. */
 export function listeningOnThisDay(plays: { ts: number; trackId: string | null }[], now = Date.now()): { year: number; trackId: string; plays: number }[] {
   const t = new Date(now), out: { year: number; trackId: string; plays: number }[] = [];
   for (let y = t.getFullYear() - 1; y >= t.getFullYear() - 8; y--) {
-    const centre = new Date(y, t.getMonth(), t.getDate()).getTime();
+    const from = new Date(y, t.getMonth(), t.getDate()).getTime(), to = new Date(y, t.getMonth(), t.getDate() + 1).getTime();
     const n = new Map<string, number>();
-    for (const p of plays) if (p.trackId && Math.abs(p.ts - centre - DAY / 2) <= DAY) n.set(p.trackId, (n.get(p.trackId) ?? 0) + 1);
+    for (const p of plays) if (p.trackId && p.ts >= from && p.ts < to) n.set(p.trackId, (n.get(p.trackId) ?? 0) + 1);
     const best = [...n.entries()].sort((a, b) => b[1] - a[1])[0];
-    if (best && best[1] >= 2) out.push({ year: y, trackId: best[0], plays: best[1] });
+    if (best) out.push({ year: y, trackId: best[0], plays: best[1] });
   }
   return out;
 }

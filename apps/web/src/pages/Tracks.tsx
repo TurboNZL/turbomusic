@@ -1,4 +1,5 @@
 import { PlayControls } from '../components/PlayControls.tsx';
+import { UnimportedNote } from '../components/UnimportedNote.tsx';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { SingleGrid } from '../components/SingleCard.tsx';
 import { usePageState } from '../lib/pageState.ts';
@@ -50,6 +51,7 @@ export function TracksPage() {
       </div>
       <ListToolbar actions={<><PlayControls ids={playable} source={{ type: 'search', id: 'All tracks' }} label="these tracks" /></>} scope="tracks" chips={chips} onChips={setChips} text={q} onText={setQ}
         sorts={TRACK_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <UnimportedNote kind="tracks" />
       {page.view === 'grid'
         ? <SingleGrid tracks={tracks.slice(0, shown)} />
         : <div className="card overflow-hidden"><TrackTable tracks={tracks.slice(0, shown)} queue={tracks} source="search" sourceId="All tracks" numbered covers /></div>}

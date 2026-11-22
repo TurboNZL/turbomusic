@@ -10,8 +10,9 @@ type Quick = NonNullable<HealthCheck['quick']>;
 const LINK: Record<string, string> = { youtubeMusicUrl: 'Paste a YouTube Music link', spotifyUrl: 'Paste a Spotify link', geniusUrl: 'Paste a Genius link' };
 
 /** One row that can be fixed right there: a date, genres or a link. The row leaves the list as soon as the check passes. */
-function QuickRow({ item, quick }: { item: HealthItem; quick: Quick }) {
-  const lib = useLibrary();
+type Ctx = (i: HealthItem) => ((e: React.MouseEvent) => void) | undefined;
+function QuickRow({ item, quick, ctx }: { item: HealthItem; quick: Quick; ctx?: Ctx }) {
+  const lib = useLibrary(true);
   const { patch, put } = useStore();
   const edit = useEditor((s) => s.open);
   const [value, setValue] = useState('');
@@ -29,7 +30,7 @@ function QuickRow({ item, quick }: { item: HealthItem; quick: Quick }) {
   const ready = isGenre ? genres.length > 0 : !!value.trim();
   const kind = item.kind === 'track' || item.kind === 'album' || item.kind === 'release' ? item.kind : null;
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
+    <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm" onContextMenu={ctx?.(item)}>
       <button className="min-w-0 flex-1 basis-48 truncate text-left hover:underline" title="Open the full editor" onClick={() => kind && edit({ kind, id: item.id })}>{item.label}{item.detail && <span className="text-xs text-muted"> · {item.detail}</span>}</button>
       {(quick === 'release-date' || quick === 'single-date') && <input type="date" className="input !w-40 !py-1 text-xs" aria-label="Release date" value={value} onChange={(e) => setValue(e.target.value)} />}
       {isGenre && <div className="w-64 max-w-full"><TagInput value={genres} onChange={setGenres} suggestions={lib.genres.map((g) => g.name)} placeholder="Genre, press Enter" /></div>}
@@ -40,14 +41,12 @@ function QuickRow({ item, quick }: { item: HealthItem; quick: Quick }) {
   );
 }
 
-/** The rows of a check that can be fixed in place, 40 at a time. */
-export function QuickFix({ check }: { check: HealthCheck }) {
-  const [shown, setShown] = useState(40);
+/** The rows of a check that can be fixed in place (Health draws them a screenful at a time, sorted by relevance). */
+export function QuickFix({ check, ctx }: { check: HealthCheck; ctx?: Ctx }) {
   if (!check.quick) return null;
   return (
-    <div className="max-h-[28rem] divide-y divide-line/60 overflow-y-auto">
-      {check.items.slice(0, shown).map((i) => <QuickRow key={`${i.kind}${i.id}`} item={i} quick={check.quick!} />)}
-      {check.items.length > shown && <div className="px-4 py-2"><button className="btn btn-ghost text-xs" onClick={() => setShown(shown + 40)}>Show 40 more ({check.items.length - shown} left)</button></div>}
+    <div className="divide-y divide-line/60">
+      {check.items.map((i) => <QuickRow key={`${i.kind}${i.id}`} item={i} quick={check.quick!} ctx={ctx} />)}
     </div>
   );
 }

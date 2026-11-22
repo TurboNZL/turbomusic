@@ -5,12 +5,14 @@ import type { TopRow } from '../lib/listenStats.ts';
 import { statsPath, type StatsKind } from '../lib/entityStats.ts';
 import { Cover } from './Cover.tsx';
 import { fmtHours } from './charts.tsx';
+import { useEntityContext } from './EntityContext.tsx';
 
 const FIRST = 24; // a whole number of rows at every common width (2, 3, 4, 6 and 8 columns)
 
 /** One kind of top list as a grid of pictures with the numbers underneath, like stats.fm. Rows that are in the library link to their stats page. */
 function Section({ title, kind, rows, byTime, image }: { title: string; kind: Exclude<StatsKind, 'era' | 'playlist'>; rows: TopRow[]; byTime: boolean; image: (r: TopRow) => string | null | undefined }) {
   const sorted = [...rows].sort((a, b) => (byTime ? b.ms - a.ms : b.plays - a.plays) || b.ms - a.ms);
+  const { ctx, element } = useEntityContext();
   const CH = useChunks(sorted.length, FIRST, `${kind}|${byTime}|${sorted.length}`);
   if (!sorted.length) return null;
   return (
@@ -22,7 +24,7 @@ function Section({ title, kind, rows, byTime, image }: { title: string; kind: Ex
           const art = <Cover kind={kind === 'artist' ? 'artist' : 'album'} hash={image(r)} seed={r.label} className="transition-transform group-hover:scale-[1.02]" />;
           const name = <span className="bt-cap-t mt-2 block truncate text-sm font-medium" title={r.label}>{r.label}</span>;
           return (
-            <div key={r.key} className="bt-tile group">
+            <div key={r.key} className="bt-tile group" onContextMenu={ctx(r.id ? { kind, id: r.id } : null)}>
               <div className="relative">
                 {to ? <Link to={to} aria-label={`${r.label}: stats`} className="block">{art}</Link> : art}
                 <span className="absolute left-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-bg/80 px-1.5 text-xs font-bold tabular-nums backdrop-blur-sm">{i + 1}</span>
@@ -33,6 +35,7 @@ function Section({ title, kind, rows, byTime, image }: { title: string; kind: Ex
             </div>);
         })}
       </div>
+      {element}
       {CH.left > 0 && <div ref={CH.sentinel} className="flex gap-2"><button className="btn" onClick={CH.more}>Show {Math.min(FIRST, CH.left)} more</button></div>}
     </section>
   );

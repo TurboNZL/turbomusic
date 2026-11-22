@@ -32,7 +32,7 @@ function readPiModel(): string | null {
   return null;
 }
 
-export interface SoloistConfig { deviceName: string; apiKey: string; autoStart: boolean; outputDevice: string; /** send Soloist's sound to a virtual output that the apps listen to (beam.ts) instead of the speakers */ beam: boolean }
+export interface SoloistConfig { deviceName: string; apiKey: string; autoStart: boolean; outputDevice: string; /** send Soloist's sound to a virtual output that the apps listen to (beam.ts) instead of the speakers */ beam: boolean; /** seconds of sound the stream holds back so a busy moment on the server is not heard (0 = none) */ bufferSec: number }
 /** Whether Soloist can reach a sound server (PipeWire or PulseAudio) from the account this server runs as, and what to do if not. */
 export interface AudioCheck { ok: boolean; server: 'pipewire' | 'pulseaudio' | null; runtimeDir: string | null; hint: string | null }
 export interface SoloistStatus {
@@ -43,7 +43,7 @@ export interface SoloistStatus {
   host: SoloistHost;
   audio: AudioCheck;
   /** beaming Soloist's sound to the apps (beam.ts) */
-  beam: { enabled: boolean; sink: 'ready' | 'missing' | 'error' | 'unchecked'; sinkMessage: string | null; streamPath: string } & BeamStatus;
+  beam: { enabled: boolean; bufferSec: number; sink: 'ready' | 'missing' | 'error' | 'unchecked'; sinkMessage: string | null; streamPath: string } & BeamStatus;
   running: boolean; state: 'stopped' | 'starting' | 'running' | 'expired' | 'installing' | 'error';
   message: string | null; log: string[];
   downloadsUrl: string;
@@ -103,7 +103,7 @@ export class Soloist {
 
   constructor(dataDir: string, deps: SoloistDeps = {}) {
     this.dir = join(dataDir, 'soloist'); this.d = deps;
-    this.beam = new Beam({ ffmpegDir: deps.ffmpegDir, env: () => this.soloistEnv(), ...deps.beamDeps });
+    this.beam = new Beam({ ffmpegDir: deps.ffmpegDir, env: () => this.soloistEnv(), bufferSec: () => this.config().bufferSec, ...deps.beamDeps });
   }
 
   private get platform() { return this.d.platform ?? osPlatform(); }
@@ -111,16 +111,16 @@ export class Soloist {
   private get cfgPath() { return join(this.dir, 'config.json'); }
 
   config(): SoloistConfig {
-    try { const c = JSON.parse(readFileSync(this.cfgPath, 'utf8')) as Partial<SoloistConfig>; return { deviceName: c.deviceName ?? 'TurboMusic', apiKey: c.apiKey ?? '', autoStart: c.autoStart ?? true, outputDevice: c.outputDevice ?? '', beam: c.beam ?? false }; }
-    catch { return { deviceName: 'TurboMusic', apiKey: '', autoStart: true, outputDevice: '', beam: false }; }
+    try { const c = JSON.parse(readFileSync(this.cfgPath, 'utf8')) as Partial<SoloistConfig>; return { deviceName: c.deviceName ?? 'TurboMusic', apiKey: c.apiKey ?? '', autoStart: c.autoStart ?? true, outputDevice: c.outputDevice ?? '', beam: c.beam ?? false, bufferSec: Math.max(0, Math.min(30, Number(c.bufferSec) || 0)) }; }
+    catch { return { deviceName: 'TurboMusic', apiKey: '', autoStart: true, outputDevice: '', beam: false, bufferSec: 0 }; }
   }
   /** Saves the device name and, when one is given, the key. An empty key leaves the stored one alone. */
-  configure(o: { deviceName?: string; apiKey?: string; autoStart?: boolean; outputDevice?: string; beam?: boolean }) {
+  configure(o: { deviceName?: string; apiKey?: string; autoStart?: boolean; outputDevice?: string; beam?: boolean; bufferSec?: number }) {
     const cur = this.config();
     const name = (o.deviceName ?? cur.deviceName).trim().slice(0, 60);
     if (!name) throw new Error('Give the device a name.');
     mkdirSync(this.dir, { recursive: true });
-    const next: SoloistConfig = { deviceName: name, apiKey: o.apiKey?.trim() ? o.apiKey.trim() : cur.apiKey, autoStart: o.autoStart ?? cur.autoStart, outputDevice: (o.outputDevice ?? cur.outputDevice).trim().slice(0, 200), beam: o.beam ?? cur.beam };
+    const next: SoloistConfig = { deviceName: name, apiKey: o.apiKey?.trim() ? o.apiKey.trim() : cur.apiKey, autoStart: o.autoStart ?? cur.autoStart, outputDevice: (o.outputDevice ?? cur.outputDevice).trim().slice(0, 200), beam: o.beam ?? cur.beam, bufferSec: o.bufferSec === undefined ? cur.bufferSec : Math.max(0, Math.min(30, Math.round(o.bufferSec * 10) / 10)) };
     writeFileSync(this.cfgPath, JSON.stringify(next), { mode: 0o600 });
     try { chmodSync(this.cfgPath, 0o600); } catch { /* a filesystem without modes */ }
   }
@@ -178,7 +178,7 @@ export class Soloist {
     return {
       supported: sup.ok, reason: sup.reason, installed, version: installed && sup.ok ? await (this.d.version ?? this.readVersion.bind(this))(this.bin).catch(() => null) : null,
       configured: !!c.apiKey, deviceName: c.deviceName, hasKey: !!c.apiKey, autoStart: c.autoStart, outputDevice: c.outputDevice, host: this.host(), audio: this.audio(),
-      beam: { enabled: c.beam, sink: this.sink.state, sinkMessage: this.sink.message, streamPath: '/api/soloist/stream', ...this.beam.status() },
+      beam: { enabled: c.beam, bufferSec: c.bufferSec, sink: this.sink.state, sinkMessage: this.sink.message, streamPath: '/api/soloist/stream', ...this.beam.status() },
       running: !!this.child, state: this.state, message: this.message, log: this.log.slice(-12), downloadsUrl: 'https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates',
     };
   }

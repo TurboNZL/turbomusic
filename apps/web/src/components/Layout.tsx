@@ -89,9 +89,10 @@ const LIBRARY = ['/artists', '/albums', '/singles', '/eras', '/tracks', '/playli
 const TOOLBAR_LABEL: Record<string, string> = { '/': 'Journal' };
 
 
+import { YouTubeMusicIcon } from './BrandIcons.tsx';
 const ADD: { label: string; icon: typeof Plus; target: EditTarget }[] = [
   { label: 'Add audio files', icon: FileAudio, target: { kind: 'upload', id: '' } },
-  { label: 'Album / single from YouTube Music', icon: Download, target: { kind: 'import', id: '' } },
+  { label: 'Album / single from YouTube Music', icon: YouTubeMusicIcon as typeof Plus, target: { kind: 'import', id: '' } },
   { label: 'New album / single by hand', icon: Disc3, target: { kind: 'new-album', id: '' } },
   { label: 'New track', icon: Music2, target: { kind: 'new-track', id: '' } },
   { label: 'New artist', icon: User, target: { kind: 'new-artist', id: '' } },

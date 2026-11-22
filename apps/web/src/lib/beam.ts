@@ -1,5 +1,7 @@
 import { api, useStore } from './store.ts';
 import { nativeAudio, nativeAudioAvailable } from './nativeAudio.ts';
+import { eqAttach } from './eq.ts';
+import { eqConfig } from './eqConfig.ts';
 
 /**
  * Hearing Soloist on this device. Soloist can only play on the machine it runs on (the Pi). With "Send the sound to the apps" on, the
@@ -60,7 +62,7 @@ export async function startBeam(): Promise<boolean> {
     return true;
   }
   mode = 'audio';
-  el ??= new Audio();
+  if (!el) { el = new Audio(); eqAttach(el, eqConfig(useStore.getState().settings)); } // the Spotify stream gets the same equaliser as everything else
   el.src = url; el.volume = volume;
   el.onerror = () => { if (mode === 'audio') retrySoon('error'); };
   el.onended = () => { if (mode === 'audio') retrySoon('ended'); }; // a live stream never ends by itself: the connection was cut

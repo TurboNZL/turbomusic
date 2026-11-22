@@ -8,7 +8,7 @@ import { fresh, peek } from '../lib/swr.ts';
 
 /** How big the catalogue is: what it holds, and how much room the library's files take on the server and on this device. */
 export function CatalogueCard() {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const configured = useStore((s) => !!s.settings.token);
   const [server, setServer] = useState<{ files: { count: number; bytes: number }; disk: { free?: number; total?: number } } | null | 'error'>(() => peek('server-status') ?? null);
   const audioCache = useStore((s) => s.audioCache);

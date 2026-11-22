@@ -20,6 +20,9 @@ const PLACE_WEIGHT = 1.5;
  * better?" questions against songs from the middle of your ranking, then the middle of the half it belongs in, and so on, until its
  * position is clear. Every answer is saved as a normal vote.
  */
+/** A song's score as a label: its place in the 10/10 list when it is a 10, else its rating out of 10 (a place like #673 means little on a 7.2). */
+export const ratingBadge = (t: { effectiveRating: number; tenStarRank: number | null }) => (t.tenStarRank ? `#${t.tenStarRank}` : t.effectiveRating > 0.001 ? `${t.effectiveRating.toFixed(1)}/10` : 'Unrated');
+
 export function PlaceRank({ initialId }: { initialId?: string }) {
   const lib = useLibraryLive();
   const put = useStore((s) => s.put);
@@ -90,9 +93,9 @@ export function PlaceRank({ initialId }: { initialId?: string }) {
       {!done && opponent && <>
         <p className="text-sm text-muted">Is “{subject.title}” better than “{opponent.title}”?</p>
         <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">
-          <PreviewCard t={subject} preview={preview} accent badge="The song" fx={settle === 'win' ? 'win' : settle === 'lose' ? 'lose' : settle === 'equal' ? 'equal' : null}>
+          <PreviewCard t={subject} preview={preview} accent fx={settle === 'win' ? 'win' : settle === 'lose' ? 'lose' : settle === 'equal' ? 'equal' : null}>
             <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={() => answer('better')}><Check size={14} />Better</button></PreviewCard>
-          <PreviewCard t={opponent} preview={preview} badge={`#${probeAt(p) + 1}`} fx={settle === 'lose' ? 'win' : settle === 'win' ? 'lose' : settle === 'equal' ? 'equal' : null}>
+          <PreviewCard t={opponent} preview={preview} badge={ratingBadge(opponent)} fx={settle === 'lose' ? 'win' : settle === 'win' ? 'lose' : settle === 'equal' ? 'equal' : null}>
             <button className="btn w-full !py-1.5 text-sm" onClick={() => answer('worse')}>This one is better</button></PreviewCard>
         </div>
         <div className="flex flex-wrap justify-center gap-2">

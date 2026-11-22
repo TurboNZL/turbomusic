@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Cover } from './Cover.tsx';
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/cn.ts';
+import { useLibrary } from '../lib/derive.ts';
+import { entityFromStatsPath, useEntityContext } from './EntityContext.tsx';
 
 /**
  * Small SVG/CSS charts that follow the theme (accent / muted / line variables). No chart library: every chart is a few lines and
@@ -123,26 +125,37 @@ export function Donut({ slices, size = 120 }: { slices: { label: string; value: 
 /** Ranked rows with a proportional bar behind each. */
 export function RankList({ rows, unit, onPick }: { rows: { key: string; label: string; sub?: string; value: number; extra?: string; to?: string; /** a small picture before the name */ img?: { hash: string | null | undefined; seed: string; kind?: 'album' | 'artist' } }[]; unit?: (n: number) => string; onPick?: (key: string) => void }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
+  const lib = useLibrary();
+  const { ctx, element } = useEntityContext();
+  // a row that links to a stats page is that track, album or artist: it gets its picture (when the caller gave none) and the usual right-click menu
+  const entityOf = entityFromStatsPath;
+  const pictureOf = (e: ReturnType<typeof entityOf>) => {
+    if (!e) return undefined;
+    if (e.kind === 'track') { const t = lib.trackById.get(e.id); return t ? { hash: t.cover, seed: t.albumTitle ?? t.title } : undefined; }
+    if (e.kind === 'album') { const a = lib.albumById.get(e.id); return a ? { hash: a.cover, seed: a.title } : undefined; }
+    const ar = lib.artistById.get(e.id); return ar ? { hash: ar.image, seed: ar.name, kind: 'artist' as const } : undefined;
+  };
   return (
     <ol className="space-y-1">
-      {rows.map((r, i) => (
-        <li key={r.key} className="relative overflow-hidden rounded-theme">
+      {rows.map((r, i) => { const ent = entityOf(r.to); const img = r.img ?? pictureOf(ent); return (
+        <li key={r.key} className="relative overflow-hidden rounded-theme" onContextMenu={ctx(ent)}>
           <div className="absolute inset-y-0 left-0 bg-accent/12" style={{ width: `${(r.value / max) * 100}%` }} aria-hidden />
           <div className="relative flex items-center gap-3 px-2.5 py-1.5 text-sm">
             <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted">{i + 1}</span>
-            {r.img && <Cover hash={r.img.hash} seed={r.img.seed} kind={r.img.kind} className="h-9 w-9 shrink-0" />}
+            {img && <Cover hash={img.hash} seed={img.seed} kind={img.kind} className="h-9 w-9 shrink-0" />}
             {r.to
               ? <Link to={r.to} className="min-w-0 flex-1 no-underline after:absolute after:inset-0 hover:[&_.rl]:underline"><span className="rl block truncate font-medium">{r.label}</span>{r.sub && <span className="block truncate text-xs text-muted">{r.sub}</span>}</Link>
               : <span className="min-w-0 flex-1"><span className="block truncate font-medium">{r.label}</span>{r.sub && <span className="block truncate text-xs text-muted">{r.sub}</span>}</span>}
             {r.extra && <span className="hidden shrink-0 text-xs text-muted sm:block">{r.extra}</span>}
             <span className="shrink-0 text-xs font-semibold tabular-nums">{unit ? unit(r.value) : r.value}</span>
           </div>
-        </li>))}
+        </li>); })}
+      {element}
     </ol>
   );
 }
 
-export function Kpi({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon?: React.ReactNode }) {
+export function Kpi({ label, value, sub, icon }: { label: string; value: string; sub?: React.ReactNode; icon?: React.ReactNode }) {
   return <div className="card p-4"><div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted">{icon}{label}</div><div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>{sub && <div className="text-xs text-muted">{sub}</div>}</div>;
 }
 

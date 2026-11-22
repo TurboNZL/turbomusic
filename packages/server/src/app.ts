@@ -264,9 +264,9 @@ export function createApp(
   // ---- Soloist (soloist.ts): Spotify's own headless Connect client, installed and run by this server so TurboMusic plays Spotify tracks itself ----
   app.get('/api/soloist', async (c) => c.json(await soloist.status()));
   app.post('/api/soloist/config', async (c) => {
-    const b = (await c.req.json().catch(() => ({}))) as { deviceName?: unknown; apiKey?: unknown; autoStart?: unknown; outputDevice?: unknown; beam?: unknown };
+    const b = (await c.req.json().catch(() => ({}))) as { deviceName?: unknown; apiKey?: unknown; autoStart?: unknown; outputDevice?: unknown; beam?: unknown; bufferSec?: unknown };
     const before = soloist.config();
-    try { soloist.configure({ deviceName: typeof b.deviceName === 'string' ? b.deviceName : undefined, apiKey: typeof b.apiKey === 'string' ? b.apiKey : undefined, autoStart: typeof b.autoStart === 'boolean' ? b.autoStart : undefined, beam: typeof b.beam === 'boolean' ? b.beam : undefined, outputDevice: typeof b.outputDevice === 'string' ? b.outputDevice : undefined }); const now = soloist.config();
+    try { soloist.configure({ deviceName: typeof b.deviceName === 'string' ? b.deviceName : undefined, apiKey: typeof b.apiKey === 'string' ? b.apiKey : undefined, autoStart: typeof b.autoStart === 'boolean' ? b.autoStart : undefined, beam: typeof b.beam === 'boolean' ? b.beam : undefined, bufferSec: typeof b.bufferSec === 'number' && Number.isFinite(b.bufferSec) ? b.bufferSec : undefined, outputDevice: typeof b.outputDevice === 'string' ? b.outputDevice : undefined }); const now = soloist.config();
       // Soloist is started pointed at its output, so a change of output (speakers or the stream) needs a restart to take effect
       if ((now.beam !== before.beam || now.outputDevice !== before.outputDevice) && (await soloist.status()).running) { await soloist.stop(); try { soloist.start(); } catch { /* shown in the status */ } }
       return c.json(await soloist.status()); }

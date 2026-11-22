@@ -26,7 +26,9 @@ export function WidgetCard() {
   const shown = reveal ? url : url.replace(/token=[^&]+/, 'token=••••••••').replace(viaTunnel ? /^https?:\/\/[^/]+/ : /$^/, 'https://••••••••');
   const loopback = /\/\/(localhost|127\.|\[::1\])/.test(base);
   const copy = async () => { try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { setReveal(true); } };
-  const px = Math.round(320 * o.scale);
+  const px = Math.round(o.width * o.scale);
+  const slider = (label: string, key: 'width' | 'height', min: number, max: number, step: number, show: (n: number) => string) => (
+    <label className="space-y-1 text-sm">{label}<div className="flex items-center gap-2"><input type="range" className="bt-range bt-hit flex-1" style={{ '--p': `${((o[key] - min) / (max - min)) * 100}%` } as React.CSSProperties} min={min} max={max} step={step} value={o[key]} onChange={(e) => set({ [key]: Number(e.target.value) })} /><span className="w-16 text-right tabular-nums">{show(o[key])}</span></div></label>);
   const check = (key: keyof WidgetOptions, label: string, hint?: string) => (
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5 shrink-0" checked={o[key] as boolean} onChange={(e) => set({ [key]: e.target.checked })} /><span>{label}{hint && <span className="text-muted"> ({hint})</span>}</span></label>);
   return (
@@ -48,6 +50,8 @@ export function WidgetCard() {
         <label className="space-y-1 text-sm">Only show after a song changes<Select value={String(o.songChange)} onChange={(v) => set({ songChange: Number(v) })} options={[['0', 'Always visible'], ['5', 'For 5 seconds'], ['10', 'For 10 seconds'], ['15', 'For 15 seconds'], ['30', 'For 30 seconds']].map(([value, label]) => ({ value, label }))} /></label>
         <label className="space-y-1 text-sm">Background<Select value={o.bg} onChange={(v) => set({ bg: v as WidgetOptions['bg'] })} options={[{ value: 'transparent', label: 'See-through (OBS)' }, { value: 'dark', label: 'Solid dark (a window)' }, { value: 'light', label: 'Solid light (a window)' }]} /></label>
         <label className="space-y-1 text-sm">Size<div className="flex items-center gap-2"><input type="range" className="bt-range bt-hit flex-1" style={{ '--p': `${((o.scale - 0.5) / 2.5) * 100}%` } as React.CSSProperties} min={0.5} max={3} step={0.1} value={o.scale} onChange={(e) => set({ scale: Number(e.target.value) })} /><span className="w-10 text-right tabular-nums">{o.scale.toFixed(1)}×</span></div></label>
+        {slider('Width', 'width', 240, 800, 10, (n) => `${n} px`)}
+        {slider('Height', 'height', 0, 400, 10, (n) => (n === 0 ? 'Auto' : `${n} px`))}
         <label className="space-y-1 text-sm">Progress colour<div className="flex items-center gap-2"><input type="color" className="h-9 w-12 cursor-pointer rounded border border-line bg-transparent" value={o.accent ? `#${o.accent.replace('#', '')}` : '#a855f7'} onChange={(e) => set({ accent: e.target.value })} /><button type="button" className="btn btn-ghost !py-1 text-xs" disabled={!o.accent} onClick={() => set({ accent: '' })}>Default</button></div></label>
       </div>
       <label className="block space-y-1 text-sm">Text when nothing is playing <span className="text-muted">(empty = “Nothing playing”)</span><input className="input" value={o.idle} onChange={(e) => set({ idle: e.target.value })} placeholder="Nothing playing" /></label>
@@ -56,7 +60,7 @@ export function WidgetCard() {
         <div className="overflow-hidden rounded-theme border border-line" style={{ background: 'repeating-conic-gradient(rgba(128,128,128,.18) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px' }}>
           {viaTunnel
             ? <div className="flex h-36 items-center justify-center p-4 text-center text-xs text-muted">No preview for a tunnel address: it would show Cloudflare’s sign-in page, with your address in it. Pick the network address below to preview.</div>
-            : <iframe key={url} title="Widget preview" src={url} className="block w-full" style={{ height: Math.max(150, o.skin === 'gallery' ? px * 1.5 : px * 0.5), border: 0 }} />}
+            : <iframe key={url} title="Widget preview" src={url} className="block w-full" style={{ height: Math.max(150, o.height > 0 ? o.height * o.scale + 24 : o.skin === 'gallery' ? px * 1.3 : px * 0.34), border: 0 }} />}
         </div>
         <p className="text-xs text-muted">Play something in the app to see it. The preview needs this page to be able to reach the server at the address below.</p>
       </div>

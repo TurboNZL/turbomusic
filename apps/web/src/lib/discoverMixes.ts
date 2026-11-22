@@ -28,17 +28,41 @@ export function spread<T extends MixTrack>(tracks: T[], per = 2, perAlbum = 2): 
   });
 }
 
-/** Songs you rate highly and have hardly played: the ones the plays do not know about yet. */
-export function hiddenGems<T extends MixTrack>(tracks: T[], plays: Plays, n = 25, minRating = 7, maxPlays = 2): T[] {
-  return spread(tracks.filter((t) => t.rating >= minRating && (plays.count.get(t.id) ?? 0) <= maxPlays && (plays.count.get(t.id) ?? 0) > 0 || (t.rating >= minRating && !plays.count.has(t.id)))
-    .sort((a, b) => b.rating - a.rating), 2, 2).slice(0, n);
+/**
+ * The rating that counts as "highly rated" for THIS library: the given share of rated songs sit above it (never below `floor`).
+ * A fixed 7 or 7.5 was out of reach for someone whose best songs rate in the sevens, and left these mixes empty.
+ */
+export function ratingCut(tracks: MixTrack[], above = 0.35, floor = 4.5, small = 7): number {
+  const r = tracks.filter((t) => t.rating > 0.001).map((t) => t.rating).sort((a, b) => a - b);
+  if (r.length < 8) return small; // too few ratings to know what is high for you: the plain 7
+  return Math.max(floor, r[Math.min(r.length - 1, Math.floor(r.length * (1 - above)))]);
 }
 
-/** Songs you loved and have not heard for a while (longest ago first among the best). */
-export function forgottenFavourites<T extends MixTrack>(tracks: T[], plays: Plays, now: number, n = 25, minRating = 7.5, quietDays = 21): T[] {
-  const cutoff = now - quietDays * 86_400_000;
-  return spread(tracks.filter((t) => t.rating >= minRating && (plays.count.get(t.id) ?? 0) > 0 && (plays.last.get(t.id) ?? 0) < cutoff)
-    .sort((a, b) => b.rating - a.rating || (plays.last.get(a.id) ?? 0) - (plays.last.get(b.id) ?? 0)), 2, 2).slice(0, n);
+/** Songs you rate highly and have hardly played: the ones the plays do not know about yet. Loosens (a few more plays allowed) until there are enough. */
+export function hiddenGems<T extends MixTrack>(tracks: T[], plays: Plays, n = 25, minRating?: number, maxPlays?: number): T[] {
+  const cut = minRating ?? ratingCut(tracks, 0.35);
+  const limits = maxPlays !== undefined ? [maxPlays] : [1, 2, 4, 8];
+  let out: T[] = [];
+  for (const lim of limits) {
+    out = spread(tracks.filter((t) => t.rating >= cut && (plays.count.get(t.id) ?? 0) <= lim)
+.sort((a, b) => b.rating - a.rating), 2, 2).slice(0, n);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+/** Songs you loved and have not heard for a while (longest ago first among the best). Shortens the quiet time until there are enough. */
+export function forgottenFavourites<T extends MixTrack>(tracks: T[], plays: Plays, now: number, n = 25, minRating?: number, quietDays?: number): T[] {
+  const cut = minRating ?? ratingCut(tracks, 0.4, 4.5, 7.5);
+  const ladder = quietDays !== undefined ? [quietDays] : [21, 14, 7, 3];
+  let out: T[] = [];
+  for (const days of ladder) {
+    const cutoff = now - days * 86_400_000;
+    out = spread(tracks.filter((t) => t.rating >= cut && (plays.count.get(t.id) ?? 0) > 0 && (plays.last.get(t.id) ?? 0) < cutoff)
+      .sort((a, b) => b.rating - a.rating || (plays.last.get(a.id) ?? 0) - (plays.last.get(b.id) ?? 0)), 2, 2).slice(0, n);
+    if (out.length >= n) break;
+  }
+  return out;
 }
 
 /** Never-played songs by the artists you rate highest: where a surprise is most likely to land. `artistWeight` maps an artist id to how much you like them. */

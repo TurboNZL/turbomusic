@@ -1,5 +1,5 @@
 import { PlainToolbar } from '../components/ListToolbar.tsx';
-import type { SortOption } from '../lib/listSort.ts';
+import { PLAYLIST_SORTS, readPlaylistSort, sortPlaylists, writePlaylistSort, type PlaylistSort } from '../lib/playlistSort.ts';
 import type { SortDir } from '../lib/trackSort.ts';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
@@ -27,8 +27,6 @@ import { SyncBar } from '../components/SyncedPlaylist.tsx';
 import { splitSynced } from '../lib/playlistSync.ts';
 
 /** Marks the playlists TurboMusic fills in by itself (thumbs up / down), so they are not mistaken for ones you made. */
-type PlaylistSort = 'new' | 'name' | 'size';
-const PLAYLIST_SORTS: SortOption<PlaylistSort>[] = [{ value: 'new', label: 'Date made', dir: 'desc' }, { value: 'name', label: 'Name', dir: 'asc' }, { value: 'size', label: 'Most songs', dir: 'desc' }];
 
 export function AutoBadge({ className }: { className?: string }) {
   return <span title="Made automatically from your thumbs. You cannot edit it." className={cn('inline-flex w-fit items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur', className)}><Sparkles size={11} />Auto</span>;
@@ -45,8 +43,12 @@ export function PlaylistsPage() {
   const menuItems = usePlaylistMenuItems();
   const [adding, setAdding] = useState('');
   const [find, setFind] = useState('');
-  const [sort, setSort] = useState<PlaylistSort>('new');
-  const [dir, setDir] = useState<SortDir>('desc');
+  const saved = useMemo(readPlaylistSort, []);
+  const [sort, setSortState] = useState<PlaylistSort>(saved.sort);
+  const [dir, setDirState] = useState<SortDir>(saved.dir);
+  const setSort = (k: PlaylistSort) => { setSortState(k); };
+  const setDir = (d: SortDir) => { setDirState(d); };
+  useEffect(() => writePlaylistSort(sort, dir), [sort, dir]);
   const deferredFind = useDeferredValue(find); // typing stays smooth: the lists below follow a moment later
   // two automatic playlists (thumbs up / thumbs down) come first; they are read-only
   const quick = useMemo(() => quickPlaylists(lib), [lib]);
@@ -56,10 +58,8 @@ export function PlaylistsPage() {
     const f = deferredFind.trim().toLowerCase();
     const base = !f ? all : all.filter((p) => `${p.name} ${p.description ?? ''}`.toLowerCase().includes(f)
       || playlistTrackIds(lib, p).some((id) => { const t = lib.trackById.get(id); return !!t && `${t.title} ${t.artistName}`.toLowerCase().includes(f); }));
-    const sg = dir === 'asc' ? 1 : -1;
-    const key = (p: (typeof all)[number]) => (sort === 'name' ? p.name : sort === 'size' ? playlistCount(lib, p).n : p.createdAt ?? 0);
     // the automatic playlists (thumbs up / down) stay on top, the rest follow the chosen order
-    const own = base.filter((p) => !isQuickPlaylist(p.id)).sort((x, y) => { const a = key(x), b = key(y); return (typeof a === 'string' ? a.localeCompare(b as string, undefined, { sensitivity: 'base', numeric: true }) : (a as number) - (b as number)) * sg; });
+    const own = sortPlaylists(base.filter((p) => !isQuickPlaylist(p.id)), sort, dir, (p) => playlistCount(lib, p).n);
     return [...base.filter((p) => isQuickPlaylist(p.id)), ...own];
   }, [lib, all, deferredFind, sort, dir]);
   const open = all.find((p) => p.id === openId);

@@ -8,6 +8,8 @@ export interface ListenStats {
   daysActive: number; days: number; avgMsPerDay: number;
   longestStreak: { days: number; from: string | null; to: string | null }; currentStreak: number;
   firstTs: number | null; lastTs: number | null;
+  /** the play that came first (what you heard first), when the track is in the library */
+  firstListen: { trackId: string | null; title: string; artist: string } | null;
   topTracks: TopRow[]; topArtists: TopRow[]; topAlbums: TopRow[];
   /** ms listened per hour of the day (local time) */
   byHour: number[];
@@ -119,7 +121,7 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
     plays: rows.length, ms, skips, skipRate: rows.length ? skips / rows.length : 0,
     distinctTracks: tracks.size, distinctArtists: artists.size, distinctAlbums: albums.size,
     daysActive: byDay.size, days: spanDays, avgMsPerDay: spanDays ? ms / spanDays : 0,
-    longestStreak: best, currentStreak, firstTs: first, lastTs: last,
+    longestStreak: best, currentStreak, firstTs: first, lastTs: last, firstListen: rows[0] ? { trackId: rows[0].trackId, title: rows[0].title, artist: rows[0].artist } : null,
     topTracks: top(tracks, 'plays', n), topArtists: top(artists, 'plays', n), topAlbums: top(albums, 'plays', n),
     byHour, byWeekday, clock, byDay,
     byMonth: [...months.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v })),

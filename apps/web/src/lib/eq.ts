@@ -23,6 +23,19 @@ function route(el: HTMLAudioElement) {
 /** Tell the equaliser about another player element so its sound goes through the same chain. */
 export function addEqElement(el: HTMLAudioElement) { elements.add(el); route(el); }
 
+/**
+ * Route another element (a Rank preview, the Spotify stream) through the same equaliser, so the volume of previews matches what you set
+ * for playback (bass boost especially: a preview that skipped it was far louder). Call before the element's `src` is set. Does nothing
+ * while the equaliser is off and was never turned on.
+ */
+export function eqAttach(el: HTMLAudioElement, cfg: EqConfig) {
+  if (isFlat(cfg) && !graph) return;
+  el.crossOrigin = 'anonymous'; // the graph reads the sound: the server answers with CORS headers
+  addEqElement(el);
+  if (!graph) setEq(el, cfg);
+  el.addEventListener('play', resumeEq);
+}
+
 export function setEq(el: HTMLAudioElement, cfg: EqConfig) {
   const flat = isFlat(cfg);
   if (!graph) {

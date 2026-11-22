@@ -22,7 +22,7 @@ function Thumb({ hash }: { hash: string }) {
  * included). The server downloads each picture into the library; nothing is attached until it is ticked.
  */
 export function FindArtistImagesDialog({ onClose }: { onClose: () => void }) {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const patch = useStore((s) => s.patch);
   const configured = useStore((s) => !!s.settings.token);
   // the artists with no picture, the most relevant first (most tracks, best-rated tracks, memories); how many to look up is the user's choice,
@@ -94,7 +94,7 @@ interface AlbumRow { id: string; label: string; props: Proposal[] }
  * both wait for your choice, so no tag is created behind your back.
  */
 export function FindGenresDialog({ onClose }: { onClose: () => void }) {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const patch = useStore((s) => s.patch);
   const put = useStore((s) => s.put);
   const configured = useStore((s) => !!s.settings.token);
@@ -178,7 +178,7 @@ const ChoiceBtn = ({ on, onClick, children, accent }: { on: boolean; onClick: ()
 
 /** Merge tags: choose the ones to fold away and the one they become (an existing tag or a new name); every album and track that has any of them gets the one tag. */
 export function MergeGenresDialog({ onClose }: { onClose: () => void }) {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const { patch, put, remove } = useStore();
   const [from, setFrom] = useState<string[]>([]);
   const [into, setInto] = useState('');

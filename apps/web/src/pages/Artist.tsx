@@ -37,7 +37,10 @@ export function ArtistPage() {
     if (!artist) return { albums: [], singles: [], tracks: [], features: [], eraIds: [] as string[] };
     const credited = (cs: { artistId: string }[]) => cs.some((c) => c.artistId === artist.id);
     const allAlbums = lib.albums.filter((a) => credited(a.credits));
-    const allTracks = lib.tracks.filter((t) => credited(t.credits));
+    // a song counts as the artist's when it is credited to them OR sits on an album credited to them
+    // (a soundtrack or compilation: "Grand Theft Auto VI" owns the album while each song has its own lead artists)
+    const ownAlbumIds = new Set(allAlbums.map((a) => a.id));
+    const allTracks = lib.tracks.filter((t) => credited(t.credits) || (t.albumId != null && ownAlbumIds.has(t.albumId)));
     // the eras this artist appears in; picking one narrows the page to it
     const eraIds = [...new Set([...allAlbums.flatMap((a) => a.eraIds), ...allTracks.flatMap((t) => t.eraIds)])].filter((e) => lib.eraById.has(e));
     // albums and singles run by release date (undated last whichever way it runs); the direction is remembered

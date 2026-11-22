@@ -83,15 +83,15 @@ export function buildListens(lib: Library): Listen[] {
 }
 
 /**
- * Once Spotify's own history is imported it holds the plays the silent mirror made, so the TurboMusic play that the mirror accompanied
- * (flagged `mirrored`) and an imported play of the same track ending within three minutes of it are one play: the import wins (it is
- * Spotify's own record), the TurboMusic row is dropped. Without an import the mirrored plays count as the TurboMusic plays they are.
+ * While the silent mirror runs, a song played in TurboMusic is also played on Spotify, so Spotify's history (an export file or the
+ * automatic check) holds the same play. The TurboMusic play (flagged `mirrored`) is the one you made, so it stays and the Spotify
+ * record of the same song within six minutes of it is dropped; plays you made on Spotify itself are untouched.
  */
 export function dropMirrorTwins(listens: Listen[]): Listen[] {
-  const spotify = new Map<string, number[]>();
-  for (const l of listens) if (l.source === 'spotify' && l.trackId) spotify.set(l.trackId, [...(spotify.get(l.trackId) ?? []), l.ts]);
-  if (!spotify.size) return listens;
-  return listens.filter((l) => !(l.mirrored && l.trackId && (spotify.get(l.trackId) ?? []).some((ts) => Math.abs(ts - l.ts) <= 180_000)));
+  const mirrored = new Map<string, number[]>();
+  for (const l of listens) if (l.mirrored && l.trackId) mirrored.set(l.trackId, [...(mirrored.get(l.trackId) ?? []), l.ts]);
+  if (!mirrored.size) return listens;
+  return listens.filter((l) => !(l.source === 'spotify' && l.trackId && (mirrored.get(l.trackId) ?? []).some((ts) => Math.abs(ts - l.ts) <= 360_000)));
 }
 
 /**

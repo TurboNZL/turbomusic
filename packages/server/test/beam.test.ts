@@ -55,3 +55,31 @@ describe('Beam (Soloist\'s sound as a live stream)', () => {
     expect(beam.status().error).toMatch(/ffmpeg is not installed/);
   });
 });
+
+describe('Beam jitter buffer', () => {
+  it('holds sound back until the buffer is full, then sends it at the stream rate (a burst is not sent as a burst)', async () => {
+    const kids: FakeChild[] = [];
+    const beam = new Beam({ bufferSec: () => 0.5, spawnImpl: (() => { const c = new FakeChild(); kids.push(c); return c; }) as never });
+    const got: number[] = [];
+    beam.listen((c) => got.push(c.length), () => undefined);
+    kids[0].stdout.emit('data', Buffer.alloc(4000)); // a quarter of a second: not enough to start
+    await new Promise((r) => setTimeout(r, 120));
+    expect(got).toEqual([]);
+    expect(beam.status().buffered).toBeCloseTo(0.3, 1);
+    kids[0].stdout.emit('data', Buffer.alloc(8000)); // now half a second is held: it starts leaving, but only as fast as the clock allows
+    await new Promise((r) => setTimeout(r, 150));
+    const sent = got.reduce((a, b) => a + b, 0);
+    expect(sent).toBeGreaterThan(0); expect(sent).toBeLessThan(8000); // 150 ms at 16 kB/s is about 2400 bytes (chunks are sent whole)
+  });
+  it('with no buffer the sound goes straight through, as before', () => {
+    const kids: FakeChild[] = [];
+    const beam = new Beam({ spawnImpl: (() => { const c = new FakeChild(); kids.push(c); return c; }) as never });
+    const got: Buffer[] = [];
+    beam.listen((c) => got.push(c), () => undefined);
+    kids[0].stdout.emit('data', Buffer.from([9]));
+    expect(got).toHaveLength(1);
+  });
+  it('reads bigger pieces when a buffer is on', () => {
+    expect(ffmpegArgs(undefined, 3)).toContain('8192'); expect(ffmpegArgs()).toContain('2048');
+  });
+});

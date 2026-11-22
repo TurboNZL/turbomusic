@@ -5,6 +5,7 @@ import { MergeTracksDialog } from './MergeTracksDialog.tsx';
 import { MergePlaylistDialog, SyncedPlaylistDialog } from './SyncedPlaylist.tsx';
 import { MergeWithDialog, type MergeKind } from './MergeWith.tsx';
 import { SpotifyLinks } from './SpotifyLinks.tsx';
+import { PasteCreditsDialog } from './PasteCredits.tsx';
 import { Loader2, Search, X } from 'lucide-react';
 import { makePrimary } from '../lib/autofill.ts';
 import { Select, albumOptions } from './Select.tsx';
@@ -34,6 +35,7 @@ import { eraPatches } from '../lib/eraOps.ts';
 import { AudioPicker, CreditsEditor, FeaturedEditor, EntityPicker, EraPicker, Field, ImagePicker, Modal, TagInput, TrackPicker } from './forms.tsx';
 import { CrossfadePick } from './CrossfadeCard.tsx';
 import { FindArtistImagesDialog, FindGenresDialog, MergeGenresDialog } from './FillGaps.tsx';
+import { OrderRankDialog } from './OrderRank.tsx';
 import { AddToPlaylistDialog, AddAlbumToPlaylistDialog, NewArtistDialog, PlaylistDialog, UploadDialog } from './Dialogs.tsx';
 import { AddToAlbumDialog, ReleaseChoicePicker } from './AddToAlbum.tsx';
 
@@ -631,6 +633,8 @@ export function EditorFor({ target, close }: { target: EditTarget; close: () => 
   if (target.kind === 'import-spotify') return <SpotifyImportDialog key="import-spotify" onClose={close} />;
   if (target.kind === 'new-synced-playlist') return <SyncedPlaylistDialog key="new-synced-playlist" onClose={close} />;
   if (target.kind === 'merge-playlist') return <MergePlaylistDialog key={key} spec={target.id} onClose={close} />;
+  if (target.kind === 'order-rank') return <OrderRankDialog key={key} id={target.id} onClose={close} />;
+  if (target.kind === 'paste-credits') return <PasteCreditsDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'merge-with') { const [k, ...rest] = target.id.split(':'); return <MergeWithDialog key={key} kind={k as MergeKind} id={rest.join(':')} onClose={close} />; }
   if (target.kind === 'merge-album') return <MergeAlbumDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'match-links') return <MatchLinksDialog key={`match-links-${target.id}`} albumId={target.id} onClose={close} />;

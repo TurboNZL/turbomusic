@@ -12,7 +12,7 @@ const Bar = ({ value, tone = 'accent' }: { value: number; tone?: 'accent' | 'goo
 
 /** Downloads the audio of tracks that only have a YouTube link (runs on the server). Moved here from Settings. */
 export function MissingAudioCard() {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const configured = useStore((s) => !!s.settings.token);
   const [msg, setMsg] = useState<string | null>(null);
   const [st, setSt] = useState<{ queued: number; running: number; done: number; failed: number; failures: { trackId: string; error: string; dead?: boolean }[]; active?: { trackId: string; stage: 'downloading' | 'converting'; percent: number }[] } | null>(null);
@@ -62,7 +62,7 @@ export function MissingAudioCard() {
 
 /** Re-measures the audio files (real bit rate and the highest frequency that has sound) to find "320"s that are really low-quality sources. */
 export function AudioQualityCard() {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const configured = useStore((s) => !!s.settings.token);
   const patch = useStore((s) => s.patch);
   const [p, setP] = useState<CheckProgress | null>(null);

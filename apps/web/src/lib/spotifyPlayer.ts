@@ -53,6 +53,10 @@ const device = () => useStore.getState().settings.spotifyDeviceId;
 const fail = (e: unknown) => useSpotifyLink.setState({ error: (e as Error).message });
 setBeamErrorListener((m) => useSpotifyLink.setState({ error: m }));
 
+/** Where the song should be by now, by the clock since the last report (a poll can fall seconds before the end, so the last reported position alone looks unfinished). */
+const expectedMs = () => (playingNow ? lastProgress + (Date.now() - lastAt) : lastProgress);
+let pollQuick = 0;
+
 async function poll() {
   if (!uri) return;
   try {
@@ -60,12 +64,16 @@ async function poll() {
     const s = st.state;
     useSpotifyLink.setState({ lastState: s, error: null });
     const mine = s?.track?.uri === uri;
+    const nearEnd = lastDuration > 0 && expectedMs() >= lastDuration - 8000;
     if (mine && s) {
+      // Spotify keeps the last song loaded but paused (at the start or at the very end) when nothing is queued behind it: that is the end of the song too
+      const stoppedAtEnd = !s.playing && playingNow && nearEnd && (s.progressMs <= 1500 || s.progressMs >= s.track!.durationMs - 2000);
+      if (stoppedAtEnd && Date.now() - startedAt > 6000) { stopPolling(); uri = null; onReport({ playing: false, timeMs: 0, durationMs: 0, ended: true }); return; }
       lastProgress = s.progressMs; lastDuration = s.track!.durationMs; lastAt = Date.now(); playingNow = s.playing;
       onReport({ playing: s.playing, timeMs: s.progressMs, durationMs: lastDuration, ended: false });
     } else if (Date.now() - startedAt > 6000) {
       // another track (or nothing) is playing now: ours finished if it had got to the end, else something else took over
-      const finished = lastDuration > 0 && lastProgress >= lastDuration - 6000;
+      const finished = nearEnd;
       stopPolling(); uri = null;
       onReport({ playing: false, timeMs: 0, durationMs: 0, ended: finished });
     }
@@ -77,7 +85,11 @@ function stopPolling() { if (timer) { clearInterval(timer); timer = undefined; }
 let tick: ReturnType<typeof setInterval> | undefined;
 function startTicking() {
   clearInterval(tick);
-  tick = setInterval(() => { if (uri && playingNow) onReport({ playing: true, timeMs: Math.min(lastDuration || Infinity, lastProgress + (Date.now() - lastAt)), durationMs: lastDuration, ended: false }); }, 500);
+  tick = setInterval(() => {
+    // the clock says the song is over: ask Spotify now instead of waiting for the next poll, so the next song starts without a gap
+    if (uri && playingNow && lastDuration > 0 && expectedMs() >= lastDuration - 200 && Date.now() - pollQuick > 1500) { pollQuick = Date.now(); void poll(); }
+    if (uri && playingNow) onReport({ playing: true, timeMs: Math.min(lastDuration || Infinity, lastProgress + (Date.now() - lastAt)), durationMs: lastDuration, ended: false });
+  }, 500);
 }
 
 export const spotifyEngine = {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Loader2, Play, Square, Trash2 } from 'lucide-react';
+import { Download, Loader2, Play, Radio, Square, Trash2 } from 'lucide-react';
+import { SettingsGroup } from './SettingsGroup.tsx';
 import type { SoloistInfo } from '../lib/api.ts';
 import { api, useStore } from '../lib/store.ts';
 import { forgetBeamInfo } from '../lib/beam.ts';
@@ -32,6 +33,19 @@ function SoloistVolume({ name }: { name: string }) {
           <div className="flex items-center gap-3"><input type="range" aria-label="Soloist volume" className="bt-range bt-hit flex-1" style={{ ['--p' as string]: `${v}%` }} min={0} max={100} step={1} value={v} onChange={(e) => set(Number(e.target.value))} /><span className="w-10 text-right text-xs tabular-nums text-muted">{v}%</span></div>
           <p className="text-xs text-muted">Set this once (a high level is best) and use the volume slider in the player bar for everyday listening: that one changes the sound on this device at once. This one goes through Spotify and takes a moment to be heard.</p>
           {err && <p className="text-xs text-bad">{err}</p>}</>}
+    </div>
+  );
+}
+
+/** The stream's safety buffer: seconds of sound held back so a busy moment on the server (a request from an app, a sync) is not heard as a stutter. */
+function BufferSlider({ info, disabled, onChange }: { info: SoloistInfo; disabled: boolean; onChange: (n: number) => void }) {
+  const [v, setV] = useState(info.beam.bufferSec);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-3"><span className="font-medium">Safety buffer</span><span className="text-xs tabular-nums text-muted">{v === 0 ? 'Off' : `${v} s`}{info.beam.running && v > 0 ? ` · holding ${info.beam.buffered} s now` : ''}</span></div>
+      <input type="range" aria-label="Safety buffer in seconds" className="bt-range bt-hit w-full" style={{ ['--p' as string]: `${(v / 20) * 100}%` }} min={0} max={20} step={1} value={v} disabled={disabled}
+        onChange={(e) => setV(Number(e.target.value))} onPointerUp={() => v !== info.beam.bufferSec && onChange(v)} onKeyUp={() => v !== info.beam.bufferSec && onChange(v)} />
+      <p className="text-xs text-muted">If Spotify stutters whenever something else asks the server for data, raise this. The sound then arrives a few seconds late (the start of a song takes that much longer) but a busy moment on the server is smoothed over. Off is the quickest start.</p>
     </div>
   );
 }
@@ -75,19 +89,19 @@ export function SoloistPanel() {
   if (!configured) return null;
   if (!info) return error ? <div className="rounded-theme bg-bad/15 p-3 text-sm text-bad">{error}</div> : null;
   if (!info.supported) return (
-    <div className="space-y-1 border-t border-line pt-4 text-sm"><div className="font-medium">Soloist</div>
+    <SettingsGroup icon={<Radio size={18} />} title="Soloist" collapsible defaultOpen={false} hint="Plays Spotify from a Raspberry Pi server.">
       <p className="text-muted">{info.reason}</p>
-      <p className="text-xs text-muted">Everywhere else, Spotify plays through the Spotify app on a computer or phone: it appears in the device list (cast button) and TurboMusic controls it.</p></div>);
+      <p className="text-xs text-muted">Everywhere else, Spotify plays through the Spotify app on a computer or phone: it appears in the device list (cast button) and TurboMusic controls it.</p></SettingsGroup>);
 
   const working = !!busy || ['installing', 'expired'].includes(info.state);
   return (
-    <div className="space-y-3 border-t border-line pt-4 text-sm">
-      <div className="flex flex-wrap items-center gap-2"><div className="font-medium">Soloist: play Spotify inside TurboMusic</div>
-        <span className={info.state === 'running' ? 'chip !text-good' : info.state === 'error' ? 'chip !text-bad' : 'chip'}>{STATE[info.state]}</span>{info.version && <span className="text-xs text-muted">{info.version}</span>}</div>
+    <SettingsGroup icon={<Radio size={18} />} title="Soloist" collapsible defaultOpen={info.state !== 'running' || !info.installed} hint="Plays Spotify from your server, so no other Spotify app has to be open."
+      badge={<span className={info.state === 'running' ? 'chip !text-good' : info.state === 'error' ? 'chip !text-bad' : 'chip'}>{STATE[info.state]}</span>}>
+      {info.version && <div className="text-xs text-muted">{info.version}</div>}
       <div className="rounded-theme border border-line px-3 py-2 text-xs"><span className="text-muted">Runs on:</span> <b>{info.host.name}</b>{info.host.model ? <span className="text-muted"> · {info.host.model}</span> : null}<span className="text-muted"> · the server this app is connected to, not this device</span></div>
       <p className="text-muted">Spotify’s own headless Spotify Connect player. It runs on your Raspberry Pi (the server), never in this app or on a desktop, and plays through the Pi’s sound output. Turn on “Send the sound to the apps” below to hear it on this device instead. It shows up in the device list as “{info.deviceName}”. It needs Spotify Premium and PipeWire or PulseAudio audio. Soloist is Spotify’s software, downloaded from Spotify’s server, under Spotify’s terms; builds expire after 90 days and TurboMusic replaces them by itself.</p>
 
-      <ol className="space-y-3">
+      <ol className="space-y-6">
         <li className="space-y-1.5"><div className="font-medium">Install</div>
           <button className="btn" disabled={working} onClick={() => void act('Installing…', () => api().soloistInstall())}>{busy === 'Installing…' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{info.installed ? 'Update Soloist' : 'Download and install Soloist'}</button></li>
         <li className="space-y-1.5"><div className="font-medium">API key and name</div>
@@ -108,6 +122,7 @@ export function SoloistPanel() {
           {info.beam.enabled && info.beam.sinkMessage && <div className="rounded-theme bg-bad/15 p-2 text-xs text-bad">{info.beam.sinkMessage}</div>}
           {info.beam.enabled && info.beam.error && <div className="rounded-theme bg-bad/15 p-2 text-xs text-bad">{info.beam.error}</div>}
           {info.beam.enabled && <p className="text-xs text-muted">{info.beam.running ? `Streaming now to ${info.beam.listeners} listener${info.beam.listeners === 1 ? '' : 's'}.` : 'The stream starts when a device plays Spotify.'}</p>}
+          {info.beam.enabled && <BufferSlider info={info} disabled={working} onChange={(n) => void act('Saving…', () => api().soloistConfig({ bufferSec: n }))} />}
           {info.beam.enabled && <label className="flex items-center gap-2 text-muted"><input type="checkbox" checked={spotifyBeam} onChange={(e) => updateSettings({ spotifyBeam: e.target.checked })} />Hear it on this device</label>}
           {info.beam.enabled && <label className="flex items-start gap-2 text-muted"><input type="checkbox" className="mt-0.5" checked={spotifyMirror} onChange={(e) => updateSettings({ spotifyMirror: e.target.checked })} /><span>Count my plays on Spotify <span className="text-warn">(silent mirror)</span>: while a song plays from its file here and has a Spotify link, Soloist plays it silently so Spotify counts the stream for Wrapped. Works only when this device uses this Soloist. Spotify’s terms forbid artificially inflating streams and can flag an account for it: use at your own risk.</span></label>}
         </li>
@@ -125,6 +140,6 @@ export function SoloistPanel() {
       {info.state === 'running' && <p className="text-good">Running. Open the cast button in the player: “{info.deviceName}” is under Spotify devices.</p>}
       {info.log.length > 0 && info.state !== 'stopped' && <details className="text-xs text-muted"><summary className="cursor-pointer">Soloist’s own messages</summary><pre className="mt-1 max-h-40 overflow-auto rounded-theme bg-raised p-2">{info.log.join('\n')}</pre></details>}
       {error && <div className="rounded-theme bg-bad/15 p-3 text-bad">{error}</div>}
-    </div>
+    </SettingsGroup>
   );
 }

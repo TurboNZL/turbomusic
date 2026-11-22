@@ -13,6 +13,7 @@ import { loadFilter } from '../lib/statsFilter.ts';
 import { hourLabel, timeSeries } from '../lib/listenStats.ts';
 import { trackInfo } from '../lib/trackinfo.ts';
 import { trackPath } from '../lib/trackPath.ts';
+import { statsPath } from '../lib/entityStats.ts';
 import { fmtBytes, plural } from '../lib/cn.ts';
 import { PlaylistCover } from '../components/PlaylistCover.tsx';
 import { Cover } from '../components/Cover.tsx';
@@ -69,9 +70,11 @@ export function EntityStatsPage() {
   const info = track ? trackInfo(lib, id) : null;
   // the same menu as right-clicking this thing anywhere else: play next, queue, add to a playlist, edit...
   const menuItems = track ? trackItems(track, () => play(track.id, [track.id], { type: 'track', id: track.id })) : album ? albumItems(album) : artist ? artistItems(artist.id) : playlist ? playlistItems(playlist) : [];
-  const rateRows = (list: Track[]) => list.map((t) => ({ key: t.id, label: t.title, sub: t.artistName, value: t.effectiveRating, to: trackPath(t) }));
+  // where this track sits among everything you have ranked (a manual rating is only a starting guess, so it is not shown)
+  const placeLabel = (() => { if (!track || track.comparisons < 1) return '—'; const ranked = lib.tracks.filter((x) => x.comparisons > 0 && !x.versionOf).sort((a, b) => b.elo - a.elo); const i = ranked.findIndex((x) => x.id === track.id); return i < 0 ? '—' : `#${i + 1} of ${ranked.length}`; })();
+  const rateRows = (list: Track[]) => list.map((t) => ({ key: t.id, label: t.title, sub: t.artistName, value: t.effectiveRating, to: statsPath('track', t.id) }));
   const playRows = [...stats.playsByTrack.entries()].sort((a, b) => b[1].plays - a[1].plays || b[1].ms - a[1].ms).slice(0, 10)
-    .flatMap(([tid, v]) => { const t = lib.trackById.get(tid); return t ? [{ key: tid, label: t.title, sub: t.artistName, value: v.plays, extra: fmtHours(v.ms), to: trackPath(t) }] : []; });
+    .flatMap(([tid, v]) => { const t = lib.trackById.get(tid); return t ? [{ key: tid, label: t.title, sub: t.artistName, value: v.plays, extra: fmtHours(v.ms), to: statsPath('track', t.id) }] : []; });
 
   const { unit, points: series } = timeSeries(l, {});
   const daily = unit === 'day';
@@ -107,7 +110,7 @@ export function EntityStatsPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi icon={<Music2 size={13} />} label="Plays" value={l.plays.toLocaleString()} sub={l.lastTs ? `last ${new Date(l.lastTs).toLocaleDateString()}${minMs ? ` · plays of ${Math.round(minMs / 1000)} s or more` : ''}` : 'never played here'} />
-        <Kpi icon={<Clock size={13} />} label="Time listened" value={fmtHours(l.ms)} sub={l.firstTs ? `since ${new Date(l.firstTs).toLocaleDateString()}` : undefined} />
+        <Kpi icon={<Clock size={13} />} label="Time listened" value={fmtHours(l.ms)} sub={l.firstTs ? (l.firstListen?.trackId ? <Link to={statsPath('track', l.firstListen.trackId)} className="hover:text-fg hover:underline" title="The first thing you listened to">{`since ${new Date(l.firstTs).toLocaleDateString()} · ${l.firstListen.title}`}</Link> : `since ${new Date(l.firstTs).toLocaleDateString()}`) : undefined} />
         <Kpi icon={<SkipForward size={13} />} label="Skips" value={l.skips.toLocaleString()} sub={`${Math.round(l.skipRate * 100)}% of plays`} />
         <Kpi icon={<Swords size={13} />} label="Votes" value={`${stats.votes.wins} – ${stats.votes.losses}`} sub={`won – lost${stats.votes.draws ? `, ${stats.votes.draws} equal` : ''}`} />
       </div>
@@ -115,7 +118,7 @@ export function EntityStatsPage() {
       {track && info && (
         <Panel title="This track" right={<Rating track={track} size="lg" />}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {stat('Elo', Math.round(track.elo).toString())}{stat('Vote rating', track.rating.toFixed(2))}{stat('Manual rating', track.initialRating != null ? String(track.initialRating) : '—')}{stat('Comparisons', String(track.comparisons))}
+            {stat('Elo', Math.round(track.elo).toString())}{stat('Vote rating', track.rating.toFixed(2))}{stat('Place in your ranking', placeLabel)}{stat('Comparisons', String(track.comparisons))}
             {stat('Memories', String(track.memories ?? 0))}{stat(track.albumId ? 'Album released' : 'Released', track.releaseDate ?? '—')}{stat('Average play', info.plays ? fmtListened(info.secondsListened / info.plays) : '—')}{stat('Genres', track.genres.join(', ') || '—')}
           </div>
           <p className="text-xs text-muted">{track.comparisons < 3 ? `Needs ${3 - track.comparisons} more comparison${3 - track.comparisons === 1 ? '' : 's'} before the vote rating is used. ` : ''}
@@ -133,7 +136,7 @@ export function EntityStatsPage() {
             {stats.rating.worst.length > 0 && <><div className="pt-1 text-xs uppercase tracking-wider text-muted">Lowest</div><RankList rows={rateRows(stats.rating.worst)} unit={(n) => n.toFixed(1)} /></>}
           </Panel>
           <Panel title="Most played tracks">{playRows.length ? <RankList rows={playRows} /> : <p className="text-sm text-muted">No plays yet.</p>}</Panel>
-          {kind === 'artist' && <Panel title="Most played albums">{l.topAlbums.length ? <RankList rows={l.topAlbums.slice(0, 10).map((r) => ({ key: r.key, label: r.label, value: r.plays, extra: fmtHours(r.ms) }))} /> : <p className="text-sm text-muted">No plays yet.</p>}</Panel>}
+          {kind === 'artist' && <Panel title="Most played albums">{l.topAlbums.length ? <RankList rows={l.topAlbums.slice(0, 10).map((r) => ({ key: r.key, label: r.label, value: r.plays, extra: fmtHours(r.ms), to: r.id ? statsPath('album', r.id) : undefined }))} /> : <p className="text-sm text-muted">No plays yet.</p>}</Panel>}
         </div>)}
 
       {l.plays > 0 ? (

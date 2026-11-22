@@ -1,4 +1,7 @@
 import { audioSource } from './files.ts';
+import { eqAttach } from './eq.ts';
+import { eqConfig } from './eqConfig.ts';
+import { useStore } from './store.ts';
 import { isAndroidApp } from './native.ts';
 import { middleSlice, nativeSlice } from './rangePreview.ts';
 
@@ -53,6 +56,7 @@ function sliceElement(url: string, volume: number): Promise<Preview | null> {
     const el = new Audio();
     slices.add(el);
     el.preload = 'auto'; el.volume = volume;
+    eqAttach(el, eqConfig(useStore.getState().settings));
     el.addEventListener('canplay', () => resolve({ el, url, local: true }), { once: true });
     el.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(null); }, { once: true });
     el.src = url;
@@ -63,6 +67,7 @@ function streamElement(url: string, local: boolean, volume: number): Promise<Pre
   return new Promise<Preview | null>((resolve) => {
     const el = new Audio();
     el.preload = 'auto'; el.volume = volume;
+    eqAttach(el, eqConfig(useStore.getState().settings));
     // ready = the middle of the track is buffered enough to start at once, not merely that its length is known
     el.addEventListener('loadedmetadata', () => {
       el.currentTime = middle(el);

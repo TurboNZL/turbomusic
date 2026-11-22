@@ -30,7 +30,7 @@ export function QueuePage() {
             <button className="p-1 text-muted hover:text-fg" aria-label="Remove" onClick={() => dequeue(i)}><X size={15} /></button></div></div>))}</div>
           : <div className="text-sm text-muted">Nothing queued. Use the ⋯ menu on any track (or right-click it). Playback rules ("play B after A") also land here.</div>}
       </section>
-      {active.length > 0 && <section><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Then, from {from ? (from.to ? <Link to={from.to} className="normal-case text-fg hover:underline">{from.text}</Link> : <span className="normal-case text-fg">{from.text}</span>) : 'the album or list'}</h2>
+      {active.length > 0 && <section><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Lineup, from {from ? (from.to ? <Link to={from.to} className="normal-case text-fg hover:underline">{from.text}</Link> : <span className="normal-case text-fg">{from.text}</span>) : 'the album or list'}</h2>
         <div className="flex gap-1"><button className="btn btn-ghost" onClick={shuffleRest}><Shuffle size={14} />Shuffle</button><button className="btn btn-ghost" onClick={keepRest} title="Move these into your own queue">Add all to my queue</button><button className="btn btn-ghost" onClick={clearRest}>Clear</button></div></div><div className="card overflow-hidden"><TrackTable tracks={active.slice(0, 100)} source="track" covers /></div></section>}
     </div>
   );
