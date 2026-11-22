@@ -16,9 +16,9 @@ describe('ratingStrength', () => {
 import { dropMirrorTwins, type Listen } from '../src/lib/listens.ts';
 describe('mirror twins', () => {
   const L = (id: string, source: 'spotify' | 'turbomusic', ts: number, mirrored = false): Listen => ({ id, ts, ms: 200000, trackId: 't1', artistId: null, albumId: null, title: 't', artist: 'a', album: '', uri: null, skipped: false, shuffle: null, platform: null, reasonEnd: null, source, ...(mirrored ? { mirrored: true } : {}) });
-  it('drops the mirrored TurboMusic play when Spotify has the same play, keeps everything else', () => {
+  it('keeps the mirrored TurboMusic play and drops the Spotify record of the same play', () => {
     const out = dropMirrorTwins([L('a', 'turbomusic', 1_000_000, true), L('b', 'spotify', 1_060_000), L('c', 'turbomusic', 9_000_000, true), L('d', 'turbomusic', 1_010_000)]);
-    expect(out.map((l) => l.id)).toEqual(['b', 'c', 'd'].filter((x) => x !== 'x'));
+    expect(out.map((l) => l.id)).toEqual(['a', 'c', 'd']);
   });
 });
 

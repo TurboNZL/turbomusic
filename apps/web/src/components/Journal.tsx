@@ -123,7 +123,7 @@ export function Journal({ lib }: { lib: Library }) {
   const written = all.filter((e) => e.type === 'entry').length;
   const today = useMemo(() => onThisDay(all), [all]);
   const listens = useMemo(() => buildListens(lib), [lib]);
-  const heard = useMemo(() => listeningOnThisDay(listens).slice(0, 3), [listens]);
+  const heard = useMemo(() => listeningOnThisDay(listens.filter((l) => !l.skipped)).slice(0, 3), [listens]);
   let count = 0;
   const cut = (items: Entry[]) => { const take = items.slice(0, Math.max(0, shown - count)); count += take.length; return take; };
   const del = (e: Entry) => confirm('Delete this entry?') && remove('timeline', e.id);
