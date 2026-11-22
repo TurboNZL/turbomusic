@@ -13,7 +13,7 @@ const BY: { id: GroupBy; label: string }[] = [
 ];
 
 /**
- * Imported Spotify history, kept simple: see it grouped (by artist, album, account, year), tick what does not belong (ASMR played as
+ * Imported Spotify history, kept simple: see it grouped (by artist, album, account, year), tick what does not belong (for example
  * albums, an old account) and hide it. Hidden plays leave every list and statistic but are kept, so they can come back; delete removes
  * them for good. "Name the account" files plays under an account name so a whole account can be hidden later in one tick.
  */
@@ -61,13 +61,13 @@ export function HistoryManager({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="Manage imported Spotify history" onClose={onClose} wide footer={<button className="btn ml-auto" onClick={onClose}>Done</button>}>
-      <p className="text-sm text-muted">{total.toLocaleString()} imported plays. Tick the groups that do not belong in your history (ASMR played as albums, an old account…) and hide them: they disappear from Stats, Home and the track pages but are kept, so you can bring them back. Plays hidden are shown struck through.</p>
+      <p className="text-sm text-muted">{total.toLocaleString()} imported plays. Tick the groups that do not belong in your history (an old account, spoken-word albums…) and hide them: they disappear from Stats, Home and the track pages but are kept, so you can bring them back. Plays hidden are shown struck through.</p>
       <div role="tablist" className="flex flex-wrap gap-1.5">
         {BY.map((x) => <button key={x.id} role="tab" aria-selected={by === x.id} onClick={() => { setBy(x.id); setPicked(new Set()); }} className={cn('rounded-full border px-3 py-0.5 text-sm font-medium', by === x.id ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-fg')}>{x.label}</button>)}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <input className="input" placeholder={`Find in ${BY.find((x) => x.id === by)!.label.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} />
-        <input className="input" placeholder="Or select by words in artist, album or title: asmr, sleep" value={words} onChange={(e) => setWords(e.target.value)} />
+        <input className="input" placeholder="Or select by words in artist, album or title (comma separated)" value={words} onChange={(e) => setWords(e.target.value)} />
       </div>
       {words.trim() && <p className="text-xs text-muted" role="status">{wordIds.length.toLocaleString()} play{wordIds.length === 1 ? '' : 's'} contain{wordIds.length === 1 ? 's' : ''} those words; they are included in the selection below.</p>}
       <div className="max-h-[22rem] overflow-y-auto rounded-theme border border-line">

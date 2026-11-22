@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { buildLibrary, withLogs, type Library } from './library.ts';
 import { useStore } from './store.ts';
 import { useSpotifyLink } from './spotifyPlayer.ts';
+import { withoutUnimported } from './unimported.ts';
 
 export * from './library.ts';
 
@@ -24,17 +25,20 @@ function useSpotifyDeps() {
 /**
  * The derived library for a component. It does NOT re-render when only the play history changed (every play and skip writes a row,
  * and re-rendering a whole track list for that made starting a track feel slow); use `useLibraryLive` where the history is shown.
+ * Tracks, albums and artists that have no source yet are left out of its lists unless Settings > Spotify says to show them (`all` always includes them).
  */
-export function useLibrary(): Library {
+export function useLibrary(all = false): Library {
   const rev = useStore((s) => s.rev);
+  const show = useStore((s) => s.settings.showUnimported);
   useSpotifyDeps();
-  return useMemo(() => getLibrary(), [rev]);
+  return useMemo(() => (all || show ? getLibrary() : withoutUnimported(getLibrary())), [rev, all, show]);
 }
 
 /** Like `useLibrary`, and also refreshes when a play is logged: for pages that show the listening history or statistics. */
-export function useLibraryLive(): Library {
+export function useLibraryLive(all = false): Library {
   const rev = useStore((s) => s.rev);
   const logsRev = useStore((s) => s.logsRev);
+  const show = useStore((s) => s.settings.showUnimported);
   useSpotifyDeps();
-  return useMemo(() => getLibrary(), [rev, logsRev]);
+  return useMemo(() => (all || show ? getLibrary() : withoutUnimported(getLibrary())), [rev, logsRev, all, show]);
 }

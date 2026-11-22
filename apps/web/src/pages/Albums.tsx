@@ -1,3 +1,4 @@
+import { UnimportedNote } from '../components/UnimportedNote.tsx';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { EntityList } from '../components/EntityList.tsx';
 import { albumSubject, matchesAll, splitTyped, type Chip } from '../lib/filters.ts';
@@ -5,7 +6,7 @@ import { ALBUM_SORTS, sortAlbums } from '../lib/listSort.ts';
 import { usePageState } from '../lib/pageState.ts';
 import { useMemo, useState } from 'react';
 import { useChunks } from '../lib/useChunks.ts';
-import { Download, EyeOff, Plus, Shuffle } from 'lucide-react';
+import { Download, Eye, EyeOff, Plus, Shuffle } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { usePlayer } from '../lib/player.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
@@ -47,7 +48,8 @@ export function AlbumsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Albums <span className="text-base font-normal text-muted">{albums.length}</span></h1>
       </div>
-      <ListToolbar actions={<>{hiddenCount > 0 && <button type="button" className={`btn ${showHidden ? 'btn-accent' : ''}`} aria-pressed={showHidden} title="Albums you hid are left out of this list" onClick={() => setShowHidden(!showHidden)}><EyeOff size={15} />Hidden {hiddenCount}</button>}<PlayControls ids={playable} source={{ type: 'search', id: 'Albums' }} label="these albums" /></>} scope="albums" chips={chips} onChips={setChips} text={q} onText={setQ} sorts={ALBUM_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={<>{hiddenCount > 0 && <button type="button" className={`btn ${showHidden ? 'btn-accent' : ''}`} aria-pressed={showHidden} title={showHidden ? 'Hidden albums are shown: press to leave them out again' : 'Albums you hid are left out of this list: press to show them'} onClick={() => setShowHidden(!showHidden)}>{showHidden ? <Eye size={15} /> : <EyeOff size={15} />}{showHidden ? 'Showing hidden' : 'Hidden'} {hiddenCount}</button>}<PlayControls ids={playable} source={{ type: 'search', id: 'Albums' }} label="these albums" /></>} scope="albums" chips={chips} onChips={setChips} text={q} onText={setQ} sorts={ALBUM_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <UnimportedNote kind="albums" />
       {page.view === 'list'
         ? <EntityList rows={shownAlbums.map((a) => ({ id: a.id, to: `/albums/${a.id}`, cover: a.cover, seed: a.title, title: a.title, sub: <ArtistLinks leads={a.leads} />,
             meta: <>{a.releaseDate?.slice(0, 4)}{a.releaseDate ? ' · ' : ''}{plural(a.trackIds.length, 'track')}{a.rating != null && ` · ${a.rating.toFixed(1)}`}</>, menu: menu.onContextMenu(itemsFor(a), `Actions for ${a.title}`, a.id) }))} />

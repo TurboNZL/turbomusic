@@ -18,7 +18,7 @@ interface Found { candidates: MatchCandidate[]; error?: string }
  * anything is saved; “Skip” moves to the next album.
  */
 export function MatchLinksDialog({ albumId = '', onClose }: { albumId?: string; onClose: () => void }) {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const edit = useEditor((s) => s.open);
   const configured = useStore((s) => !!s.settings.token);
   const [skipped, setSkipped] = useState<string[]>([]);

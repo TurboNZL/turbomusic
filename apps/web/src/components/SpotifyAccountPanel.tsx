@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Copy, LogIn } from 'lucide-react';
+import { Copy, History, LogIn, UserRound } from 'lucide-react';
+import { SettingsGroup } from './SettingsGroup.tsx';
 import type { SpotifyHistoryStatus } from '../lib/api.ts';
 import { api, useStore } from '../lib/store.ts';
 import type { SpotifyDiagnosis } from '../lib/api.ts';
@@ -59,16 +60,17 @@ export function SpotifyAccountPanel({ children, onStatus }: { children?: (s: Sta
   if (!configured) return <p className="text-sm text-muted">Spotify goes through your server. Connect one in Settings › Server first.</p>;
   if (!acct) return <div className="text-sm text-muted">{error ?? 'Checking…'}</div>;
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-5 text-sm">
       {acct.signedIn ? (<>
-        <div className="flex items-center gap-2"><span className="text-good">Signed in to Spotify.</span><button className="btn btn-ghost !py-1 text-xs" onClick={() => void guard('Signing out…', async () => { await api().spotifySignOut(); await load(); })}>Sign out</button></div>
-        <CheckConnection />
-        {!acct.canWrite && <div className="space-y-2 rounded-theme bg-raised p-2.5 text-xs text-muted">
-          <div>TurboMusic can read your Spotify playlists but not change them. To send changes back from a synced playlist, allow it once.</div>
-          <button className="btn !py-1 text-xs" disabled={!!busy} onClick={() => void guard('Opening Spotify…', async () => { window.open((await api().spotifyAuthUrl(acct.streaming ?? false, true, acct.canHistory ?? false)).url, '_blank', 'noopener'); setReauth(true); })}>Allow changing my playlists</button>
-          {reauth && <div className="space-y-2"><Field label="Address Spotify sent you to"><input className="input font-mono" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://127.0.0.1:47813/api/spotify/callback?code=…" /></Field>
-            <button className="btn" disabled={!pasted.trim() || !!busy} onClick={() => void guard('Connecting…', async () => { await api().spotifyExchange(pasted.trim()); setPasted(''); setReauth(false); await load(); })}>Connect</button></div>}
-        </div>}
+        <SettingsGroup icon={<UserRound size={18} />} title="Account" badge={<span className="chip !text-good">Signed in</span>} hint="The Spotify account this server uses for imports, playlists and playing.">
+          <div className="flex flex-wrap items-center gap-2"><button className="btn !py-1 text-xs" onClick={() => void guard('Signing out…', async () => { await api().spotifySignOut(); await load(); })}>Sign out</button><CheckConnection /></div>
+          {!acct.canWrite && <div className="space-y-2 rounded-theme bg-raised p-3 text-xs text-muted">
+            <div>TurboMusic can read your playlists but not change them. Allow it once to send changes back from a synced playlist.</div>
+            <button className="btn !py-1 text-xs" disabled={!!busy} onClick={() => void guard('Opening Spotify…', async () => { window.open((await api().spotifyAuthUrl(acct.streaming ?? false, true, acct.canHistory ?? false)).url, '_blank', 'noopener'); setReauth(true); })}>Allow changing my playlists</button>
+            {reauth && <div className="space-y-2"><Field label="Address Spotify sent you to"><input className="input font-mono" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://127.0.0.1:47813/api/spotify/callback?code=…" /></Field>
+              <button className="btn" disabled={!pasted.trim() || !!busy} onClick={() => void guard('Connecting…', async () => { await api().spotifyExchange(pasted.trim()); setPasted(''); setReauth(false); await load(); })}>Connect</button></div>}
+          </div>}
+        </SettingsGroup>
         <HistoryTracking acct={acct} guard={guard} busy={busy} reauth={reauth} setReauth={setReauth} pasted={pasted} setPasted={setPasted} reload={load} />
         {children?.(acct)}
       </>) : !acct.configured || editApp ? (<>
@@ -120,10 +122,8 @@ function HistoryTracking({ acct, guard, busy, reauth, setReauth, pasted, setPast
   const refresh = () => api().spotifyHistory().then(setH, () => undefined);
   useEffect(() => { void refresh(); }, [acct.canHistory]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className="space-y-2 rounded-theme border border-line p-3">
-      <div className="flex flex-wrap items-center gap-2"><div className="font-medium">Track my Spotify plays automatically</div>
-        {h?.enabled && <span className="chip !text-good">on</span>}</div>
-      <p className="text-xs text-muted">Every 15 minutes your server asks Spotify what you played recently and adds the new plays to your listening history (one small request each time). Spotify only remembers the last 50 plays, which is plenty for that. Plays also found in an export you import later, or played through TurboMusic, are never counted twice.</p>
+    <SettingsGroup icon={<History size={18} />} title="Listening history" badge={h?.enabled ? <span className="chip !text-good">Tracking</span> : undefined} hint="Keep Stats up to date with what you play on Spotify itself.">
+      <p className="text-xs text-muted">Every 15 minutes the server asks Spotify what you played recently and adds the new plays. Plays also found in an export you import later, or played through TurboMusic, are not counted twice.</p>
       {!acct.canHistory ? (<>
         <button className="btn !py-1 text-xs" disabled={!!busy} onClick={() => void guard('Opening Spotify…', async () => { window.open((await api().spotifyAuthUrl(acct.streaming ?? false, acct.canWrite ?? false, true)).url, '_blank', 'noopener'); setAsked(true); setReauth(true); })}>Allow reading my recently played</button>
         {asked && reauth && <div className="space-y-2"><Field label="Address Spotify sent you to"><input className="input font-mono" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="http://127.0.0.1:47813/api/spotify/callback?code=…" /></Field>
@@ -135,8 +135,8 @@ function HistoryTracking({ acct, guard, busy, reauth, setReauth, pasted, setPast
         </div>)}
       {h && (h.enabled || h.lastCheck) && <p className="text-xs text-muted">Last check: {ago(h.lastCheck)}{h.lastCheck && !h.lastError ? ` · ${h.lastAdded} new` : ''} · {h.added.toLocaleString()} plays added so far{h.lastError ? '' : ''}</p>}
       {h?.lastError && <p className="text-xs text-bad">The last check failed: {h.lastError}</p>}
-      <div className="flex flex-wrap items-center gap-2 pt-1"><button className="btn !py-1 text-xs" onClick={() => setManage(true)}>Manage imported history…</button><span className="text-xs text-muted">Hide ASMR, an old account or anything else that does not belong, from everything.</span></div>
+      <div className="flex flex-wrap items-center gap-2"><button className="btn !py-1 text-xs" onClick={() => setManage(true)}>Manage imported history…</button><span className="text-xs text-muted">Hide or delete plays that do not belong.</span></div>
       {manage && <HistoryManager onClose={() => setManage(false)} />}
-    </div>
+    </SettingsGroup>
   );
 }

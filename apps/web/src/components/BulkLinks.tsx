@@ -13,7 +13,7 @@ import { cn } from '../lib/cn.ts';
  * playlist's worth of links lands on the right tracks without opening every track editor.
  */
 export function BulkLinks({ kind, onClose }: { kind: LinkKind; onClose: () => void }) {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const patch = useStore((s) => s.patch);
   const allGroups = useMemo(() => linkGroups(lib, kind), [lib, kind]);
   const [q, setQ] = useState('');

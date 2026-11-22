@@ -12,7 +12,7 @@ const LINK: Record<string, string> = { youtubeMusicUrl: 'Paste a YouTube Music l
 /** One row that can be fixed right there: a date, genres or a link. The row leaves the list as soon as the check passes. */
 type Ctx = (i: HealthItem) => ((e: React.MouseEvent) => void) | undefined;
 function QuickRow({ item, quick, ctx }: { item: HealthItem; quick: Quick; ctx?: Ctx }) {
-  const lib = useLibrary();
+  const lib = useLibrary(true);
   const { patch, put } = useStore();
   const edit = useEditor((s) => s.open);
   const [value, setValue] = useState('');

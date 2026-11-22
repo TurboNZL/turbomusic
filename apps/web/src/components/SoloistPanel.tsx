@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Loader2, Play, Square, Trash2 } from 'lucide-react';
+import { Download, Loader2, Play, Radio, Square, Trash2 } from 'lucide-react';
+import { SettingsGroup } from './SettingsGroup.tsx';
 import type { SoloistInfo } from '../lib/api.ts';
 import { api, useStore } from '../lib/store.ts';
 import { forgetBeamInfo } from '../lib/beam.ts';
@@ -75,19 +76,19 @@ export function SoloistPanel() {
   if (!configured) return null;
   if (!info) return error ? <div className="rounded-theme bg-bad/15 p-3 text-sm text-bad">{error}</div> : null;
   if (!info.supported) return (
-    <div className="space-y-1 border-t border-line pt-4 text-sm"><div className="font-medium">Soloist</div>
+    <SettingsGroup icon={<Radio size={18} />} title="Soloist" collapsible defaultOpen={false} hint="Plays Spotify from a Raspberry Pi server.">
       <p className="text-muted">{info.reason}</p>
-      <p className="text-xs text-muted">Everywhere else, Spotify plays through the Spotify app on a computer or phone: it appears in the device list (cast button) and TurboMusic controls it.</p></div>);
+      <p className="text-xs text-muted">Everywhere else, Spotify plays through the Spotify app on a computer or phone: it appears in the device list (cast button) and TurboMusic controls it.</p></SettingsGroup>);
 
   const working = !!busy || ['installing', 'expired'].includes(info.state);
   return (
-    <div className="space-y-3 border-t border-line pt-4 text-sm">
-      <div className="flex flex-wrap items-center gap-2"><div className="font-medium">Soloist: play Spotify inside TurboMusic</div>
-        <span className={info.state === 'running' ? 'chip !text-good' : info.state === 'error' ? 'chip !text-bad' : 'chip'}>{STATE[info.state]}</span>{info.version && <span className="text-xs text-muted">{info.version}</span>}</div>
+    <SettingsGroup icon={<Radio size={18} />} title="Soloist" collapsible defaultOpen={info.state !== 'running' || !info.installed} hint="Plays Spotify from your server, so no other Spotify app has to be open."
+      badge={<span className={info.state === 'running' ? 'chip !text-good' : info.state === 'error' ? 'chip !text-bad' : 'chip'}>{STATE[info.state]}</span>}>
+      {info.version && <div className="text-xs text-muted">{info.version}</div>}
       <div className="rounded-theme border border-line px-3 py-2 text-xs"><span className="text-muted">Runs on:</span> <b>{info.host.name}</b>{info.host.model ? <span className="text-muted"> · {info.host.model}</span> : null}<span className="text-muted"> · the server this app is connected to, not this device</span></div>
       <p className="text-muted">Spotify’s own headless Spotify Connect player. It runs on your Raspberry Pi (the server), never in this app or on a desktop, and plays through the Pi’s sound output. Turn on “Send the sound to the apps” below to hear it on this device instead. It shows up in the device list as “{info.deviceName}”. It needs Spotify Premium and PipeWire or PulseAudio audio. Soloist is Spotify’s software, downloaded from Spotify’s server, under Spotify’s terms; builds expire after 90 days and TurboMusic replaces them by itself.</p>
 
-      <ol className="space-y-3">
+      <ol className="space-y-6">
         <li className="space-y-1.5"><div className="font-medium">Install</div>
           <button className="btn" disabled={working} onClick={() => void act('Installing…', () => api().soloistInstall())}>{busy === 'Installing…' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}{info.installed ? 'Update Soloist' : 'Download and install Soloist'}</button></li>
         <li className="space-y-1.5"><div className="font-medium">API key and name</div>
@@ -125,6 +126,6 @@ export function SoloistPanel() {
       {info.state === 'running' && <p className="text-good">Running. Open the cast button in the player: “{info.deviceName}” is under Spotify devices.</p>}
       {info.log.length > 0 && info.state !== 'stopped' && <details className="text-xs text-muted"><summary className="cursor-pointer">Soloist’s own messages</summary><pre className="mt-1 max-h-40 overflow-auto rounded-theme bg-raised p-2">{info.log.join('\n')}</pre></details>}
       {error && <div className="rounded-theme bg-bad/15 p-3 text-bad">{error}</div>}
-    </div>
+    </SettingsGroup>
   );
 }

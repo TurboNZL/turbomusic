@@ -9,7 +9,7 @@ import { useStore } from '../lib/store.ts';
 
 /** Health: the five albums whose best songs have no YouTube Music link yet, each with its best search result already looked up and kept, so importing is one click. */
 export function AlbumSuggestions() {
-  const lib = useLibraryLive();
+  const lib = useLibraryLive(true);
   const edit = useEditor((s) => s.open);
   const configured = useStore((s) => !!s.settings.token);
   const [busy, setBusy] = useState(false);

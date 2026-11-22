@@ -48,6 +48,8 @@ export interface DeviceSettings {
   spotifyDeviceName: string;
   /** play tracks that have a Spotify link but no audio file through Spotify */
   spotifyAuto: boolean;
+  /** show the tracks, albums and artists that have no audio or YouTube Music link yet (from Spotify imports and listening history); off = they are kept out of the lists */
+  showUnimported: boolean;
   /** be a Spotify device in this app (Spotify's Web Playback SDK plays the audio in the page); needs Widevine and a secure page */
   spotifySdk: boolean;
   /** when the Spotify device is the server's Soloist and it beams its sound (server/src/beam.ts), play that stream on this device */
@@ -119,7 +121,7 @@ export function loadSettings(): DeviceSettings {
   let saved: Partial<DeviceSettings> = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { /* storage blocked */ }
   const s: DeviceSettings = {
-    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, ...saved,
+    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, showUnimported: false, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, ...saved,
   };
   s.eqBands = cleanBands(s.eqBands);
   s.eqPreamp = Math.min(12, Math.max(-12, Number(s.eqPreamp) || 0));

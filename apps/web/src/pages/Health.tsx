@@ -51,7 +51,7 @@ const groupOf = (id: string) => GROUP[id] ?? 'Tidying up';
 const priority = (id: string) => { const i = PRIORITY.indexOf(id); return i < 0 ? 500 : i; };
 
 export function HealthPage() {
-  const lib = useLibraryLive();
+  const lib = useLibraryLive(true);
   const edit = useEditor((s) => s.open);
   const remove = useStore((s) => s.remove);
   const [open, setOpen] = useState<string | null>(null);

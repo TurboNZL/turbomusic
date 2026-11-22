@@ -50,7 +50,7 @@ export function ImportHistoryDialog({ onClose }: { onClose: () => void }) {
   const kept = useMemo(() => (state ? leaveOut(state.entries, { words, artists: skipSets.artist, albums: skipSets.album, tracks: skipSets.track }) : []), [state, words, skipSets]);
   const preview: HistoryImport | null = state ? historyRecords(kept, deviceId, { minMs: minSec * 1000 }) : null;
   if (preview && account.trim()) preview.records = preview.records.map((r) => ({ ...r, data: { ...r.data, account: account.trim() } }));
-  // the artists with the most listening time, so ASMR or a podcast-like album stands out at once
+  // the artists with the most listening time, so anything that dominates your history stands out at once
   const top = useMemo(() => {
     if (!state) return [];
     const m = new Map<string, { name: string; ms: number; plays: number }>();
@@ -101,8 +101,8 @@ export function ImportHistoryDialog({ onClose }: { onClose: () => void }) {
             <input className="input !w-44 !py-1" placeholder="e.g. Old account (optional)" value={account} onChange={(e) => setAccount(e.target.value)} />
             <span>Names the plays so a whole account can be hidden later from the history manager.</span></label>
           <div className="space-y-1.5">
-            <div className="text-xs text-muted">Leave out what does not belong (ASMR played as albums, podcasts saved as albums…). You can also hide things after importing, from “Manage imported history”.</div>
-            <input className="input !py-1" placeholder="Leave out anything with these words in artist, album or title: asmr, sleep sounds" value={words} onChange={(e) => setWords(e.target.value)} />
+            <div className="text-xs text-muted">Leave out what does not belong in your history. You can also hide things after importing, from “Manage imported history”.</div>
+            <input className="input !py-1" placeholder="Leave out anything with these words in artist, album or title (comma separated)" value={words} onChange={(e) => setWords(e.target.value)} />
             <div className="flex gap-1.5">{(["artist", "album", "track"] as const).map((k) => <button key={k} type="button" onClick={() => setSkipKind(k)} className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", skipKind === k ? "border-accent/60 bg-accent/15 text-accent" : "border-line text-muted hover:text-fg")}>{k === "artist" ? "Artists" : k === "album" ? "Albums" : "Tracks"}{skipSets[k].size ? ` (${skipSets[k].size})` : ""}</button>)}</div>
             <div className="max-h-44 overflow-y-auto rounded-theme border border-line bg-surface">{top.map(([k, a]) => (
               <label key={k} className="flex cursor-pointer items-center gap-2 border-b border-line/50 px-2 py-1 text-xs last:border-b-0"><input type="checkbox" checked={skipArtists.has(k)} onChange={() => setSkipSets((p) => { const n = new Set(p[skipKind]); if (n.has(k)) n.delete(k); else n.add(k); return { ...p, [skipKind]: n }; })} />

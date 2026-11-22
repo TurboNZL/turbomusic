@@ -8,6 +8,7 @@ import { Cover } from '../components/Cover.tsx';
 import { useMenu } from '../components/Menu.tsx';
 import { plural } from '../lib/cn.ts';
 import { useArtistMenuItems } from '../components/entityMenus.tsx';
+import { UnimportedNote } from '../components/UnimportedNote.tsx';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { EntityList } from '../components/EntityList.tsx';
 import { artistSubject, matchesAll, splitTyped, type Chip } from '../lib/filters.ts';
@@ -36,6 +37,7 @@ export function ArtistsPage() {
         <h1 className="mr-auto text-2xl font-bold">Artists <span className="text-base font-normal text-muted">{rows.length}</span></h1>
       </div>
       <ListToolbar scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <UnimportedNote kind="artists" />
       {page.view === 'list'
         ? <EntityList rows={shownRows.map((a) => ({ id: a.id, to: `/artists/${a.id}`, cover: a.image, seed: a.name, title: a.name, kind: 'artist' as const,
             sub: `${plural(a.tracks, 'track')} · ${plural(a.albums, 'album')}`, meta: a.rating != null ? a.rating.toFixed(1) : undefined, menu: menu.onContextMenu(itemsFor(a.id), `Actions for ${a.name}`, a.id) }))} />
