@@ -5,6 +5,8 @@ import { CalendarClock, Compass, Disc3, ListEnd, ListPlus, Music4, Play, Refresh
 import { useLibraryLive, type Track } from '../lib/derive.ts';
 import { buildListens } from '../lib/listens.ts';
 import { PlayControls } from '../components/PlayControls.tsx';
+import { useMenu } from '../components/Menu.tsx';
+import { useTrackListActions } from '../components/entityMenus.tsx';
 import { heardTrackIds, tasteScorer, tryNewPlaylist } from '../lib/heard.ts';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { usePlayer } from '../lib/player.ts';
@@ -32,11 +34,14 @@ function MixCard({ title, blurb, tracks, wide, accent, onReroll }: { title: stri
   const put = useStore((s) => s.put);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const menu = useMenu();
+  const listActions = useTrackListActions();
   const ids = tracks.map((t) => t.id);
   const covers = [...new Map(tracks.filter((t) => t.cover).map((t) => [t.cover, t])).values()].slice(0, 4);
   const save = () => { put('playlists', { name: title, description: blurb, cover: null, createdAt: Date.now(), trackIds: ids }); setSaved(true); };
   return (
-    <section className={cn('card space-y-3 p-4', wide && 'sm:col-span-2', accent && 'ring-1 ring-accent/40')}>
+    <section className={cn('card space-y-3 p-4', wide && 'sm:col-span-2', accent && 'ring-1 ring-accent/40')}
+      onContextMenu={tracks.length ? menu.onContextMenu([...listActions(ids, { type: 'search', id: 'Discover mix' }, title), { separator: true }, { label: 'Save as playlist', icon: <ListPlus size={15} />, run: save }], title) : undefined}>
       <div className="flex items-start gap-4">
         <div className="grid h-24 w-24 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-theme bg-raised">
           {covers.length ? covers.map((t) => <Cover key={t.id} hash={t.cover} seed={t.title} className="!rounded-none" />) : <div className="col-span-2 row-span-2 grid place-items-center text-muted"><Music4 /></div>}
@@ -50,6 +55,7 @@ function MixCard({ title, blurb, tracks, wide, accent, onReroll }: { title: stri
         <button className="btn btn-ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide tracks' : 'Show tracks'}</button></div>
         : <p className="text-sm text-muted">Nothing to put here yet.</p>}
       {open && <div className="overflow-hidden rounded-theme border border-line"><TrackTable tracks={tracks} source="search" sourceId="Discover mix" covers /></div>}
+      {menu.element}
     </section>
   );
 }
@@ -121,7 +127,7 @@ export function DiscoverPage() {
         {rated < 10 && <p className="rounded-theme bg-raised p-3 text-sm text-muted">The mixes get better as you rate more songs: <Link to="/vote" className="text-accent hover:underline">rank a few</Link> and come back.</p>}
         <div className="grid gap-4 sm:grid-cols-2">
           <MixCard wide accent title="Mix of the day" blurb={`${new Date(now).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}: songs you loved and forgot, hidden gems and deep cuts. The same all day, new tomorrow.`} tracks={mixes.day} />
-          <MixCard title="Loved and forgotten" blurb="Rated highly, played before, and not heard for three weeks." tracks={mixes.forgotten} />
+          <MixCard title="Loved and forgotten" blurb="Rated highly for your library, played before, and not heard for a while." tracks={mixes.forgotten} />
           <MixCard title="Hidden gems" blurb="Songs you rate highly but have hardly played." tracks={mixes.gems} />
           <MixCard title="Deep cuts" blurb="Songs you never played, by the artists you rate best." tracks={mixes.cuts} />
           <MixCard title="Something new" blurb="Songs you have never played, a few from each album." tracks={mixes.fresh} onReroll={() => setSeed((n) => n + 1)} />

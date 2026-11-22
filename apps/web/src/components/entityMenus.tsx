@@ -17,7 +17,7 @@ import { useStore } from '../lib/store.ts';
 import { group, type MenuItem } from './Menu.tsx';
 
 /** What a menu does to a list of tracks: play it, shuffle it (with the playback rules), queue it. */
-function useTrackListActions() {
+export function useTrackListActions() {
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
   const enqueue = usePlayer((s) => s.enqueue);
