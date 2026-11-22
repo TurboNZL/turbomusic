@@ -1,5 +1,5 @@
 import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, Swords, Info, ListEnd, ListPlus, ListStart, Pencil, Play, Plus, Minus, Disc3, GitMerge, StickyNote, User } from 'lucide-react';
+import { BarChart3, Swords, Info, ListEnd, ListMusic, ListPlus, ListStart, Replace, Pencil, Play, Plus, Minus, Disc3, Disc, Brain, GitMerge, StickyNote, User } from 'lucide-react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import type { Track } from '../lib/derive.ts';
 import type { EditTarget } from '../lib/editor.ts';
@@ -8,6 +8,7 @@ import { usePlayer } from '../lib/player.ts';
 import { addMemory, removeMemory } from '../lib/memories.ts';
 import { trackPath } from '../lib/trackPath.ts';
 import { group, type MenuItem } from './Menu.tsx';
+import { PlaylistFlyout } from './PlaylistFlyout.tsx';
 import { useLibrary } from '../lib/derive.ts';
 import { makeSingleRelease } from '../lib/singleRelease.ts';
 
@@ -16,15 +17,25 @@ export function useTrackMenuItems() {
   const edit = useEditor((s) => s.open);
   const enqueue = usePlayer((s) => s.enqueue);
   const lib = useLibrary();
+  const replaceRest = usePlayer((s) => s.replaceRest);
+  const appendRest = usePlayer((s) => s.appendRest);
+  const hasCurrent = usePlayer((s) => !!s.queue.currentId);
   return (t: Track, onPlay: () => void): MenuItem[] => {
     const memories = t.memories ?? 0;
     const open = (target: EditTarget) => () => edit(target);
     return [
       { label: 'Play', icon: <Play size={15} />, run: onPlay, disabled: !canPlay(t) },
-      { label: 'Play next', icon: <ListStart size={15} />, run: () => enqueue(t.id, 'next'), disabled: !canPlay(t) },
-      { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => enqueue(t.id, 'last'), disabled: !canPlay(t) },
-      { label: 'Add to playlist…', icon: <ListPlus size={15} />, run: open({ kind: 'add-to-playlist', id: t.id }) },
-      { counter: { label: 'Memories', icon: <Plus size={15} />, value: memories, onMinus: () => removeMemory(t.id), onPlus: () => addMemory(t.id), minusDisabled: memories < 1 } },
+      // one hover menu for everything about what plays after this song: pressing the row adds it to the queue
+      ...group('Queue', <ListEnd size={15} />, [
+        { label: 'Add to queue', icon: <ListEnd size={15} />, run: () => enqueue(t.id, 'last'), disabled: !canPlay(t) } as MenuItem,
+        { label: 'Play next', icon: <ListStart size={15} />, run: () => enqueue(t.id, 'next'), disabled: !canPlay(t) } as MenuItem,
+        ...(hasCurrent ? [
+          { label: 'Replace lineup', icon: <Replace size={15} />, run: () => replaceRest([t.id], { type: 'search', id: t.title }), disabled: !canPlay(t) } as MenuItem,
+          { label: 'Add to lineup', icon: <ListPlus size={15} />, run: () => appendRest([t.id]), disabled: !canPlay(t) } as MenuItem,
+        ] : []),
+      ]),
+      { label: 'Add to playlist', icon: <ListMusic size={15} />, flyout: () => <PlaylistFlyout trackId={t.id} /> },
+      { counter: { label: 'Memories', icon: <Brain size={15} />, value: memories, onMinus: () => removeMemory(t.id), onPlus: () => addMemory(t.id), minusDisabled: memories < 1 } },
       ...group('Info, notes and stats', <Info size={15} />, [
         { label: 'Info', icon: <Info size={15} />, run: open({ kind: 'track-details', id: t.id }) },
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('track', t.id) },
@@ -38,7 +49,7 @@ export function useTrackMenuItems() {
       ]),
       ...group('Edit and organise', <Pencil size={15} />, [
         { label: 'Edit…', icon: <Pencil size={15} />, run: open({ kind: 'track', id: t.id }) },
-        ...(t.albumId ? [{ label: 'Make a single release (looks up its date)', icon: <Disc3 size={15} />, run: () => { void makeSingleRelease(lib, t).then((id) => id && edit({ kind: 'release', id })); } }] : [{ label: 'Add to album…', icon: <Disc3 size={15} />, run: open({ kind: 'add-to-album', id: t.id }) }]),
+        ...(t.albumId ? [{ label: 'Make a single release (looks up its date)', icon: <Disc size={15} />, run: () => { void makeSingleRelease(lib, t).then((id) => id && edit({ kind: 'release', id })); } }] : [{ label: 'Add to album…', icon: <Disc3 size={15} />, run: open({ kind: 'add-to-album', id: t.id }) }]),
         { label: 'Merge with another track…', icon: <GitMerge size={15} />, run: open({ kind: 'merge-with', id: `track:${t.id}` }) },
       ]),
     ];

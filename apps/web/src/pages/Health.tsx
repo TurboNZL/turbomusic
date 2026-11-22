@@ -5,6 +5,11 @@ import { AudioQualityCard, MissingAudioCard } from '../components/AudioTools.tsx
 import { AlbumSuggestions } from '../components/AlbumSuggestions.tsx';
 import { QuickFix } from '../components/HealthQuick.tsx';
 import { HealthChips, HealthMeters, HealthTiles } from '../components/HealthViews.tsx';
+import { CheckBody } from '../components/HealthBody.tsx';
+import { useMenu } from '../components/Menu.tsx';
+import { useTrackMenuItems } from '../components/TrackMenu.tsx';
+import { useAlbumMenuItems, useArtistMenuItems } from '../components/entityMenus.tsx';
+import { usePlayer } from '../lib/player.ts';
 import { CatalogueCard } from '../components/CatalogueCard.tsx';
 import { BulkLinks } from '../components/BulkLinks.tsx';
 import type { LinkKind } from '../lib/bulkLinks.ts';
@@ -22,11 +27,11 @@ import { matchArtist, splitFeaturing } from '../lib/autofill.ts';
 import type { Credit } from '@turbomusic/core';
 
 /** One album that is waiting for its YouTube link: paste it and the import-into-album screen opens already looked up. */
-function AlbumLinkRow({ item }: { item: HealthItem }) {
+function AlbumLinkRow({ item, ctx }: { item: HealthItem; ctx?: (i: HealthItem) => ((e: React.MouseEvent) => void) | undefined }) {
   const edit = useEditor((s) => s.open);
   const [url, setUrl] = useState('');
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
+    <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm" onContextMenu={ctx?.(item)}>
       <button className="min-w-0 flex-1 basis-48 truncate text-left hover:underline" onClick={() => edit({ kind: 'album', id: item.id })}>{item.label}{item.detail && <span className="text-xs text-muted"> · {item.detail}</span>}</button>
       <input className="input !w-72 max-w-full !py-1 text-xs" placeholder="Paste a YouTube Music album link" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url.trim() && edit({ kind: 'import-into-album', id: item.id, url: url.trim() })} />
       <button className="btn !py-1 text-xs" disabled={!url.trim()} onClick={() => edit({ kind: 'import-into-album', id: item.id, url: url.trim() })}>Import</button>
@@ -56,6 +61,19 @@ export function HealthPage() {
   const [covers, setCovers] = useState<{ running: boolean; done: number; total: number; failed: number } | null>(null);
   const [bulk, setBulk] = useState<LinkKind | null>(null);
   const checks = computeHealth(lib);
+  const menu = useMenu();
+  const trackItems = useTrackMenuItems();
+  const albumItems = useAlbumMenuItems();
+  const artistItems = useArtistMenuItems();
+  /** right-click on a problem opens the same menu as anywhere else (tracks, albums, artists; a release opens its album's) */
+  const ctx = (i: HealthItem): ((e: React.MouseEvent) => void) | undefined => {
+    if (i.kind === 'track') { const t = lib.trackById.get(i.id); return t ? menu.onContextMenu(trackItems(t, () => usePlayer.getState().play(t.id, [t.id], { type: 'search', id: 'Library health' })), t.title) : undefined; }
+    const albumId = i.kind === 'album' || i.kind === 'album-source' ? i.id : i.kind === 'release' ? lib.releases.find((r) => r.id === i.id)?.albumId : undefined;
+    const a = albumId ? lib.albumById.get(albumId) : undefined;
+    if (a) return menu.onContextMenu(albumItems(a), a.title);
+    if (i.kind === 'artist' && lib.artistById.has(i.id)) return menu.onContextMenu(artistItems(i.id), i.label);
+    return undefined;
+  };
 
   /** Best effort: use the first track's YouTube thumbnail as the cover. Failures are skipped, never fatal. */
   async function fillCovers(albumIds: string[]) {
@@ -144,26 +162,28 @@ export function HealthPage() {
               {c.moveFeatured && <div className="px-4 pb-2"><button className="btn" onClick={() => confirm(`Move the featured artists of ${c.items.length} titles into the credits?`) && moveFeaturedToCredits(c.items)}>Move to credits ({c.items.length})</button></div>}
               {c.addLead && <div className="px-4 pb-2"><button className="btn" onClick={() => confirm(`${c.addLead!.label} (${c.items.length})?`) && addLeadCredits(c.items)}>{c.addLead.label}</button></div>}
               {c.fix && <div className="px-4 pb-2"><button className="btn text-bad" onClick={() => confirm(`${c.fix!.label} (${c.items.length})?`) && c.items.forEach((i) => remove(c.fix!.table, i.id))}>{c.fix.label}</button></div>}
-              {c.view === 'tiles' ? <HealthTiles items={c.items} lib={lib} onOpen={openItem} /> :
-              c.view === 'chips' ? <HealthChips check={c} onOpen={openItem} onRemove={(i) => c.fix && remove(c.fix.table, i.id)} /> :
-              c.view === 'meter' ? <HealthMeters items={c.items} lib={lib} onOpen={openItem} /> :
-              c.quick ? <QuickFix check={c} /> :
-              c.mergeGroups ? <div className="max-h-[28rem] space-y-2 overflow-y-auto px-4 pb-3">{[...new Set(c.items.map((i) => i.group))].slice(0, 100).map((g) => { const group = c.items.filter((i) => i.group === g); return (
+              <CheckBody check={c} lib={lib}>{(items) => (<>
+              {c.view === 'tiles' ? <HealthTiles items={items} lib={lib} onOpen={openItem} ctx={ctx} /> :
+              c.view === 'chips' ? <HealthChips check={{ ...c, items }} ctx={ctx} onOpen={openItem} onRemove={(i) => c.fix && remove(c.fix.table, i.id)} /> :
+              c.view === 'meter' ? <HealthMeters items={items} lib={lib} onOpen={openItem} ctx={ctx} /> :
+              c.quick ? <QuickFix check={{ ...c, items }} ctx={ctx} /> :
+              c.mergeGroups ? <div className="space-y-2 px-4 pb-3">{[...new Set(items.map((i) => i.group))].map((g) => { const group = items.filter((i) => i.group === g); return (
                 <div key={g} className="rounded-theme border border-line">
                   {group[0]?.note && <div className="border-b border-line/60 px-3 py-1 text-xs text-muted">Looks like: {group[0].note}</div>}
-                  {group.map((i) => <button key={i.id} className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-raised/60" onClick={() => openItem(i)}><span className="truncate">{i.label}</span>{i.detail && <span className="shrink-0 text-xs text-muted">{i.detail}</span>}</button>)}
+                  {group.map((i) => <button key={i.id} className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-raised/60" onClick={() => openItem(i)} onContextMenu={ctx(i)}><span className="truncate">{i.label}</span>{i.detail && <span className="shrink-0 text-xs text-muted">{i.detail}</span>}</button>)}
                   <div className="flex justify-end gap-2 border-t border-line/60 px-3 py-1.5"><button className="btn btn-ghost !py-1 text-xs" title="These are different songs: stop listing them" onClick={() => updateProfile(lib, (p) => ({ ...p, settings: { ...p.settings, notDuplicates: [...ignoredDupes(lib), dupeSignature(group.map((i) => i.id))] } }))}><X size={13} />Not duplicates</button><button className="btn btn-ghost !py-1 text-xs" title="Different audio (a remaster, a live take, the music-video audio): keep every track with its own file and album place, but share one set of votes and one rating" onClick={() => { const keep = suggestKeeper(group.flatMap((i) => lib.trackById.get(i.id) ?? [])); if (confirm(`Treat these as recordings of one song? “${keep.title}” stays the main version; the others keep their audio and albums but share its votes and rating.`)) group.filter((i) => i.id !== keep.id).forEach((i) => patch('tracks', i.id, { versionOf: keep.id })); }}><Layers size={13} />Different recordings of one song</button><button className="btn btn-accent !py-1 text-xs" title="The very same audio: one track, listed on every album it is on" onClick={() => edit({ kind: 'merge-tracks', id: group.map((i) => i.id).join(',') })}><GitMerge size={13} />Merge these {group.length}</button></div>
                 </div>); })}</div> :
-              c.unmarkNoYoutube ? <div className="max-h-80 divide-y divide-line/60 overflow-y-auto">{c.items.map((i) => (
-                <div key={i.id} className="flex items-center gap-2 px-4 py-2 text-sm"><button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => edit({ kind: 'album', id: i.id })}>{i.label}{i.detail && <span className="text-xs text-muted"> · {i.detail}</span>}</button><button className="btn !py-1 text-xs" onClick={() => patch('albums', i.id, { noYoutube: false })}>Put back</button></div>))}</div> :
-              c.albumLinks ? <div className="max-h-96 divide-y divide-line/60 overflow-y-auto">{c.items.slice(0, 200).map((i) => <AlbumLinkRow key={i.id} item={i} />)}</div> :
-              <div className="max-h-80 divide-y divide-line/60 overflow-y-auto">{c.items.slice(0, 200).map((i) => (
-                <button key={`${i.kind}${i.id}`} disabled={!['track', 'album', 'artist', 'release'].includes(i.kind)} className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-raised/60 disabled:cursor-default disabled:hover:bg-transparent" onClick={() => openItem(i)}>
-                  <span className="truncate">{i.label}</span>{i.detail && <span className="shrink-0 text-xs text-muted">{i.detail}</span>}</button>))}
-                {c.items.length > 200 && <div className="px-4 py-2 text-xs text-muted">…and {c.items.length - 200} more</div>}</div>}
+              c.unmarkNoYoutube ? <div className="divide-y divide-line/60">{items.map((i) => (
+                <div key={i.id} className="flex items-center gap-2 px-4 py-2 text-sm" onContextMenu={ctx(i)}><button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => edit({ kind: 'album', id: i.id })}>{i.label}{i.detail && <span className="text-xs text-muted"> · {i.detail}</span>}</button><button className="btn !py-1 text-xs" onClick={() => patch('albums', i.id, { noYoutube: false })}>Put back</button></div>))}</div> :
+              c.albumLinks ? <div className="divide-y divide-line/60">{items.map((i) => <AlbumLinkRow key={i.id} item={i} ctx={ctx} />)}</div> :
+              <div className="divide-y divide-line/60">{items.map((i) => (
+                <button key={`${i.kind}${i.id}`} onContextMenu={ctx(i)} disabled={!['track', 'album', 'artist', 'release'].includes(i.kind)} className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-raised/60 disabled:cursor-default disabled:hover:bg-transparent" onClick={() => openItem(i)}>
+                  <span className="truncate">{i.label}</span>{i.detail && <span className="shrink-0 text-xs text-muted">{i.detail}</span>}</button>))}</div>}
+              </>)}</CheckBody>
             </div>)}
         </section>
         </Fragment>))}
+      {menu.element}
       {bulk && <BulkLinks kind={bulk} onClose={() => setBulk(null)} />}
     </div>
   );

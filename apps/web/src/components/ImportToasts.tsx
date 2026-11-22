@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useEditor } from '../lib/editor.ts';
 import { AlertTriangle, CheckCircle2, Loader2, SearchX, X } from 'lucide-react';
 import { dismissImportJob, openImportJob, startImportSearch, useImportJobs, type ImportJob } from '../lib/openImport.ts';
 
@@ -8,11 +9,24 @@ const secs = (j: ImportJob, now: number) => Math.max(0, Math.round((now - j.star
 export function ImportToasts() {
   const jobs = useImportJobs((s) => s.jobs);
   const [now, setNow] = useState(Date.now());
+  const dialogOpen = useEditor((st) => !!st.target); // opening a result replaces the open dialog, so it waits until that one is closed
+  // sit just above whatever is at the bottom of the screen (player bar, tab bar or dock), so no control is covered, whatever the layout
+  const [bottom, setBottom] = useState(16);
+  useEffect(() => {
+    if (!jobs.length) return;
+    const measure = () => {
+      let top = window.innerHeight;
+      for (const el of document.querySelectorAll('.bt-player, .bt-tabbar, .bt-dock')) { const r = el.getBoundingClientRect(); if (r.height > 0 && r.bottom > 0 && r.top < top) top = r.top; }
+      setBottom(Math.round(window.innerHeight - top + 12));
+    };
+    measure(); const t = setInterval(measure, 400); window.addEventListener('resize', measure);
+    return () => { clearInterval(t); window.removeEventListener('resize', measure); };
+  }, [jobs.length]);
   const running = jobs.some((j) => j.status === 'searching');
   useEffect(() => { if (!running) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [running]);
   if (!jobs.length) return null;
   return (
-    <div className="pointer-events-none fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom))] right-3 z-[55] flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 md:bottom-24" role="region" aria-label="Import searches">
+    <div className="pointer-events-none fixed right-3 z-[55] flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2" style={{ bottom }} role="region" aria-label="Import searches">
       {jobs.map((j) => (
         <div key={j.id} className="bt-menu pointer-events-auto flex items-start gap-3 rounded-theme p-3 text-sm shadow-lg" role="status">
           <span className="mt-0.5 shrink-0">
@@ -31,7 +45,7 @@ export function ImportToasts() {
               <div className="mt-2 flex gap-2">
                 {j.status === 'failed'
                   ? <button className="btn btn-accent !px-3 !py-1 text-xs" onClick={() => void startImportSearch(j.id, true)}>Try again</button>
-                  : <button className="btn btn-accent !px-3 !py-1 text-xs" onClick={() => openImportJob(j.id)}>{j.status === 'ready' ? 'Open results' : 'Open import'}</button>}
+                  : <button className="btn btn-accent !px-3 !py-1 text-xs" disabled={dialogOpen} title={dialogOpen ? 'Close the open dialog first' : undefined} onClick={() => openImportJob(j.id)}>{j.status === 'ready' ? 'Open results' : 'Open import'}</button>}
                 <button className="btn !px-3 !py-1 text-xs" onClick={() => dismissImportJob(j.id)}>Dismiss</button>
               </div>
             )}

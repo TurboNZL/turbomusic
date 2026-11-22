@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check, Search } from 'lucide-react';
+import { healthScores } from '../lib/healthRank.ts';
+import { useChunks } from '../lib/useChunks.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { useStore } from '../lib/store.ts';
 import { assignLinks, linkGroups, LINK_LABEL, looksRight, parseLinks, type LinkGroup, type LinkKind } from '../lib/bulkLinks.ts';
@@ -13,7 +15,17 @@ import { cn } from '../lib/cn.ts';
 export function BulkLinks({ kind, onClose }: { kind: LinkKind; onClose: () => void }) {
   const lib = useLibrary();
   const patch = useStore((s) => s.patch);
-  const groups = useMemo(() => linkGroups(lib, kind), [lib, kind]);
+  const allGroups = useMemo(() => linkGroups(lib, kind), [lib, kind]);
+  const [q, setQ] = useState('');
+  // the albums you play and rate most come first; the search matches album, artist and song names
+  const groups = useMemo(() => {
+    const scores = healthScores(lib, allGroups.flatMap((g) => g.tracks.map((t) => ({ kind: 'track' as const, id: t.id, label: t.title }))));
+    const best = (g: LinkGroup) => Math.max(0, ...g.tracks.map((t) => scores.get(`track:${t.id}`) ?? 0));
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const kept = words.length ? allGroups.filter((g) => { const hay = `${g.title} ${g.subtitle} ${g.tracks.map((t) => t.title).join(' ')}`.toLowerCase(); return words.every((w) => hay.includes(w)); }) : allGroups;
+    return [...kept].sort((a, b) => best(b) - best(a));
+  }, [lib, allGroups, q]);
+  const { shown, left, more, sentinel } = useChunks(groups.length, 12, `${kind}|${q}`);
   const [text, setText] = useState<Record<string, string>>({});
   const [all, setAll] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(0);
@@ -23,11 +35,11 @@ export function BulkLinks({ kind, onClose }: { kind: LinkKind; onClose: () => vo
     const lines = parseLinks(text[g.key] ?? '');
     return { rows, lines, map: assignLinks(rows, lines) };
   };
-  const total = groups.reduce((n, g) => n + [...plan(g).map.values()].filter(Boolean).length, 0);
+  const total = allGroups.reduce((n, g) => n + [...plan(g).map.values()].filter(Boolean).length, 0);
 
   function save() {
     let n = 0;
-    for (const g of groups) for (const [id, url] of plan(g).map) if (url) { patch('tracks', id, { [kind]: url }); n++; }
+    for (const g of allGroups) for (const [id, url] of plan(g).map) if (url) { patch('tracks', id, { [kind]: url }); n++; }
     setSaved(n);
     setText({});
   }
@@ -37,8 +49,10 @@ export function BulkLinks({ kind, onClose }: { kind: LinkKind; onClose: () => vo
       footer={<><span className="text-sm text-muted">{saved ? `Saved ${saved} link${saved === 1 ? '' : 's'}.` : total ? `${total} link${total === 1 ? '' : 's'} ready` : 'Nothing pasted yet'}</span>
         <button className="btn ml-auto" onClick={onClose}>Close</button><button className="btn btn-accent" disabled={!total} onClick={save}><Check size={15} />Save {total || ''}</button></>}>
       <p className="text-sm text-muted">One box per album. Paste its links, one per line, in the order of the tracks listed under it. A blank line skips a track. Nothing is saved until you press Save.</p>
-      {!groups.length && <p className="text-sm text-good">Every track has a {LINK_LABEL[kind]} link.</p>}
-      {groups.map((g) => {
+      {allGroups.length > 5 && <label className="relative block"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input w-full !py-1.5 !pl-9 text-sm" placeholder="Search albums, artists or songs" aria-label="Search albums" value={q} onChange={(e) => setQ(e.target.value)} /></label>}
+      {!allGroups.length && <p className="text-sm text-good">Every track has a {LINK_LABEL[kind]} link.</p>}
+      {allGroups.length > 0 && !groups.length && <p className="text-sm text-muted">No album matches “{q}”.</p>}
+      {groups.slice(0, shown).map((g) => {
         const { rows, lines, map } = plan(g);
         const missing = g.tracks.filter((t) => !t[kind]).length;
         return (
@@ -62,6 +76,7 @@ export function BulkLinks({ kind, onClose }: { kind: LinkKind; onClose: () => vo
             {lines.filter(Boolean).length > rows.length && <p className="text-xs text-warn">{lines.filter(Boolean).length - rows.length} extra link(s) beyond the last track are ignored.</p>}
           </section>);
       })}
+      {left > 0 && <div ref={sentinel}><button className="btn btn-ghost text-xs" onClick={more}>Show more albums ({left} left)</button></div>}
     </Modal>
   );
 }

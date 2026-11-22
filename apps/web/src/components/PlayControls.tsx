@@ -15,7 +15,7 @@ export function useShuffleSwitch(): [boolean, () => void] {
   return [on, toggle];
 }
 
-/** Play, the Shuffle switch, "Then: replace" and "Add to Then" for a list of playable track ids: the same row on playlists and artists. */
+/** Play, the Shuffle switch, "Replace lineup" and "Add to lineup" for a list of playable track ids: the same row on playlists and artists. */
 export function PlayControls({ ids, source, label = 'this list' }: { ids: string[]; source: { type: 'playlist' | 'search' | 'album'; id: string | null }; label?: string }) {
   const lib = useLibrary();
   const play = usePlayer((s) => s.play);
@@ -27,10 +27,10 @@ export function PlayControls({ ids, source, label = 'this list' }: { ids: string
   return (
     <>
       <button className="btn btn-accent" disabled={!ids.length} onClick={() => { const o = ordered(); play(o[0], o, source); }}><Play size={16} fill="currentColor" />Play</button>
-      <button className={cn('btn', shuffleOn && 'btn-accent')} aria-pressed={shuffleOn} onClick={toggleShuffle} title={shuffleOn ? 'Shuffle is on: Play, Then and Add to Then mix the list' : 'Shuffle is off: they keep the list order'}><Shuffle size={16} /><span className="max-sm:sr-only">Shuffle {shuffleOn ? 'on' : 'off'}</span></button>
+      <button className={cn('btn', shuffleOn && 'btn-accent')} aria-pressed={shuffleOn} onClick={toggleShuffle} title={shuffleOn ? 'Shuffle is on: Play, Replace lineup and Add to lineup mix the list' : 'Shuffle is off: they keep the list order'}><Shuffle size={16} /><span className="max-sm:sr-only">Shuffle {shuffleOn ? 'on' : 'off'}</span></button>
       {hasCurrent && <div className="contents max-sm:hidden">
-        <button className="btn" disabled={!ids.length} title={`Keep playing the current track, then continue with ${label} instead of what was coming next`} onClick={() => replaceRest(ordered(), source)}><ListStart size={16} />Then: replace</button>
-        <button className="btn btn-ghost" disabled={!ids.length} title={`Add ${label} to the end of what is coming next`} onClick={() => appendRest(ordered())}><ListEnd size={16} />Add to Then</button>
+        <button className="btn" disabled={!ids.length} title={`Keep playing the current track, then continue with ${label} instead of what was coming next`} onClick={() => replaceRest(ordered(), source)}><ListStart size={16} />Replace lineup</button>
+        <button className="btn btn-ghost" disabled={!ids.length} title={`Add ${label} to the end of what is coming next`} onClick={() => appendRest(ordered())}><ListEnd size={16} />Add to lineup</button>
       </div>}
     </>
   );
