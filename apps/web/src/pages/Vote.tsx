@@ -330,8 +330,9 @@ function AlbumRank() {
       <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">{albums.map((a, i) => (
         <div key={a.id} className="card flex min-w-0 flex-col items-center gap-2 p-3 text-center">
           <button type="button" className="relative block w-full max-w-[14rem]" aria-label={`Hear a song from ${a.title}`} onClick={() => hear(i)}>
-            <Cover hash={a.cover} seed={a.title} className="w-full" />
-            {previews.playing && heard[i]?.id === previews.playing && <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-black/40 text-white"><Volume2 className="animate-pulse" size={26} /></span>}
+            <Cover hash={a.cover} seed={a.title} className="w-full">
+              {previews.playing && heard[i]?.id === previews.playing && <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white"><Volume2 className="animate-pulse" size={26} /></span>}
+            </Cover>
           </button>
           <div className="w-full min-w-0"><div className="line-clamp-2 break-words font-semibold [overflow-wrap:anywhere]">{a.title}</div><div className="truncate text-xs text-muted">{a.artistName}</div><div className="truncate text-xs text-muted">{a.trackIds.length} tracks{a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}</div></div>
           <button type="button" className="btn w-full !py-1 text-sm" disabled={!choices[i].length} onClick={() => hear(i)}><Play size={13} />{previews.playing && heard[i]?.id === previews.playing ? `${heard[i].title}` : choices[i].length ? 'Hear a song' : 'No audio'}</button>
