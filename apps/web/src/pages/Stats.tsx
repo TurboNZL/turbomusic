@@ -95,6 +95,20 @@ function Activity({ s }: { s: ListenStats }) {
         <Panel title="Time of day" right={<span className="text-xs text-muted">busiest hour: {s.plays ? `${peak}:00` : '–'}</span>}><Bars data={s.byHour.map((v, h) => ({ label: h % 3 === 0 ? hourLabel(h) : '', full: hourLabel(h), value: v }))} format={fmtHours} highlight={s.plays ? peak : undefined} /></Panel>
         <Panel title="Day of the week"><Bars data={s.byWeekday.map((v, i) => ({ label: WEEKDAYS[i], value: v }))} format={(n) => `${n.toLocaleString()} plays`} highlight={s.byWeekday.indexOf(Math.max(...s.byWeekday))} /></Panel>
       </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Listening streaks" right={<span className="text-xs text-muted">days in a row with a play</span>}>
+          <div className="mb-3 grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-theme bg-raised px-3 py-2"><div className="text-xs text-muted">Current</div><div className="text-xl font-bold tabular-nums">{s.currentStreak} <span className="text-sm font-normal text-muted">day{s.currentStreak === 1 ? '' : 's'}</span></div></div>
+            <div className="rounded-theme bg-raised px-3 py-2"><div className="text-xs text-muted">Longest</div><div className="text-xl font-bold tabular-nums">{s.longestStreak.days} <span className="text-sm font-normal text-muted">days</span></div></div>
+          </div>
+          {s.streaks.length ? <RankList rows={s.streaks.map((r) => ({ key: r.from, label: `${r.days} days${r.running ? ' · running now' : ''}`, sub: r.from === r.to ? r.from : `${r.from} to ${r.to}`, value: r.days }))} unit={(n) => `${n} d`} />
+            : <p className="text-sm text-muted">No streak yet: play something on two days in a row.</p>}
+        </Panel>
+        <Panel title="Skipped most" right={<span className="text-xs text-muted">skip rate by song, 3 plays or more</span>}>
+          {s.skipped.length ? <RankList rows={s.skipped.slice(0, 15).map((r) => ({ key: r.key, label: r.label, sub: r.sub, value: r.rate, extra: `${r.skips} of ${r.plays} plays`, to: r.id ? statsPath('track', r.id) : undefined }))} unit={(n) => `${Math.round(n * 100)}%`} />
+            : <p className="text-sm text-muted">No song has been skipped three or more times yet.</p>}
+        </Panel>
+      </div>
       <Panel title="Calendar" right={<span className="text-xs text-muted">the last 12 months, darker = more listening</span>}><Calendar byDay={s.byDay} format={fmtHours} /></Panel>
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel title="Where you listen"><Donut slices={s.platforms.slice(0, 5).map((p) => ({ label: p.name, value: p.plays }))} /></Panel>

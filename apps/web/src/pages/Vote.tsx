@@ -1,7 +1,7 @@
 import { haptic } from '../lib/haptics.ts';
 import { ThemedSelect } from '../components/ThemedSelect.tsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Check, Loader2, Pause, Play, Equal, SkipForward, Undo2, Volume2, ChevronsUp } from 'lucide-react';
+import { Play, Equal, SkipForward, Undo2, Volume2, ChevronsUp } from 'lucide-react';
 import { STRONG_WEIGHT } from '@turbomusic/core';
 import type { VoteData } from '@turbomusic/core';
 import { useLibraryLive, type Track } from '../lib/derive.ts';
@@ -19,8 +19,8 @@ import { Rating } from '../components/Rating.tsx';
 import { cn } from '../lib/cn.ts';
 import { cssMs } from '../lib/presence.ts';
 import { useSearchParams } from 'react-router-dom';
+import { RankCard } from '../components/RankCard.tsx';
 import { PlaceRank } from '../components/PlaceRank.tsx';
-import { ArtistLinks } from '../components/ArtistLinks.tsx';
 import { useMenu } from '../components/Menu.tsx';
 import { useTrackMenuItems } from '../components/TrackMenu.tsx';
 
@@ -89,10 +89,6 @@ function DuelRank() {
   const [flash, setFlash] = useState<string | null>(null);
   /** the card that was just chosen (or both, for equal) while its animation plays */
   const [picked, setPicked] = useState<string | 'equal' | null>(null);
-  /** a finger dragging a card sideways: swiping a card right picks it (phones; replaces tapping twice) */
-  const [drag, setDrag] = useState<{ id: string; dx: number; settle?: boolean } | null>(null);
-  const finger = useRef<{ id: string; x: number; y: number; w: number; locked: boolean } | null>(null);
-  const swallowClick = useRef(false);
   const lastArrow = useRef<{ key: string; pair: string } | null>(null);
   /** both tracks of the pair are loaded as soon as the pair appears, so a preview starts at once */
   const previews = useRef(new Map<string, Promise<Preview | null>>());
@@ -127,6 +123,8 @@ function DuelRank() {
   }, [pool, stop]);
   useEffect(() => { if (!pair) next(); }, [pair, next]);
   useEffect(() => stop, [stop]);
+  // a preview must not keep playing once the app is left (the phone's home button, another app, a locked screen)
+  useEffect(() => { const f = () => { if (document.hidden) stop(); }; document.addEventListener('visibilitychange', f); window.addEventListener('pagehide', stop); return () => { document.removeEventListener('visibilitychange', f); window.removeEventListener('pagehide', stop); }; }, [stop]);
   // the previews follow the player's volume slider, also while one is playing
   useEffect(() => { previews.current.forEach((p) => void p.then((v) => { if (v) v.el.volume = volume; })); }, [volume]);
   // starting the main player (play button, a track in a list) ends a preview, so the two never overlap
@@ -221,39 +219,12 @@ function DuelRank() {
 
   previewRef.current = (t) => snippet(t, true);
 
-  const swipeHandlers = (t: Track) => ({
-    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.pointerType !== 'touch' || picked || (e.target as Element).closest('a, button, input')) return;
-      finger.current = { id: t.id, x: e.clientX, y: e.clientY, w: e.currentTarget.offsetWidth, locked: false };
-    },
-    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
-      const f = finger.current;
-      if (!f || f.id !== t.id) return;
-      const dx = e.clientX - f.x, dy = e.clientY - f.y;
-      if (!f.locked) {
-        if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { finger.current = null; return; } // the page is being scrolled
-        if (Math.abs(dx) < 10) return;
-        f.locked = true;
-        e.currentTarget.setPointerCapture(e.pointerId);
-      }
-      setDrag({ id: t.id, dx: Math.max(0, dx) });
-    },
-    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
-      const f = finger.current; finger.current = null;
-      if (!f?.locked || f.id !== t.id) return;
-      swallowClick.current = true; // the tap that ends a drag is not a tap on the card
-      setTimeout(() => { swallowClick.current = false; }, 0);
-      if (e.clientX - f.x >= Math.max(90, f.w * 0.3)) { setDrag(null); vote(t.id); } else setDrag({ id: t.id, dx: 0, settle: true });
-    },
-    onPointerCancel: () => { finger.current = null; setDrag(null); },
-  });
-
   if (lib.tracks.length < 2) return <div className="text-muted">Add at least two tracks to start ranking.</div>;
 
   return (
     <div ref={fit.ref} className="mx-auto flex max-w-4xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
-      <div className={cn('flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1', compact ? 'mb-1 text-xs' : 'mb-3')}>
-        <h1 className={cn('mr-auto font-bold', compact ? 'sr-only' : 'text-xl sm:text-2xl')}>Which is better?</h1>
+      <div className={cn('flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1', compact ? 'mb-1 text-xs' : 'mb-2 sm:mb-3')}>
+        <h1 className={cn('mr-auto font-bold', compact ? 'sr-only' : 'text-xl max-sm:sr-only sm:text-2xl')}>Which is better?</h1>
         <ThemedSelect className="input !w-auto !py-1 text-sm" aria-label="Which tracks to compare" title="Which tracks to compare" value={tier.tier} onChange={(e) => setTier({ ...tier, tier: e.target.value as Tier })}>{TIERS.map((x) => <option key={x.id} value={x.id}>{x.id === 'any' ? 'Compare: anything' : x.label}</option>)}</ThemedSelect>
         {tier.tier === 'range' && <span className="flex items-center gap-1">
           <input type="number" min={0} max={10} step={0.5} className="input !w-16 !py-0.5" aria-label="Lowest rating" value={tier.min} onChange={(e) => setTier({ ...tier, min: Number(e.target.value) })} />–
@@ -269,45 +240,25 @@ function DuelRank() {
       {/* each card fills its share of the height that is left (on a phone they stack and share it), and lays itself out inside that space */}
       <div className={cn('grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[repeat(2,minmax(0,1fr))] sm:grid-cols-2 sm:grid-rows-[minmax(0,1fr)] sm:gap-4', compact ? 'gap-1.5' : 'gap-3')}>
         {[a, b].map((t, i) => t && (
-          <div key={t.id} role="button" tabIndex={0} aria-pressed={playing === t.id} onContextMenu={menu.onContextMenu(trackItems(t, () => usePlayer.getState().play(t.id, [t.id], { type: 'search', id: 'Rank' })), t.title)} aria-label={`${playing === t.id ? 'Stop preview of' : 'Preview'} ${t.title}`}
-            onClick={(e) => { if (swallowClick.current || (e.target as Element).closest('a, button, input')) return; if (!picked) snippet(t); }} {...swipeHandlers(t)}
-            style={{ touchAction: 'pan-y', ...(drag?.id === t.id ? { transform: `translateX(${drag.dx}px)`, transition: drag.settle ? 'transform 200ms ease-out' : 'none' } : null) }}
-            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!picked) snippet(t); } }}
-            data-selected={playing === t.id || undefined} className={cn('card bt-sel vote-card flex min-h-0 min-w-0 cursor-pointer select-none flex-row items-center overflow-hidden max-sm:[container-type:size] sm:flex-col',
-              compact ? 'gap-2 !p-1.5 sm:gap-1' : 'gap-3 p-3 sm:gap-2 sm:p-4',
-              !t.file && 'cursor-default',
-              picked === t.id && 'bt-vote-win', picked && picked !== t.id && picked !== 'equal' && 'bt-vote-lose', picked === 'equal' && 'bt-vote-equal')}>
-            {/* a phone: a square cover as tall as the card allows (never more than 40% of its width) beside the text; wider screens give the cover all the room that is left */}
-            <div className="flex shrink-0 items-center justify-center max-sm:[--s:min(40cqw,calc(100cqh-1.5rem))] max-sm:[height:var(--s)] max-sm:[width:var(--s)] sm:min-h-0 sm:w-full sm:flex-1 sm:[container-type:size]">
-              <div className="relative aspect-square max-sm:h-full max-sm:w-full sm:h-auto sm:[width:min(100cqw,100cqh)]">
-                <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-full w-full" />
-                {playing === t.id && <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-black/40 text-white"><Volume2 className="animate-pulse" size={26} /></span>}
-                {drag?.id === t.id && drag.dx > 0 && <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-accent/45 text-accent-fg" style={{ opacity: Math.min(1, drag.dx / 140) }}><Check size={44} strokeWidth={3} /></span>}
-                {picked === t.id && <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-accent/45 text-accent-fg"><Check className="bt-vote-check" size={44} strokeWidth={3} /></span>}
-              </div>
-            </div>
-            <div className={cn('flex min-h-0 min-w-0 flex-1 justify-center overflow-hidden', compact ? 'flex-row items-center gap-1.5' : 'flex-col gap-1.5 sm:w-full sm:flex-none sm:items-center')}>
-              <div className={cn('min-w-0 text-left', compact ? 'flex-1' : 'sm:text-center')}><div className={cn('min-w-0 break-words font-semibold [overflow-wrap:anywhere]', compact ? 'truncate text-sm' : 'line-clamp-2 max-sm:[@container(max-height:14rem)]:line-clamp-1 text-base sm:text-lg')}>{t.title}</div>
-                <div className={cn('min-w-0 break-words text-muted [overflow-wrap:anywhere]', compact ? 'truncate text-xs' : 'line-clamp-1 text-sm')}><ArtistLinks leads={t.leads} featured={t.featured} plain />{t.albumTitle && ` · ${t.albumTitle}`}</div></div>
-              <div className={cn('flex min-w-0 items-center gap-2 sm:justify-center', compact ? 'shrink-0' : 'flex-wrap')}>
-                {!compact && <Rating track={t} />}
-                <button type="button" className="btn btn-ghost !p-1.5" title="Stats" aria-label={`Stats for ${t.title}`} onClick={(e) => { e.stopPropagation(); edit({ kind: 'track-details', id: t.id }); }}><BarChart3 size={14} /></button>
-              </div>
-              <div className={cn('text-xs text-muted sm:text-center max-sm:[@container(max-height:11.5rem)]:hidden', compact && 'hidden')} aria-hidden>{!t.file ? 'No audio yet' : playing === t.id ? <span className="inline-flex items-center gap-1"><Pause size={11} />Tap to stop</span> : <span className="inline-flex items-center gap-1"><><Play size={11} />Tap to preview 15 s</></span>}</div>
-              <button className={cn('btn btn-accent min-w-0 text-sm', compact ? 'shrink-0 !px-2 !py-0.5 text-xs' : 'w-full !px-3 !py-1.5 sm:w-auto sm:!px-4')} onClick={(e) => { e.stopPropagation(); vote(t.id); }}>{i === 0 ? '← ' : ''}This one{i === 1 ? ' →' : ''}</button>
-            </div>
-          </div>
+          // the cover is the biggest thing on the card; the text and the button stay small. Swipe it either way to pick it.
+          <RankCard key={t.id} t={t} compact={compact} playing={playing === t.id} onPreview={() => { if (!picked) snippet(t); }}
+            fx={picked === t.id ? 'win' : picked === 'equal' ? 'equal' : picked ? 'lose' : null}
+            swipe={{ dirs: 'both', right: 'Pick', onSwipe: () => vote(t.id) }}
+            badge={<Rating track={t} size="sm" />}
+            onStats={() => edit({ kind: 'track-details', id: t.id })}
+            onMenu={menu.onContextMenu(trackItems(t, () => usePlayer.getState().play(t.id, [t.id], { type: 'search', id: 'Rank' })), t.title)}
+            action={<button className="btn btn-accent shrink-0 !px-2.5 !py-1 text-xs" onClick={(e) => { e.stopPropagation(); vote(t.id); }}>{i === 0 ? '← ' : ''}This one{i === 1 ? ' →' : ''}</button>} />
         ))}
       </div>
       {menu.element}
-      <div className={cn('flex shrink-0 flex-col items-center gap-1.5', compact ? 'mt-1.5' : 'mt-3')}>
-        <div className="flex flex-wrap justify-center gap-2">
-          <button className="btn" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={16} />{compact ? 'Equal' : 'They’re equal (↓)'}</button>
-          <button className={cn('btn', strong && 'btn-accent')} aria-pressed={strong} onClick={() => setStrong((x) => !x)} title="Your next pick counts for more: use it when the difference is obvious to you (M)"><ChevronsUp size={16} />{compact ? 'Much better' : 'Next pick: much better (M)'}</button>
-          {last && <button className="btn btn-ghost" onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={16} />Undo</button>}
-          <button className="btn btn-ghost" onClick={() => !picked && next()} title="Not sure, or you don't want to rank this pair. Nothing is saved; you just get a new pair."><SkipForward size={16} />{compact ? 'Skip' : 'Skip, save nothing (↑)'}</button>
+      <div className={cn('flex shrink-0 flex-col items-center gap-1', compact ? 'mt-1' : 'mt-2 sm:mt-3')}>
+        <div className="flex flex-wrap justify-center gap-1.5">
+          <button className="btn !px-2.5 !py-1 text-xs" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={14} />Equal<span className="max-sm:hidden"> (↓)</span></button>
+          <button className={cn('btn !px-2.5 !py-1 text-xs', strong && 'btn-accent')} aria-pressed={strong} onClick={() => setStrong((x) => !x)} title="Your next pick counts for more: use it when the difference is obvious to you (M)"><ChevronsUp size={14} />Much better<span className="max-sm:hidden"> next (M)</span></button>
+          {last && <button className="btn btn-ghost !px-2.5 !py-1 text-xs" onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={14} />Undo</button>}
+          <button className="btn btn-ghost !px-2.5 !py-1 text-xs" onClick={() => !picked && next()} title="Not sure, or you don't want to rank this pair. Nothing is saved; you just get a new pair."><SkipForward size={14} />Skip<span className="max-sm:hidden">, save nothing (↑)</span></button>
         </div>
-        <div className={cn('min-h-4 text-center text-xs text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap a card to preview, swipe it right to pick it. </span>Equal records a draw. Skip records nothing.</span>}</div>
+        <div className={cn('min-h-4 text-center text-[11px] text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap to preview, swipe to pick. </span>Equal records a draw; Skip records nothing.</span>}</div>
       </div>
     </div>
   );

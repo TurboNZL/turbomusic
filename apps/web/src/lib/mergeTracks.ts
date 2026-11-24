@@ -1,4 +1,5 @@
-import type { PlaybackRule, RecordTable, TrackData } from '@turbomusic/core';
+import type { PlaybackRule, RecordTable, ReleaseData, TrackData } from '@turbomusic/core';
+import { singleReleaseFor } from './albumOps.ts';
 import type { Library, Track } from './library.ts';
 import { allSpotifyUrls, linkFields } from './spotifyLinks.ts';
 
@@ -14,8 +15,31 @@ export interface MergePlan {
   patches: { table: RecordTable; id: string; patch: object }[];
   /** records to delete (votes that would compare a track with itself) */
   deletes: { table: RecordTable; id: string }[];
+  /** releases marked as a single that keep what a merged single was (see `keepSingle`) */
+  newReleases: ReleaseData[];
   /** what happens, in plain words */
   summary: string[];
+}
+
+/** Several tracks that stay separate (own title, own album) but are the same song: the others share the keeper's audio, votes and rating. */
+export interface SharePlan { keepId: string; patches: { id: string; patch: Partial<TrackData> }[]; summary: string[] }
+
+export function planShareVersions(lib: Library, keepId: string, otherIds: string[]): SharePlan | null {
+  const keep = lib.trackById.get(keepId);
+  const others = uniq(otherIds).filter((id) => id !== keepId).flatMap((id) => lib.trackById.get(id) ?? []);
+  if (!keep || !others.length) return null;
+  const source = keep.file ? keep : others.find((t) => t.file);
+  const summary: string[] = [];
+  const patches = others.map((t) => {
+    const patch: Partial<TrackData> = { versionOf: keepId };
+    if (source && t.file !== source.file) { patch.file = source.file; patch.bitrate = source.bitrate; patch.audioCheck = source.audioCheck ?? null; }
+    return { id: t.id, patch };
+  });
+  summary.push(`${others.map((t) => `“${t.title}”`).join(', ')} stay${others.length === 1 ? 's' : ''} as ${others.length === 1 ? 'a track' : 'tracks'} of their own, with their own title and album`);
+  summary.push(`they count as other recordings of “${keep.title}”: votes, thumbs and rating are shared, and they are not asked about twice in Rank`);
+  if (source) summary.push(`they all play the audio file of “${source.title}”`);
+  else summary.push('none of them has audio yet, so nothing is shared yet (they will share it once one gets a file)');
+  return { keepId, patches, summary };
 }
 
 const uniq = <T,>(xs: T[]) => [...new Set(xs)];
@@ -27,7 +51,7 @@ export function suggestKeeper(tracks: Track[]): Track {
 }
 
 /** `raw` returns a track as stored (a derived track's `cover` may be its album's, which must not become the track's own). */
-export function planMerge(lib: Library, keepId: string, dropIds: string[], raw: (id: string) => Partial<TrackData> | undefined = () => undefined): MergePlan | null {
+export function planMerge(lib: Library, keepId: string, dropIds: string[], raw: (id: string) => Partial<TrackData> | undefined = () => undefined, opts: { keepSingle?: boolean } = {}): MergePlan | null {
   const keep = lib.trackById.get(keepId);
   const drops = uniq(dropIds).filter((id) => id !== keepId).flatMap((id) => lib.trackById.get(id) ?? []);
   if (!keep || !drops.length) return null;
@@ -66,7 +90,7 @@ export function planMerge(lib: Library, keepId: string, dropIds: string[], raw: 
   const mapList = (ids: string[]) => uniq(ids.map(remap));
   const changed = (a: string[], b: string[]) => a.length !== b.length || a.some((x, i) => x !== b[i]);
 
-  for (const r of lib.releases) { const next = mapList(r.trackIds ?? []); if (changed(r.trackIds ?? [], next)) patches.push({ table: 'releases', id: r.id, patch: { trackIds: next } }); }
+  for (const r of [...lib.releases, ...(lib.singleReleases ?? [])]) { const next = mapList(r.trackIds ?? []); if (changed(r.trackIds ?? [], next)) patches.push({ table: 'releases', id: r.id, patch: { trackIds: next } }); }
   for (const a of lib.albums) {
     const order = (a as { trackOrder?: string[] }).trackOrder;
     if (order) { const next = mapList(order); if (changed(order, next)) patches.push({ table: 'albums', id: a.id, patch: { trackOrder: next } }); }
@@ -109,7 +133,20 @@ export function planMerge(lib: Library, keepId: string, dropIds: string[], raw: 
       .filter((r) => r.trackAId !== r.trackBId && !seen.has(`${r.trackAId}>${r.trackBId}`) && !!seen.add(`${r.trackAId}>${r.trackBId}`));
     patches.push({ table: 'profiles', id: lib.profile.id, patch: { playbackRules: rules } });
   }
+  // a dropped single (a track on no album) that merges into a song on an album stays a single: a release marked single on that album
+  const newReleases: ReleaseData[] = [];
+  if (opts.keepSingle) {
+    const albumId = albums[0]?.albumId;
+    const singles = drops.filter((d) => !d.albumId);
+    const have = new Set((lib.singleReleases ?? []).filter((r) => r.albumId === albumId && r.trackIds.includes(keepId)).map((r) => r.id));
+    if (albumId && singles.length && !have.size) {
+      const d = singles[0];
+      const cover = (raw(d.id) ?? { cover: null }).cover ?? null;
+      newReleases.push(singleReleaseFor(albumId, keepId, cover, d.releaseDate ?? null));
+      summary.push(`“${d.title}” stays as a single: a release marked single is added to the album (it keeps its cover${d.releaseDate ? ' and date' : ''}, no name needed)`);
+    }
+  }
   const lists = patches.filter((p) => ['releases', 'albums', 'playlists', 'eras'].includes(p.table)).length;
   if (lists) summary.push(`${lists} tracklist${lists === 1 ? '' : 's'} (albums, releases, playlists, eras) now point here`);
-  return { keepId, removeIds: drops.map((d) => d.id), keep: fields, patches, deletes, summary };
+  return { keepId, removeIds: drops.map((d) => d.id), keep: fields, patches, deletes, newReleases, summary };
 }

@@ -4,12 +4,14 @@ import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEditor } from '../lib/editor.ts';
 import { useLibrary } from '../lib/derive.ts';
+import { useStore } from '../lib/store.ts';
 import { Cover } from '../components/Cover.tsx';
 import { useMenu } from '../components/Menu.tsx';
 import { plural } from '../lib/cn.ts';
 import { useArtistMenuItems } from '../components/entityMenus.tsx';
 import { Eye, EyeOff } from 'lucide-react';
-import { UnimportedNote } from '../components/UnimportedNote.tsx';
+import { HiddenToggle } from '../components/HiddenToggle.tsx';
+import { isHiddenArtist } from '../lib/unimported.ts';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { EntityList } from '../components/EntityList.tsx';
 import { artistSubject, matchesAll, splitTyped, type Chip } from '../lib/filters.ts';
@@ -17,7 +19,7 @@ import { ARTIST_SORTS, artistRows, sortArtists } from '../lib/listSort.ts';
 import { usePageState } from '../lib/pageState.ts';
 
 export function ArtistsPage() {
-  const lib = useLibrary();
+  const lib = useLibrary(true); // the Hidden switch below decides about what is not imported yet
   const edit = useEditor((s) => s.open);
   const menu = useMenu();
   const itemsFor = useArtistMenuItems();
@@ -26,10 +28,10 @@ export function ArtistsPage() {
   const page = usePageState('artists', ARTIST_SORTS, { sort: 'tracks' });
   const all = useMemo(() => artistRows(lib), [lib]);
   const [showHidden, setShowHidden] = useState(false);
-  const hiddenCount = useMemo(() => lib.artists.filter((a) => (a as { hidden?: boolean }).hidden).length, [lib]);
+  const hiddenCount = useMemo(() => lib.artists.filter((a) => isHiddenArtist(lib, a)).length, [lib]);
   const rows = useMemo(() => {
     const needle = splitTyped(q, 'artists') ? '' : q.toLowerCase();
-    const f = all.filter((a) => (showHidden || !(lib.artistById.get(a.id) as { hidden?: boolean } | undefined)?.hidden) && a.name.toLowerCase().includes(needle) && (!chips.length || matchesAll(chips, artistSubject(lib, a.id))));
+    const f = all.filter((a) => (showHidden || !isHiddenArtist(lib, a)) && a.name.toLowerCase().includes(needle) && (!chips.length || matchesAll(chips, artistSubject(lib, a.id))));
     return sortArtists(f, page.sort, page.dir);
   }, [lib, all, q, chips, page.sort, page.dir, showHidden]);
   const CH = useChunks(rows.length, 60, `${q}|${chips.length}|${page.sort}|${page.dir}|${page.view}`);
@@ -39,10 +41,9 @@ export function ArtistsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Artists <span className="text-base font-normal text-muted">{rows.length}</span></h1>
       </div>
-      <ListToolbar actions={hiddenCount > 0 ? <button type="button" className={`btn ${showHidden ? 'btn-accent' : ''}`} aria-pressed={showHidden} title={showHidden ? 'Hidden artists are shown: press to leave them out again' : 'Artists you hid are left out of this list: press to show them'} onClick={() => setShowHidden(!showHidden)}>{showHidden ? <Eye size={15} /> : <EyeOff size={15} />}{showHidden ? 'Showing hidden' : 'Hidden'} {hiddenCount}</button> : undefined} scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
-      <UnimportedNote kind="artists" />
+      <ListToolbar actions={<HiddenToggle count={hiddenCount} on={showHidden} onChange={setShowHidden} noun="artists" />} scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       {page.view === 'list'
-        ? <EntityList rows={shownRows.map((a) => ({ id: a.id, to: `/artists/${a.id}`, cover: a.image, seed: a.name, title: a.name, kind: 'artist' as const,
+        ? <EntityList allIds={rows.map((a) => a.id)} trackIdsOf={(id) => lib.tracks.filter((t) => t.credits.some((c) => c.artistId === id)).map((t) => t.id)} hide={{ hidden: (id) => !!(lib.artistById.get(id) as { hidden?: boolean } | undefined)?.hidden, set: (id, v) => useStore.getState().patch('artists', id, { hidden: v }) }} rows={shownRows.map((a) => ({ id: a.id, to: `/artists/${a.id}`, cover: a.image, seed: a.name, title: a.name, kind: 'artist' as const,
             sub: `${plural(a.tracks, 'track')} · ${plural(a.albums, 'album')}`, meta: a.rating != null ? a.rating.toFixed(1) : undefined, menu: menu.onContextMenu(itemsFor(a.id), `Actions for ${a.name}`, a.id) }))} />
         : <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
             {shownRows.map((a) => (

@@ -8,6 +8,7 @@ import { useEditor } from '../lib/editor.ts';
 import { usePlayer } from '../lib/player.ts';
 import { initialView, viewTrackIds, type AlbumView } from '../lib/albumOps.ts';
 import { plural } from '../lib/cn.ts';
+import { statsPath } from '../lib/entityStats.ts';
 import { Cover } from '../components/Cover.tsx';
 import { Notes } from '../components/Notes.tsx';
 import { KeepOffline } from '../components/KeepOffline.tsx';
@@ -33,6 +34,7 @@ export function AlbumPage() {
   const [arranging, setArranging] = useState(false);
   const album = id ? lib.albumById.get(id) : undefined;
   const releases = useMemo(() => (album ? lib.releases.filter((r) => r.albumId === album.id).sort((a, b) => (a.releaseDate ?? '9').localeCompare(b.releaseDate ?? '9') || a.title.localeCompare(b.title)) : []), [lib, album]);
+  const singleReleases = useMemo(() => (album ? lib.singleReleases.filter((r) => r.albumId === album.id && lib.trackById.has(r.trackIds[0])) : []), [lib, album]);
   if (!album) return <div className="text-muted">Album not found.</div>;
 
   // which tracks to show: the release picked in the side panel (kept in the link, ?release=), else the default release or all tracks
@@ -54,7 +56,7 @@ export function AlbumPage() {
 
   return (
     <DetailLayout
-      left={<section className="space-y-2" aria-label="Releases">
+      left={<><section className="space-y-2" aria-label="Releases">
         <div className="flex items-center gap-2"><h2 className="text-lg font-semibold">Releases</h2>
           <button className="btn btn-ghost !p-1.5" aria-label="New release" onClick={() => edit({ kind: 'new-release', id: album.id })}><Plus size={16} /></button></div>
         {!releases.length && <p className="text-sm text-muted">No releases. A release is an edition of the album (deluxe, streaming, vinyl) with its own date, cover and tracklist.</p>}
@@ -78,7 +80,19 @@ export function AlbumPage() {
               </div>);
           })}
         </div>
-      </section>}
+      </section>
+      {singleReleases.length > 0 && <section className="mt-5 space-y-2" aria-label="Singles">
+        <h2 className="text-lg font-semibold">Singles</h2>
+        <div className="space-y-1.5">
+          {singleReleases.map((r) => { const t = lib.trackById.get(r.trackIds[0]); return t && (
+            <div key={r.id} className="card group flex items-center gap-2 py-2 pl-2 pr-1">
+              <Link to={statsPath('track', t.id)} className="flex min-w-0 flex-1 items-center gap-3 text-sm" title="Open this single’s stats page">
+                <Cover hash={r.cover || t.cover || album.cover} seed={t.title} className="h-11 w-11 shrink-0" />
+                <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.title}</span><span className="block text-xs text-muted">{r.releaseDate ?? 'undated'} · single</span></span></Link>
+              <button className="-my-2 flex shrink-0 items-center self-stretch px-2.5 text-muted hover:text-fg" aria-label={`Edit the single ${t.title}`} title="Edit single" onClick={() => edit({ kind: 'release', id: r.id })}><Pencil size={14} /></button>
+            </div>); })}
+        </div>
+      </section>}</>}
       right={<Notes lib={lib} type="album" id={album.id} />}>
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end" onContextMenu={menu.onContextMenu(fullMenu, `Actions for ${album.title}`, 'album')}>

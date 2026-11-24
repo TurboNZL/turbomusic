@@ -9,6 +9,7 @@ import { desktop } from '../lib/settings.ts';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
+import { useEditor } from '../lib/editor.ts';
 import { Api, type ServerStatus } from '../lib/api.ts';
 import { api, useStore } from '../lib/store.ts';
 import { cn, fmtBytes } from '../lib/cn.ts';
@@ -133,6 +134,8 @@ export function SettingsPage() {
       <Section title="Release names"><ReleaseNamesManager /></Section>
 
       <Section title="Artist aliases"><AliasesManager /></Section>
+
+      <Section title="Clean up loose singles"><p className="mb-2 text-sm text-muted">Songs that are on no album pile up when an album is removed. Pick a group (for example the ones that were never imported), check the list, and delete them together.</p><button className="btn" onClick={() => useEditor.getState().open({ kind: 'clean-singles', id: '' })}>Clean up singles…</button></Section>
 
       <Section title="Default images"><p className="text-sm text-muted">Shown for albums and artists that have no image of their own. Synced with your library.</p><DefaultImages /></Section>
       </>}

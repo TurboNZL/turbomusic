@@ -49,16 +49,30 @@ export function PlayerBar() {
   // the cover card belongs to the playing track; it closes with it
   useEffect(() => { if (!current) usePopups.getState().closeCover(); }, [current]);
 
+  // on a phone the cover follows the bar's own roundness (the bar's corner radius less its padding), so it does not sit in it as a hard square
+  const barRef = useRef<HTMLDivElement>(null);
+  const [coverR, setCoverR] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+      setCoverR(window.innerWidth < 768 && r > 14 ? `min(${Math.round(r - 12)}px, 40%)` : undefined);
+    };
+    measure(); window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [mounted]);
+
   if (!mounted) return null;
   const track = current ?? last.current;
   return (
-    <div className="bt-player bt-shell" data-leaving={leaving || undefined}>
+    <div ref={barRef} className="bt-player bt-shell" data-leaving={leaving || undefined}>
       {p.error && <div className="bg-bad/15 px-4 py-1 text-center text-xs text-bad">{p.error}</div>}
       <div className="bt-pbar flex items-center gap-3 px-3 py-2 md:gap-6 md:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-3 md:w-1/3 md:flex-none" onContextMenu={track ? menu.onContextMenu(itemsFor(track, () => { if (!v.playing) v.toggle(); }), `Actions for ${track.title}`, 'playing') : undefined}>
           {track && <>
-            <button ref={setCoverBtn} type="button" data-popover-trigger aria-expanded={coverOpen} aria-label="Show a larger cover" title="Larger cover" className="bt-cover-btn shrink-0 rounded-theme" onClick={toggleCover}>
-              <Cover hash={track.cover} seed={track.albumTitle ?? track.title} className="h-12 w-12" />
+            <button ref={setCoverBtn} type="button" data-popover-trigger aria-expanded={coverOpen} aria-label="Show a larger cover" title="Larger cover" className="bt-cover-btn shrink-0 rounded-theme" style={coverR ? { borderRadius: coverR } : undefined} onClick={toggleCover}>
+              <Cover hash={track.cover} seed={track.albumTitle ?? track.title} className="h-12 w-12" radius={coverR} />
             </button>
             <div className="min-w-0">
               <div className="bt-ptitle truncate text-sm font-medium"><Link to={trackPath(track)} className="hover:underline" title="Go to this track in your library">{track.title}</Link></div>

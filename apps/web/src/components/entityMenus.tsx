@@ -6,7 +6,7 @@ import { readShuffle, writeShuffle } from './PlayControls.tsx';
 import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { YouTubeMusicIcon } from './BrandIcons.tsx';
-import { ListOrdered, FolderInput, PackagePlus, RotateCcw, GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListMusic, ListPlus, ListStart, Pencil, Replace, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff } from 'lucide-react';
+import { ListOrdered, FolderInput, PackagePlus, RotateCcw, GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListMusic, ListPlus, ListStart, Pencil, Replace, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibrary, type Library } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
@@ -111,6 +111,7 @@ export function useAlbumMenuItems() {
       (album as { noYoutube?: boolean }).noYoutube
         ? { label: 'Has a YouTube Music link after all', icon: <YouTubeMusicIcon size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
         : { label: 'Not on YouTube Music', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
+      { label: 'Delete album…', icon: <Trash2 size={15} />, run: () => edit({ kind: 'delete-album', id: album.id }) } as MenuItem,
     ]) : []),
     ...group('Go to', <User size={15} />, [
       ...album.leads.map((l) => ({ label: `Go to ${l.name}`, icon: <User size={15} />, to: `/artists/${l.id}` })),

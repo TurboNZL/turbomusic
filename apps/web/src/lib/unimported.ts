@@ -32,3 +32,8 @@ export function withoutUnimported(lib: Library): Library {
   viewCache.set(lib, view);
   return view;
 }
+
+/** What a list's "Hidden" switch holds: things you hid yourself plus everything not imported yet. */
+export const isHiddenAlbum = (lib: Library, a: { id: string }) => !!(a as { hidden?: boolean }).hidden || unimportedOf(lib).albums.has(a.id);
+export const isHiddenArtist = (lib: Library, a: { id: string }) => !!(a as { hidden?: boolean }).hidden || unimportedOf(lib).artists.has(a.id);
+export const isHiddenTrack = (lib: Library, id: string) => unimportedOf(lib).tracks.has(id);
