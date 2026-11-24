@@ -40,9 +40,9 @@ export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMe
           <div className="rk-cover relative">
             <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-full w-full shadow-lg" />
             {!playing && t.file && <span className="absolute inset-0 flex items-center justify-center text-white/0 transition-colors" aria-hidden><span className="grid h-10 w-10 place-items-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm"><Play size={18} fill="currentColor" /></span></span>}
-            {playing && <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white" style={{ borderRadius: 'inherit' }}><Volume2 className="animate-pulse" size={28} /></span>}
-            {(fx === 'win') && <span className="absolute inset-0 flex items-center justify-center bg-accent/45 text-accent-fg" style={{ borderRadius: 'inherit' }}><Check className="bt-vote-check" size={44} strokeWidth={3} /></span>}
-            {fx === 'down' && <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-white" style={{ borderRadius: 'inherit' }}><ThumbsDown className="bt-vote-check" size={34} /></span>}
+            {playing && <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }}><Volume2 className="animate-pulse" size={28} /></span>}
+            {(fx === 'win') && <span className="absolute inset-0 flex items-center justify-center bg-accent/45 text-accent-fg" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }}><Check className="bt-vote-check" size={44} strokeWidth={3} /></span>}
+            {fx === 'down' && <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-white" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }}><ThumbsDown className="bt-vote-check" size={34} /></span>}
             {badge && <span className="chip absolute bg-black/70 text-[11px] text-white" style={{ left: 'calc(var(--radius, 8px) * 0.4 + 4px)', top: 'calc(var(--radius, 8px) * 0.4 + 4px)' }}>{badge}</span>}
             {onStats && <button type="button" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white/90 hover:bg-black/70" title="Stats" aria-label={`Stats for ${t.title}`} onClick={(e) => { e.stopPropagation(); onStats(); }}><BarChart3 size={14} /></button>}
             {swipe && <>
