@@ -6,7 +6,12 @@ import { heardTrackIds, onlyHeard } from '../lib/heard.ts';
 import { useStore } from '../lib/store.ts';
 import { makeQuestion, nextQuestion, votesFor, type Q, type Question } from '../lib/questions.ts';
 import { usePreviews } from '../lib/usePreviews.ts';
-import { PreviewCard } from './PreviewCard.tsx';
+import { RankCard, type SwipeSpec } from './RankCard.tsx';
+import { Rating } from './Rating.tsx';
+import { useEditor } from '../lib/editor.ts';
+import { useMenu } from './Menu.tsx';
+import { useTrackMenuItems } from './TrackMenu.tsx';
+import { usePlayer } from '../lib/player.ts';
 import { cn } from '../lib/cn.ts';
 import { cssMs } from '../lib/presence.ts';
 import { haptic } from '../lib/haptics.ts';
@@ -24,6 +29,9 @@ const wasOpen = () => { try { return localStorage.getItem(OPEN_KEY) === '1'; } c
 export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Question['kind']; embedded?: boolean } = {}) {
   const lib = useLibraryLive();
   const put = useStore((s) => s.put);
+  const edit = useEditor((st) => st.open);
+  const menu = useMenu();
+  const trackItems = useTrackMenuItems();
   const [open, setOpen] = useState(embedded ? true : wasOpen);
   // one kind only (the Rank page's modes) or a mix (home): the question to ask next
   const ask = (pool: Q[], prev?: Question['kind']) => (fixedKind ? makeQuestion(pool, fixedKind) ?? nextQuestion(pool, prev) : nextQuestion(pool, prev));
@@ -62,9 +70,16 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
     if (q.kind === 'odd') return id === settle ? 'down' : null;
     return id === settle ? 'win' : 'lose';
   };
-  const pick = (t: Track, label = 'This one', on?: () => void) => label === 'Like least'
-    ? <button className="btn w-full !py-1.5 text-sm" onClick={on ?? (() => answer(t.id))}><ThumbsDown size={14} />{label}</button> // the opposite of picking a favourite: not the accent colour, not a tick
-    : <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={on ?? (() => answer(t.id))}><Check size={14} />{label}</button>;
+  /** one card, the same for every kind of question: big cover, small text, one small button, swipe to answer where that makes sense (not on a grid of four) */
+  const card = (t: Track, o: { wide?: boolean; label?: string; swipe?: SwipeSpec | null; on?: () => void; fx?: ReturnType<typeof fxOf>; badge?: React.ReactNode; accent?: boolean; action?: React.ReactNode; tone?: 'bad' } = {}) => (
+    <RankCard key={t.id} t={t} playing={preview.playing === t.id} onPreview={() => preview.toggle(t)} fx={o.fx ?? fxOf(t.id)} swipe={o.swipe} accent={o.accent} className={o.wide ? 'h-[30dvh] min-h-[11rem] sm:aspect-[4/5] sm:h-auto' : 'aspect-[4/5]'}
+      badge={o.badge ?? <Rating track={t} size="sm" />} onStats={() => edit({ kind: 'track-details', id: t.id })}
+      onMenu={menu.onContextMenu(trackItems(t, () => usePlayer.getState().play(t.id, [t.id], { type: 'search', id: 'Sharpen' })), t.title)}
+      action={o.action ?? (o.label === 'Like least'
+        ? <button className="btn shrink-0 !px-2.5 !py-1 text-xs" onClick={(e) => { e.stopPropagation(); (o.on ?? (() => answer(t.id)))(); }}><ThumbsDown size={13} /><span className="rk-lbl">Least</span></button>
+        : <button className="btn btn-accent shrink-0 !px-2.5 !py-1 text-xs" onClick={(e) => { e.stopPropagation(); (o.on ?? (() => answer(t.id)))(); }}><Check size={13} /><span className="rk-lbl">{o.label ?? 'This one'}</span></button>)} />
+  );
+  const pickSwipe = (on: () => void, tone?: 'bad'): SwipeSpec => ({ dirs: 'both', right: tone ? 'Least' : 'Pick', tone: tone ?? 'pick', onSwipe: on });
 
   return (
     <section className="card" aria-label="Ranking question">
@@ -76,20 +91,22 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
       </button>
       {open && <div className="space-y-3 px-4 pb-4">
         <p className="text-sm text-muted">{q.why}</p>
-        {q.kind === 'duel' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview} fx={fxOf(t.id)}>{pick(t)}</PreviewCard>)}</div>}
-        {q.kind === 'triple' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview} fx={fxOf(t.id)}>{pick(t, 'Best')}</PreviewCard>)}</div>}
-        {q.kind === 'quad' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 lg:grid-cols-4">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview} fx={fxOf(t.id)}>{pick(t, 'Best')}</PreviewCard>)}</div>}
-        {q.kind === 'odd' && <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => <PreviewCard key={t.id} t={t} preview={preview} fx={fxOf(t.id)}>{pick(t, 'Like least')}</PreviewCard>)}</div>}
+        {q.kind === 'duel' && <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">{tracks.map((t) => card(t, { wide: true, swipe: pickSwipe(() => answer(t.id)) }))}</div>}
+        {q.kind === 'triple' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => card(t, { label: 'Best', swipe: pickSwipe(() => answer(t.id)) }))}</div>}
+        {/* a grid of four is a grid, not a stack of cards: no swiping here, tap a card to hear it and press its button to pick it */}
+        {q.kind === 'quad' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3 lg:grid-cols-4">{tracks.map((t) => card(t, { label: 'Best' }))}</div>}
+        {q.kind === 'odd' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => card(t, { label: 'Like least', swipe: pickSwipe(() => answer(t.id), 'bad') }))}</div>}
         {q.kind === 'benchmark' && (() => { const [ref, t] = tracks; return (
           // a plain head-to-head: the track on your top-10% line against a challenger. Picking the challenger says it clears the line.
-          <div className="grid grid-cols-2 gap-3">
-            <PreviewCard t={ref} preview={preview} fx={fxOf(ref.id, 'ref')} badge={`The line · ${ref.rating.toFixed(1)}`}>{pick(ref, 'This one is better', () => answer('no'))}</PreviewCard>
-            <PreviewCard t={t} preview={preview} fx={fxOf(t.id, 'challenger')} accent badge="Challenger">{pick(t, 'This one is better', () => answer('yes'))}</PreviewCard>
+          <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+            {card(ref, { wide: true, fx: fxOf(ref.id, 'ref'), badge: `The line · ${ref.rating.toFixed(1)}`, label: 'Better', on: () => answer('no'), swipe: pickSwipe(() => answer('no')) })}
+            {card(t, { wide: true, fx: fxOf(t.id, 'challenger'), accent: true, badge: 'Challenger', label: 'Better', on: () => answer('yes'), swipe: pickSwipe(() => answer('yes')) })}
           </div>); })()}
         {q.kind === 'love' && (() => { const [t] = tracks; return (
-          <div className="mx-auto max-w-[12rem]"><PreviewCard t={t} preview={preview} fx={fxOf(t.id)}>
-            <div className="flex flex-col gap-2"><button className="btn btn-accent w-full min-w-0 justify-center" onClick={() => answer('yes')}><ThumbsUp size={15} />Love it</button><button className="btn w-full min-w-0 justify-center" onClick={() => answer('no')}><ThumbsDown size={15} />Meh</button></div>
-          </PreviewCard></div>); })()}
+          <div className="mx-auto max-w-[14rem] space-y-2">
+            {card(t, { swipe: { dirs: 'both', right: 'LOVE', left: 'MEH', onSwipe: (d) => answer(d > 0 ? 'yes' : 'no') }, action: <span className="text-[11px] text-muted">swipe, or:</span> })}
+            <div className="grid grid-cols-2 gap-2"><button className="btn min-w-0 justify-center !py-1 text-xs" onClick={() => answer('no')}><ThumbsDown size={13} />Meh</button><button className="btn btn-accent min-w-0 justify-center !py-1 text-xs" onClick={() => answer('yes')}><ThumbsUp size={13} />Love it</button></div>
+          </div>); })()}
         <div className="flex flex-wrap gap-2">
           {q.kind === 'duel' && <button className="btn btn-ghost" onClick={() => answer('equal')}><Equal size={14} />Equal</button>}
           <button className="btn btn-ghost" onClick={() => answer('skip')}><SkipForward size={14} />Skip</button>
@@ -97,6 +114,7 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
           {fixedKind && <button className="btn btn-ghost" onClick={() => next(q.kind)}><RefreshCw size={14} />Another one</button>}
         </div>
       </div>}
+      {menu.element}
     </section>
   );
 }

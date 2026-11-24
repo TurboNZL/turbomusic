@@ -2,11 +2,17 @@ import type { Listen } from './listens.ts';
 
 /** `id` is the library artist / album / track the row stands for (null when it is not in the library), for links and pictures. */
 export interface TopRow { key: string; label: string; sub: string; plays: number; ms: number; trackId: string | null; id: string | null }
+export interface Streak { days: number; from: string; to: string; running: boolean }
+export interface SkipRow { key: string; label: string; sub: string; id: string | null; trackId: string | null; plays: number; skips: number; rate: number }
 export interface ListenStats {
   plays: number; ms: number; skips: number; skipRate: number;
   distinctTracks: number; distinctArtists: number; distinctAlbums: number;
   daysActive: number; days: number; avgMsPerDay: number;
   longestStreak: { days: number; from: string | null; to: string | null }; currentStreak: number;
+  /** the longest runs of days with a play, longest first (the one still running is marked) */
+  streaks: Streak[];
+  /** songs skipped most often relative to how often they were played (3 plays or more, at least one skip) */
+  skipped: SkipRow[];
   firstTs: number | null; lastTs: number | null;
   /** the play that came first (what you heard first), when the track is in the library */
   firstListen: { trackId: string | null; title: string; artist: string } | null;
@@ -52,6 +58,7 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
   const clock = Array.from({ length: 7 }, () => Array<number>(24).fill(0));
   const byDay = new Map<string, number>(), months = new Map<string, { ms: number; plays: number; newArtists: number }>(), platforms = new Map<string, number>();
   const seenArtist = new Set<string>(all.filter((l) => range.from !== undefined && l.ts < range.from && l.ms >= minMs).map((l) => l.artist.toLowerCase()));
+  const skipMap = new Map<string, SkipRow>();
   let ms = 0, skips = 0, shuffleOn = 0, shuffleKnown = 0;
   const bump = (m: Map<string, TopRow>, key: string, label: string, sub: string, l: Listen, id: string | null) => {
     const r = m.get(key) ?? { key, label, sub, plays: 0, ms: 0, trackId: l.trackId, id };
@@ -60,6 +67,8 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
   for (const l of rows) {
     ms += l.ms; if (l.skipped) skips++;
     const tk = l.uri ?? `${l.title}|${l.artist}`.toLowerCase();
+    const sk = l.trackId ? `t:${l.trackId}` : tk, sr = skipMap.get(sk) ?? { key: sk, label: l.title, sub: l.artist, id: l.trackId, trackId: l.trackId, plays: 0, skips: 0, rate: 0 };
+    sr.plays++; if (l.skipped) sr.skips++; skipMap.set(sk, sr);
     // a library track is one row however many Spotify links or titles its plays carry; others group by name
     bump(tracks, l.trackId ? `t:${l.trackId}` : tk, l.title, l.artist, l, l.trackId);
     bump(artists, l.artistId ? `a:${l.artistId}` : l.artist.toLowerCase(), l.artist, '', l, l.artistId);
@@ -91,9 +100,11 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
   const days = [...byDay.keys()].sort();
   let best = { days: 0, from: null as string | null, to: null as string | null }, run = 0, runFrom = '';
   const next = (k: string) => { const [y, m, d] = k.split('-').map(Number); return dayKey(new Date(y, m - 1, d + 1).getTime()); };
+  const runs: { days: number; from: string; to: string }[] = [];
   days.forEach((k, i) => {
     if (i > 0 && days[i - 1] && next(days[i - 1]) === k) run++; else { run = 1; runFrom = k; }
     if (run > best.days) best = { days: run, from: runFrom, to: k };
+    if (days[i + 1] !== next(k)) runs.push({ days: run, from: runFrom, to: k }); // the run ends here
   });
   let currentStreak = 0;
   if (days.length) {
@@ -101,6 +112,10 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
     if (!byDay.has(k)) k = dayKey(now - DAY);
     while (byDay.has(k)) { currentStreak++; const [y, m, d] = k.split('-').map(Number); k = dayKey(new Date(y, m - 1, d - 1).getTime()); }
   }
+
+  const lastDay = days[days.length - 1], runningTo = dayKey(now) === lastDay || dayKey(now - DAY) === lastDay ? lastDay : '';
+  const streaks = runs.filter((r) => r.days >= 2 || r.to === runningTo).sort((a, b) => b.days - a.days || (a.to < b.to ? 1 : -1)).slice(0, 8).map((r) => ({ ...r, running: r.to === runningTo }));
+  const skipped = [...skipMap.values()].filter((r) => r.plays >= 3 && r.skips > 0).map((r) => ({ ...r, rate: r.skips / r.plays })).sort((a, b) => b.rate - a.rate || b.skips - a.skips || b.plays - a.plays).slice(0, 30);
 
   const first = rows[0]?.ts ?? null, last = rows[rows.length - 1]?.ts ?? null;
   const spanDays = first !== null && last !== null ? Math.max(1, Math.round((Math.max(last, range.to ?? last) - Math.min(first, range.from ?? first)) / DAY)) : 0;
@@ -121,7 +136,7 @@ export function computeListenStats(all: Listen[], range: Range = {}, o: { minMs?
     plays: rows.length, ms, skips, skipRate: rows.length ? skips / rows.length : 0,
     distinctTracks: tracks.size, distinctArtists: artists.size, distinctAlbums: albums.size,
     daysActive: byDay.size, days: spanDays, avgMsPerDay: spanDays ? ms / spanDays : 0,
-    longestStreak: best, currentStreak, firstTs: first, lastTs: last, firstListen: rows[0] ? { trackId: rows[0].trackId, title: rows[0].title, artist: rows[0].artist } : null,
+    longestStreak: best, currentStreak, streaks, skipped, firstTs: first, lastTs: last, firstListen: rows[0] ? { trackId: rows[0].trackId, title: rows[0].title, artist: rows[0].artist } : null,
     topTracks: top(tracks, 'plays', n), topArtists: top(artists, 'plays', n), topAlbums: top(albums, 'plays', n),
     byHour, byWeekday, clock, byDay,
     byMonth: [...months.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v })),

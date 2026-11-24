@@ -24,6 +24,7 @@ export function useAddToAlbum() {
     patch('albums', album.id, { trackOrder: plan.trackOrder });
     for (const a of plan.releaseAppends) patch('releases', a.id, { trackIds: a.trackIds });
     if (plan.newRelease) put('releases', plan.newRelease);
+    if (plan.singleRelease) put('releases', plan.singleRelease);
   };
 }
 
@@ -46,6 +47,11 @@ export function ReleaseChoicePicker({ albumId, trackTitle, hasOwnCover, cover, v
         <input type="checkbox" checked={value.newRelease} onChange={(e) => onChange({ ...value, newRelease: e.target.checked })} />
         <Cover hash={cover} seed={trackTitle} className="h-9 w-9 shrink-0" />
         <span className="min-w-0 flex-1"><span className="block truncate font-medium">New release: {trackTitle}</span><span className="block text-xs text-muted">{hasOwnCover ? 'uses the track’s cover' : 'no cover'}</span></span>
+      </label>
+      <label className="flex items-center gap-3 text-sm">
+        <input type="checkbox" checked={!!value.asSingle} onChange={(e) => onChange({ ...value, asSingle: e.target.checked })} />
+        <Cover hash={cover} seed={trackTitle} className="h-9 w-9 shrink-0" />
+        <span className="min-w-0 flex-1"><span className="block truncate font-medium">Keep it as a single too</span><span className="block text-xs text-muted">a release marked single: no name needed, it stays on the Singles page with its own stats page</span></span>
       </label>
       {releases.map((r) => (
         <label key={r.id} className="flex items-center gap-3 text-sm">

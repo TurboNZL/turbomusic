@@ -41,6 +41,8 @@ export function usePreviews(tracks: Track[], enabled = true) {
 
   useEffect(() => { map.current.forEach((p) => void p.then((v) => { if (v) v.el.volume = volume; })); }, [volume]);
   useEffect(() => { if (playerPlaying) stop(); }, [playerPlaying, stop]);
+  // a preview must not keep playing once the app is left (the phone's home button, another app, a locked screen)
+  useEffect(() => { const f = () => { if (document.hidden) stop(); }; document.addEventListener('visibilitychange', f); window.addEventListener('pagehide', stop); return () => { document.removeEventListener('visibilitychange', f); window.removeEventListener('pagehide', stop); }; }, [stop]);
 
   /** play this track's preview, or stop it if it is the one playing */
   const toggle = useCallback((t: Track) => {

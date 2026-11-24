@@ -117,30 +117,30 @@ export function HomePage() {
   const score = healthScore(lib);
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-8">
       {menu.element}
       <RecapPrompt lib={lib} />
       <section className="card relative overflow-hidden p-5 sm:p-6">
         <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-accent/20 blur-3xl" aria-hidden />
-        <div className="relative flex flex-wrap items-center gap-5" onContextMenu={resumeInfo ? menu.onContextMenu(trackItems(resumeInfo.t, resume), `Actions for ${resumeInfo.t.title}`, 'resume') : undefined}>
+        <div className="relative grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-x-5" onContextMenu={resumeInfo ? menu.onContextMenu(trackItems(resumeInfo.t, resume), `Actions for ${resumeInfo.t.title}`, 'resume') : undefined}>
           {resumeInfo ? <>
-            <Cover hash={resumeInfo.t.cover} seed={resumeInfo.t.albumTitle ?? resumeInfo.t.title} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" />
-            <div className="min-w-0 flex-1 space-y-1">
+            <Cover hash={resumeInfo.t.cover} seed={resumeInfo.t.albumTitle ?? resumeInfo.t.title} className="h-24 w-24 sm:row-span-2 sm:h-28 sm:w-28" />
+            <div className="min-w-0 space-y-0.5 sm:self-end">
               <div className="text-xs uppercase tracking-wider text-muted">{resumeInfo?.interrupted ? 'Playback was interrupted: pick up where you left off' : 'Pick up where you left off'}</div>
               <div className="truncate text-2xl font-bold">{resumeInfo.t.title}</div>
               <div className="truncate text-sm text-muted">{resumeInfo.t.artistName}{resumeInfo.t.albumTitle ? ` · ${resumeInfo.t.albumTitle}` : ''} · {ago(resumeInfo.at)}</div>
-              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(resumeInfo.pos / 60)}:{String(Math.floor(resumeInfo.pos % 60)).padStart(2, '0')}{resumeInfo.queued > 0 ? ` · ${resumeInfo.queued} more queued` : ''}</button>
-                <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div>
-            </div></>
+              </div>
+              <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:col-start-2 sm:self-start sm:pt-1 max-sm:[&>*]:flex-1"><button className="btn btn-accent" onClick={resume}><Play size={16} fill="currentColor" />Resume at {Math.floor(resumeInfo.pos / 60)}:{String(Math.floor(resumeInfo.pos % 60)).padStart(2, '0')}{resumeInfo.queued > 0 ? ` · ${resumeInfo.queued} more queued` : ''}</button>
+                <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div></>
           : pick ? <>
-            <Cover hash={pick.cover} seed={pick.albumTitle ?? pick.title} className="h-24 w-24 shrink-0 sm:h-28 sm:w-28" />
-            <div className="min-w-0 flex-1 space-y-1">
+            <Cover hash={pick.cover} seed={pick.albumTitle ?? pick.title} className="h-24 w-24 sm:row-span-2 sm:h-28 sm:w-28" />
+            <div className="min-w-0 space-y-0.5 sm:self-end">
               <div className="text-xs uppercase tracking-wider text-muted">{tryNew.length ? 'Something you have not heard' : 'One of your best'}</div>
               <div className="truncate text-2xl font-bold">{pick.title}</div>
               <div className="truncate text-sm text-muted">{pick.artistName}{pick.albumTitle ? ` · ${pick.albumTitle}` : ''}</div>
-              <div className="flex flex-wrap gap-2 pt-2"><button className="btn btn-accent" onClick={() => play(pick.id, pickList, { type: 'search', id: tryNew.length ? 'Try something new' : 'Your best tracks' })}><Play size={16} fill="currentColor" />Play</button>
-                <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div>
-            </div></>
+              </div>
+              <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:col-start-2 sm:self-start sm:pt-1 max-sm:[&>*]:flex-1"><button className="btn btn-accent" onClick={() => play(pick.id, pickList, { type: 'search', id: tryNew.length ? 'Try something new' : 'Your best tracks' })}><Play size={16} fill="currentColor" />Play</button>
+                <Link to="/vote" className="btn whitespace-nowrap"><Swords size={16} />Keep ranking<span className="text-muted max-sm:hidden"> · {lib.tracks.length - done} to go</span></Link></div></>
           : <div className="min-w-0 flex-1"><Link to="/albums" className="btn">Browse albums</Link></div>}
         </div>
       </section>
@@ -151,13 +151,13 @@ export function HomePage() {
         <Tile label="Ranked" value={`${pct}%`} to="/vote" />
         <Link to="/health" className="card flex items-center gap-3 p-4 hover:bg-raised/50"><div><div className="text-xs uppercase tracking-wider text-muted">Library health</div><div className={cn('mt-1 text-2xl font-bold tabular-nums', score >= 0.9 ? 'text-good' : score >= 0.6 ? 'text-warn' : 'text-bad')}>{Math.round(score * 100)}</div></div><HeartPulse size={22} className="ml-auto text-muted" /></Link>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="card space-y-2 p-5 lg:col-span-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-3">
+        <section className="card min-w-0 space-y-2 overflow-hidden p-5 lg:col-span-2">
           <div className="flex items-baseline justify-between"><h2 className="font-semibold">The last 30 days</h2><Link to="/stats" className="text-xs text-muted hover:text-fg">All stats</Link></div>
           {month.plays ? <><Bars data={days} format={fmtHours} height={110} /><p className="text-sm text-muted"><b className="text-fg">{fmtHours(month.ms)}</b> across {month.plays.toLocaleString()} plays{month.currentStreak ? ` · ${month.currentStreak}-day streak` : ''}{month.topArtists[0] ? ` · most played ${month.topArtists[0].label}` : ''}</p></>
             : <p className="py-6 text-sm text-muted">No listening in the last 30 days. <Link to="/stats" className="underline">Import your Spotify history</Link> to fill this in.</p>}
         </section>
-        {comeback.length > 0 && <section className="card space-y-2 p-5"><div><h2 className="font-semibold">Rediscover</h2><p className="text-xs text-muted">Songs you rated 8 or higher that you have not played for a month.</p></div>
+        {comeback.length > 0 && <section className="card min-w-0 space-y-2 overflow-hidden p-5"><div><h2 className="font-semibold">Rediscover</h2><p className="text-xs text-muted">Songs you rated 8 or higher that you have not played for a month.</p></div>
           <ul className="space-y-1">{comeback.map((t) => <li key={t.id}><button className="flex w-full items-center gap-2 rounded-theme px-1 py-1 text-left text-sm hover:bg-raised" onContextMenu={menu.onContextMenu(trackItems(t, () => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Rediscover' })), `Actions for ${t.title}`, t.id)} onClick={() => play(t.id, comeback.map((x) => x.id), { type: 'search', id: 'Rediscover' })}><Play size={12} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{t.title}<span className="text-muted"> · {t.artistName}</span></span><span className="text-xs tabular-nums text-muted">{t.effectiveRating.toFixed(1)}</span></button></li>)}</ul>
         </section>}
       </div>

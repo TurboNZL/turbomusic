@@ -25,20 +25,18 @@ function useSpotifyDeps() {
 /**
  * The derived library for a component. It does NOT re-render when only the play history changed (every play and skip writes a row,
  * and re-rendering a whole track list for that made starting a track feel slow); use `useLibraryLive` where the history is shown.
- * Tracks, albums and artists that have no source yet are left out of its lists unless Settings > Spotify says to show them (`all` always includes them).
+ * Tracks, albums and artists that have no source yet are left out of its lists (`all` includes them: the lists with a "Hidden" switch use it and filter themselves).
  */
 export function useLibrary(all = false): Library {
   const rev = useStore((s) => s.rev);
-  const show = useStore((s) => s.settings.showUnimported);
   useSpotifyDeps();
-  return useMemo(() => (all || show ? getLibrary() : withoutUnimported(getLibrary())), [rev, all, show]);
+  return useMemo(() => (all ? getLibrary() : withoutUnimported(getLibrary())), [rev, all]);
 }
 
 /** Like `useLibrary`, and also refreshes when a play is logged: for pages that show the listening history or statistics. */
 export function useLibraryLive(all = false): Library {
   const rev = useStore((s) => s.rev);
   const logsRev = useStore((s) => s.logsRev);
-  const show = useStore((s) => s.settings.showUnimported);
   useSpotifyDeps();
-  return useMemo(() => (all || show ? getLibrary() : withoutUnimported(getLibrary())), [rev, logsRev, all, show]);
+  return useMemo(() => (all ? getLibrary() : withoutUnimported(getLibrary())), [rev, logsRev, all]);
 }

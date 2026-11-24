@@ -9,7 +9,7 @@ import { usePreviews } from '../lib/usePreviews.ts';
 import { answerPlacement, isPlaced, placedEqual, placedRank, placementCandidates, probeAt, questionsLeft, startPlacement, type Placement } from '../lib/placement.ts';
 import { cssMs } from '../lib/presence.ts';
 import { haptic } from '../lib/haptics.ts';
-import { PreviewCard } from './PreviewCard.tsx';
+import { RankCard } from './RankCard.tsx';
 import { Select } from './Select.tsx';
 
 /** a placement answer is a deliberate "this one is better", a little more than an ordinary vote */
@@ -92,11 +92,13 @@ export function PlaceRank({ initialId }: { initialId?: string }) {
       </div>
       {!done && opponent && <>
         <p className="text-sm text-muted">Is “{subject.title}” better than “{opponent.title}”?</p>
-        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3">
-          <PreviewCard t={subject} preview={preview} accent fx={settle === 'win' ? 'win' : settle === 'lose' ? 'lose' : settle === 'equal' ? 'equal' : null}>
-            <button className="btn btn-accent w-full !py-1.5 text-sm" onClick={() => answer('better')}><Check size={14} />Better</button></PreviewCard>
-          <PreviewCard t={opponent} preview={preview} badge={ratingBadge(opponent)} fx={settle === 'lose' ? 'win' : settle === 'win' ? 'lose' : settle === 'equal' ? 'equal' : null}>
-            <button className="btn w-full !py-1.5 text-sm" onClick={() => answer('worse')}>This one is better</button></PreviewCard>
+        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+          <RankCard t={subject} playing={preview.playing === subject.id} onPreview={() => preview.toggle(subject)} accent className="h-[30dvh] min-h-[11rem] sm:aspect-[4/5] sm:h-auto" fx={settle === 'win' ? 'win' : settle === 'lose' ? 'lose' : settle === 'equal' ? 'equal' : null}
+            swipe={{ dirs: 'both', right: 'Better', onSwipe: () => answer('better') }}
+            action={<button className="btn btn-accent shrink-0 !px-2.5 !py-1 text-xs" onClick={(e) => { e.stopPropagation(); answer('better'); }}><Check size={13} /><span className="rk-lbl">Better</span></button>} />
+          <RankCard t={opponent} playing={preview.playing === opponent.id} onPreview={() => preview.toggle(opponent)} badge={ratingBadge(opponent)} className="h-[30dvh] min-h-[11rem] sm:aspect-[4/5] sm:h-auto" fx={settle === 'lose' ? 'win' : settle === 'win' ? 'lose' : settle === 'equal' ? 'equal' : null}
+            swipe={{ dirs: 'both', right: 'Better', onSwipe: () => answer('worse') }}
+            action={<button className="btn shrink-0 !px-2.5 !py-1 text-xs" onClick={(e) => { e.stopPropagation(); answer('worse'); }}>This one</button>} />
         </div>
         <div className="flex flex-wrap justify-center gap-2">
           <button className="btn btn-ghost" onClick={() => answer('equal')} title="About as good: it goes right here"><Equal size={14} />About equal</button>

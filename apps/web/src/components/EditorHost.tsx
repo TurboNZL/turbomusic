@@ -3,6 +3,7 @@ import { DateLookup } from './DateLookup.tsx';
 import { FindDatesDialog } from './FindDatesDialog.tsx';
 import { MergeTracksDialog } from './MergeTracksDialog.tsx';
 import { MergePlaylistDialog, SyncedPlaylistDialog } from './SyncedPlaylist.tsx';
+import { DeleteAlbumDialog, DeleteTracksDialog, LooseSinglesDialog } from './DeleteDialogs.tsx';
 import { MergeWithDialog, type MergeKind } from './MergeWith.tsx';
 import { SpotifyLinks } from './SpotifyLinks.tsx';
 import { PasteCreditsDialog } from './PasteCredits.tsx';
@@ -170,7 +171,7 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="space-y-2 rounded-theme border border-line p-3">
         <div className="text-sm font-medium">Same song, different recording</div>
         {!track.versions.length && <>
-          <div className="text-xs text-muted">Is this a remaster, a live take, a radio edit or the music-video audio of a song you already have? Link it to the main version: it keeps its own audio and its own place on its album, but shares the main version’s votes, rating and thumbs, and is not asked about twice in Rank. If it is the very same audio on another album, merge the two tracks instead (one song listed on both albums): use “Merge with another track…” in its menu.</div>
+          <div className="text-xs text-muted">Is this a remaster, a live take, a radio edit or the music-video audio of a song you already have? Link it to the main version: it keeps its own audio and its own place on its album, but shares the main version’s votes, rating and thumbs, and is not asked about twice in Rank. If it is the very same audio under another title or on another album, use “Merge with another track…” in its menu: it can merge them into one track, or keep both and share the audio.</div>
           <TrackPicker value={t.versionOf ?? null} onChange={(v) => set('versionOf', v)} exclude={id} />
           {t.versionOf && lib.trackById.get(t.versionOf)?.versionOf && <div className="text-xs text-warn">“{lib.trackById.get(t.versionOf)?.title}” is itself another version, so this link does nothing until you pick the main one.</div>}</>}
         {track.versions.length > 0 && <>
@@ -538,7 +539,7 @@ function ReleaseDialog({ releaseId, albumId, onClose }: { releaseId?: string; al
   const lookup = releaseDateQuery(lib, { albumId: album.id, trackIds: live });
   const save = () => {
     if (added.length) { const raw = useStore.getState().rows.albums.get(album.id)?.data as AlbumData | undefined; patch('albums', album.id, { covers: [...new Set([...(raw?.covers ?? []), ...added])] }); }
-    const name = r.title.trim();
+    const name = r.single ? '' : r.title.trim();
     if (name && !lib.releaseNames.some((n) => n.name.toLowerCase() === name.toLowerCase())) put('releaseNames', { name }); // a new name joins the reusable list
     put('releases', { ...r, title: name, trackIds: live }, releaseId); onClose();
   };
@@ -555,10 +556,12 @@ function ReleaseDialog({ releaseId, albumId, onClose }: { releaseId?: string; al
             removeCoverFromAlbum(album.id, h); setGone((x) => [...x, h]); setAdded((x) => x.filter((y) => y !== h));
             if (r.cover === h) setR({ ...r, cover: null });
           }} /></Field>
-      <Field label="Release name" hint="Pick a name you have used before or type a new one. Leave it blank to call the release after the album.">
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={!!r.single} onChange={(e) => setR({ ...r, single: e.target.checked || undefined, title: e.target.checked ? '' : r.title })} />
+        <span><span className="font-medium">This release is a single</span><span className="block text-xs text-muted">One song that came out on its own. It needs no name, is listed under the album’s releases as a single, shows on the Singles page and opens that song’s stats page.</span></span></label>
+      {!r.single && <Field label="Release name" hint="Pick a name you have used before or type a new one. Leave it blank to call the release after the album.">
         <Select value={r.title} onChange={(v) => setR({ ...r, title: v })} searchable placeholder={`Same as the album (${album.title})`}
           options={[{ value: '', label: `Same as the album (${album.title})` }, ...[...lib.releaseNames].sort((a, b) => a.name.localeCompare(b.name)).map((n) => ({ value: n.name, label: n.name }))]}
-          creatable={{ label: (n) => `Create name: “${n}”`, create: (n) => n }} /></Field>
+          creatable={{ label: (n) => `Create name: “${n}”`, create: (n) => n }} /></Field>}
       <Field label="Release date"><input type="date" className="input" value={r.releaseDate ?? ''} onChange={(e) => setR({ ...r, releaseDate: e.target.value || null })} />
         <DateLookup title={lookup.album} artist={lookup.artist} onFound={(d) => setR({ ...r, releaseDate: d })} /></Field>
       <div className="space-y-1"><div className="text-sm text-muted">Tracklist ({live.length})</div>
@@ -634,6 +637,9 @@ export function EditorFor({ target, close }: { target: EditTarget; close: () => 
   if (target.kind === 'merge-playlist') return <MergePlaylistDialog key={key} spec={target.id} onClose={close} />;
   if (target.kind === 'paste-credits') return <PasteCreditsDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'merge-with') { const [k, ...rest] = target.id.split(':'); return <MergeWithDialog key={key} kind={k as MergeKind} id={rest.join(':')} onClose={close} />; }
+  if (target.kind === 'delete-album') return <DeleteAlbumDialog key={key} albumId={target.id} onClose={close} />;
+  if (target.kind === 'delete-tracks') return <DeleteTracksDialog key={key} ids={target.id.split(',')} onClose={close} />;
+  if (target.kind === 'clean-singles') return <LooseSinglesDialog key="clean-singles" onClose={close} />;
   if (target.kind === 'merge-album') return <MergeAlbumDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'match-links') return <MatchLinksDialog key={`match-links-${target.id}`} albumId={target.id} onClose={close} />;
   if (target.kind === 'note') return <NoteDialog key={key} noteId={target.id} onClose={close} />;

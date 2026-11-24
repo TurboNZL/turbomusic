@@ -64,6 +64,8 @@ export interface Library {
   albumById: Map<string, Library['albums'][number]>;
   /** `title` is the release's name, or the album's when it has none (`named` false) */
   releases: (Row<ReleaseData> & { named: boolean })[];
+  /** releases marked as a single (one song, no name): not in `releases`, so album pages and release logic never see them */
+  singleReleases: (Row<ReleaseData> & { named: boolean })[];
   releaseNames: Row<ReleaseNameData>[];
   playlists: Row<PlaylistData>[];
   genres: Row<GenreData>[];
@@ -180,7 +182,8 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const bend = (r: number) => (lineAt !== undefined && lineAt >= 4 && lineAt < 9.99 && r > 0.001 ? (r >= lineAt - 1e-9 ? 10 : r * (9.4 / lineAt)) : r);
 
   const albumTitles = new Map(rawAlbums.map((a) => [a.id, a.title]));
-  const releases = live<ReleaseData>(rows.releases).map((r) => ({ ...r, named: !!r.title?.trim(), title: r.title?.trim() || albumTitles.get(r.albumId) || '' }));
+  const allReleases = live<ReleaseData>(rows.releases).map((r) => ({ ...r, named: !!r.title?.trim(), title: r.title?.trim() || albumTitles.get(r.albumId) || '' }));
+  const releases = allReleases.filter((r) => !r.single), singleReleases = allReleases.filter((r) => r.single);
   // the album's cover is its picked one, else its default release's (see covers.ts); everything below sees the derived cover
   const defaultRel = (a: Row<AlbumData>) => { const mine = releases.filter((r) => r.albumId === a.id); return mine.find((r) => r.id === a.defaultReleaseId) ?? [...mine].sort((x, y) => y.trackIds.length - x.trackIds.length)[0]; };
   const coveredAlbums = rawAlbums.map((a) => ({ ...a, cover: albumCover(a, releases.filter((r) => r.albumId === a.id), defaultRel(a)) }));
@@ -194,7 +197,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   const albumDate = new Map(rawAlbums.map((a) => [a.id, dateOf(a)]));
   // a song's own date is the earliest release it is on (a deluxe edition of 2024 does not make a 2019 song newer); no dated release = its album's date
   const earliestRelease = new Map<string, string>();
-  for (const r of releases) {
+  for (const r of allReleases) { // a single's date counts: the song came out then
     if (!r.releaseDate) continue;
     for (const id of r.trackIds ?? []) { const cur = earliestRelease.get(id); if (!cur || r.releaseDate < cur) earliestRelease.set(id, r.releaseDate); }
   }
@@ -282,7 +285,7 @@ export function buildLibrary(rows: Record<string, Map<string, SyncRecord>>): Lib
   return {
     tracks, preReleases, trackById, artists, artistById, albums, albumById: by(albums),
     eras: eras, eraById: by(eras), singles: tracks.filter((t) => !t.albumId),
-    releases, releaseNames: live<ReleaseNameData>(rows.releaseNames), playlists: live<PlaylistData>(rows.playlists),
+    releases, singleReleases, releaseNames: live<ReleaseNameData>(rows.releaseNames), playlists: live<PlaylistData>(rows.playlists),
     genres: live<GenreData>(rows.genres), roles: live<RoleCategoryData>(rows.roleCategories), timeline: live<TimelineData>(rows.timeline), groups: live<GroupData>(rows.groups), noteCategories: live<NoteCategoryData>(rows.noteCategories), legacyNotes: live<NoteData>(rows.notes),
     votes: votes.filter((v) => !v.album), albumRank, logs: allLogs.filter((l) => !l.hidden), hiddenLogs: allLogs.filter((l) => l.hidden), memoryLogs: live<MemoryLogData>(rows.memoryLogs), profile, rules: profile?.playbackRules ?? [],
   };

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowDownToLine, Info, ListEnd, ListStart, MoreHorizontal, Pencil, Play } from 'lucide-react';
+import { ArrowDownToLine, CheckSquare, Info, ListEnd, ListStart, MoreHorizontal, Pencil, Play } from 'lucide-react';
 import type { Track } from '../lib/derive.ts';
 import { usePlayer } from '../lib/player.ts';
 import { useStore } from '../lib/store.ts';
@@ -14,17 +14,25 @@ import { ArtistLinks } from './ArtistLinks.tsx';
 import { Cover } from './Cover.tsx';
 import { fmtDate } from './SingleCard.tsx';
 import { statsPath } from '../lib/entityStats.ts';
+import { isInteractive, useSelection } from '../lib/useSelection.ts';
+import { TrackSelectionBar } from './SelectionBar.tsx';
 import type { SourceType } from '@turbomusic/core';
 
 /** Compact rows for ranking/editing lists. `list` is the playback order handed to the queue. */
-export function TrackTable({ tracks, queue, source, sourceId = null, numbered = false, showAlbum = true, covers = false, keepQueue = false, extra, below }: {
+export function TrackTable({ tracks, queue, source, sourceId = null, numbered = false, showAlbum = true, covers = false, linkTitles = false, keepQueue = false, selectable = true, allowDelete = false, extra, below }: {
   tracks: Track[];
   /** the whole list when `tracks` is only the part drawn so far: playing a row queues all of it */
   queue?: Track[]; source: SourceType; sourceId?: string | null; numbered?: boolean; showAlbum?: boolean;
   /** a small cover (the track's own, else its album's) before the title: for singles and search results, where the album is not around */
   covers?: boolean;
+  /** the title always opens the song's own stats page (the Singles page: a song on an album can also be a single) */
+  linkTitles?: boolean;
   /** play only the chosen track and leave what was queued after it as it was (search results: see Settings > Playback) */
   keepQueue?: boolean;
+  /** click / Shift-click select rows and a bar offers what to do with them (on by default) */
+  selectable?: boolean;
+  /** the selection bar may delete the selected songs for good (the library-wide lists) */
+  allowDelete?: boolean;
   /** extra controls at the end of each row (e.g. move/remove in a playlist) */
   extra?: (t: Track, index: number) => React.ReactNode;
   /** a full-width line under a row (e.g. a playlist note) */
@@ -43,6 +51,7 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
   };
   const menu = useMenu();
   const itemsFor = useTrackMenuItems();
+  const sel = useSelection(ids);
   // ?track=<id> (from "Go to track") scrolls that row into view and flashes it
   const focus = useSearchParams()[0].get('track');
   const present = focus ? tracks.some((t) => t.id === focus) : false;
@@ -60,17 +69,19 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
     <div className="divide-y divide-line/60 [container-type:inline-size]">
       {tracks.map((t, i) => (
         <div key={t.id}>
-        <div data-track-id={t.id} className={cn('bt-row group flex items-center gap-3 px-3', current === t.id && 'bt-row-current')} style={{ paddingBlock: 'var(--row-y)' }}
-          onContextMenu={(e) => menu.onContextMenu(itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}
+        <div data-track-id={t.id} data-selected={sel.has(t.id) || undefined} className={cn('bt-row group flex items-center gap-3 px-3', current === t.id && 'bt-row-current')} style={{ paddingBlock: 'var(--row-y)' }}
+          onMouseDown={(e) => { if (selectable && e.shiftKey && !isInteractive(e.target)) e.preventDefault(); }} // Shift-click must select rows, not highlight text
+          onClick={(e) => { if (selectable && !isInteractive(e.target)) sel.click(t.id, e); }}
+          onContextMenu={(e) => menu.onContextMenu(selectable ? [{ label: sel.has(t.id) ? 'Deselect' : 'Select', icon: <CheckSquare size={15} />, run: () => sel.toggle(t.id) }, { separator: true }, ...itemsFor(t, () => playRow(t.id))] : itemsFor(t, () => playRow(t.id)), `Actions for ${t.title}`, t.id)(e)}
           // double-click anywhere on the row that is not a button, link or field plays it
           onDoubleClick={(e) => { if ((e.target as Element).closest('a, button, input, select, textarea, [role="menu"]') || !canPlay(t)) return; window.getSelection()?.removeAllRanges(); playRow(t.id); }}>
           {covers ? <>
             {numbered && <span className={cn('w-6 shrink-0 text-center text-sm text-muted', current === t.id && 'text-accent')}>{i + 1}</span>}
             {/* the cover is the play button: the Play glyph appears over it on hover or focus (and a tap on a phone plays) */}
-            <button className="relative block w-10 shrink-0 overflow-hidden rounded-theme leading-none disabled:cursor-not-allowed" disabled={!canPlay(t)} aria-label={canPlay(t) ? `Play ${t.title}` : 'No audio file yet'}
+            <button className="relative block w-10 shrink-0 overflow-hidden leading-none disabled:cursor-not-allowed" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }} disabled={!canPlay(t)} aria-label={canPlay(t) ? `Play ${t.title}` : 'No audio file yet'}
               onClick={() => playRow(t.id)} title={canPlay(t) ? 'Play' : 'No audio file yet'}>
               <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="w-full" />
-              {canPlay(t) && <span className="absolute inset-0 grid place-items-center rounded-theme bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"><Play size={16} fill="currentColor" /></span>}
+              {canPlay(t) && <span className="absolute inset-0 grid place-items-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"><Play size={16} fill="currentColor" /></span>}
             </button>
           </> : (
           <button className="relative w-6 shrink-0 text-center text-sm text-muted disabled:cursor-not-allowed" disabled={!canPlay(t)}
@@ -79,7 +90,7 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
             {canPlay(t) && <Play size={14} fill="currentColor" className="mx-auto hidden group-hover:block" />}
           </button>)}
           <div className="min-w-0 flex-1">
-            <div className={cn('truncate text-sm font-medium', !t.file && 'text-fg/70')}>{t.albumId ? t.title : <Link to={statsPath('track', t.id)} className="hover:underline" title="Open this single (its stats: it has no album page)">{t.title}</Link>}</div>
+            <div className={cn('truncate text-sm font-medium', !t.file && 'text-fg/70')}>{t.albumId && !linkTitles ? t.title : <Link to={statsPath('track', t.id)} className="hover:underline" title="Open this single (its stats: it has no album page)">{t.title}</Link>}</div>
             <div className="truncate text-xs text-muted">
               <ArtistLinks leads={t.leads} featured={t.featured} />
               {showAlbum && t.albumTitle && <> · <Link to={`/albums/${t.albumId}`} className="hover:text-fg hover:underline">{t.albumTitle}</Link></>}
@@ -105,6 +116,7 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
         </div>
       ))}
       {menu.element}
+      {selectable && <TrackSelectionBar sel={sel} total={ids.length} allowDelete={allowDelete} />}
       {!tracks.length && <div className="p-6 text-center text-sm text-muted">No tracks.</div>}
     </div>
   );

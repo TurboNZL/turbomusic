@@ -51,8 +51,7 @@ function Options({ streaming }: { streaming: boolean }) {
 function LibraryOptions() {
   const { settings, updateSettings } = useStore();
   return (
-    <SettingsGroup icon={<LibraryIcon size={18} />} title="Songs you have not imported" hint="Spotify imports and your listening history add artists, albums and songs that have no audio yet.">
-      <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={settings.showUnimported} onChange={(e) => updateSettings({ showUnimported: e.target.checked })} /><span>Show them in my lists <span className="text-muted">(off: they are hidden until imported; their pages and stats still open from links)</span></span></label>
+    <SettingsGroup icon={<LibraryIcon size={18} />} title="Songs you have not imported" hint="Spotify imports and your listening history add artists, albums and songs that have no audio yet. They count as hidden: every list has a Hidden switch that shows them.">
       <HistoryEntities />
     </SettingsGroup>
   );

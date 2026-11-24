@@ -16,6 +16,8 @@ export interface ReleaseChoice {
   releaseIds: string[];
   /** also make a release of its own (titled like the track, with the track's cover) */
   newRelease: boolean;
+  /** keep the song as a single too: a release marked single (no name, shown on the Singles page and under the album's releases) */
+  asSingle?: boolean;
 }
 
 /**
@@ -34,6 +36,13 @@ export interface AlbumAddPlan {
   trackOrder: string[];
   releaseAppends: { id: string; trackIds: string[] }[];
   newRelease: ReleaseData | null;
+  /** the single release kept for the song, when asked for */
+  singleRelease?: ReleaseData | null;
+}
+
+/** The release that stands for a song's single on an album: marked single, no name of its own, the single's cover and date. */
+export function singleReleaseFor(albumId: string, trackId: string, cover: string | null, releaseDate: string | null): ReleaseData {
+  return { albumId, title: '', cover, releaseDate, trackIds: [trackId], single: true };
 }
 
 /** Everything that changes when `trackId` is added to `album` (pure; the caller writes it). */
@@ -46,6 +55,7 @@ export function planAddToAlbum(lib: Library, raw: TrackData, trackId: string, al
     trackAlbums: [{ albumId: album.id, order: album.trackIds.length }, ...(raw.albums ?? []).filter((l) => l.albumId !== album.id)],
     trackOrder: appendTrack(album.trackIds, trackId),
     releaseAppends,
+    singleRelease: choice.asSingle ? singleReleaseFor(album.id, trackId, raw.cover ?? null, raw.releaseDate ?? null) : null,
     newRelease: choice.newRelease ? { albumId: album.id, title: raw.title, cover: raw.cover ?? null, releaseDate: raw.releaseDate ?? null, trackIds: [trackId] } : null,
   };
 }
