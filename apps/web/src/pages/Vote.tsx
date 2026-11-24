@@ -319,28 +319,28 @@ function AlbumRank() {
     setHeard((h) => { const n = [...h]; n[i] = t; return n; });
     previews.toggle(t);
   };
+  const fit = useFitHeight();
   if (!pair) return <p className="text-sm text-muted">You need at least two albums with three or more tracks to rank albums.</p>;
   const albums = pair.map((id) => lib.albumById.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
   if (albums.length < 2) { queueMicrotask(() => next()); return null; }
-  const answer = (winner: string | null) => { previews.stop(); put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); next(pair); };
-  const ranked = [...lib.albums].filter((a) => (lib.albumRank.get(a.id)?.comparisons ?? 0) > 0).sort((a, b) => (lib.albumRank.get(b.id)!.elo) - (lib.albumRank.get(a.id)!.elo)).slice(0, 8);
+  const answer = (winner: string | null) => { previews.stop(); put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); haptic('confirm'); next(pair); };
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4">
-      <div><h2 className="text-xl font-bold">Which album is better?</h2><p className="text-sm text-muted">The winner ranks above the other. A high album gives its tracks a slightly higher starting Elo.</p></div>
-      <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">{albums.map((a, i) => (
-        <div key={a.id} className="card flex min-w-0 flex-col items-center gap-2 p-3 text-center">
-          <button type="button" className="relative block w-full max-w-[14rem]" aria-label={`Hear a song from ${a.title}`} onClick={() => hear(i)}>
-            <Cover hash={a.cover} seed={a.title} className="w-full">
-              {previews.playing && heard[i]?.id === previews.playing && <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white"><Volume2 className="animate-pulse" size={26} /></span>}
-            </Cover>
-          </button>
-          <div className="w-full min-w-0"><div className="line-clamp-2 break-words font-semibold [overflow-wrap:anywhere]">{a.title}</div><div className="truncate text-xs text-muted">{a.artistName}</div><div className="truncate text-xs text-muted">{a.trackIds.length} tracks{a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}</div></div>
-          <button type="button" className="btn w-full !py-1 text-sm" disabled={!choices[i].length} onClick={() => hear(i)}><Play size={13} />{previews.playing && heard[i]?.id === previews.playing ? `${heard[i].title}` : choices[i].length ? 'Hear a song' : 'No audio'}</button>
-          <button className="btn btn-accent w-full" onClick={() => answer(a.id)}>This one</button>
-        </div>))}</div>
-      <div className="flex gap-2"><button className="btn" onClick={() => answer(null)}>They are equal</button><button className="btn btn-ghost" onClick={() => next(pair)}>Skip</button></div>
-      {ranked.length > 0 && <div className="space-y-1"><div className="text-xs uppercase tracking-wider text-muted">Your album ranking so far</div>
-        <ol className="space-y-0.5 text-sm">{ranked.map((a, i) => <li key={a.id} className="flex gap-2"><span className="w-5 text-right text-muted">{i + 1}</span><span className="min-w-0 flex-1 truncate">{a.title} <span className="text-muted">· {a.artistName}</span></span><span className="tabular-nums text-muted">{Math.round(lib.albumRank.get(a.id)!.elo)}</span></li>)}</ol></div>}
+    // the same cards as head to head, filling the screen: tap to hear a song from the album, swipe any way to pick it (nothing here scrolls)
+    <div ref={fit.ref} className="mx-auto flex max-w-4xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
+      <div className="mb-2 shrink-0 text-sm text-muted">Which album is better? <span className="max-sm:hidden">A high album gives its tracks a slightly higher starting rating.</span></div>
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[repeat(2,minmax(0,1fr))] gap-3 sm:grid-cols-2 sm:grid-rows-[minmax(0,1fr)] sm:gap-4">
+        {albums.map((a, i) => (
+          <RankCard key={a.id} t={{ cover: a.cover, title: a.title, albumTitle: a.title, file: choices[i].length ? 'x' : null }}
+            sub={`${a.artistName} · ${a.trackIds.length} tracks${a.rating != null ? ` · avg ${a.rating.toFixed(1)}` : ''}`}
+            playing={!!previews.playing && heard[i]?.id === previews.playing} onPreview={() => hear(i)}
+            swipe={{ dirs: 'both', right: 'Pick', onSwipe: () => answer(a.id) }}
+            action={<button className="btn btn-accent shrink-0 !px-2.5 !py-1 text-xs" onClick={(e) => { e.stopPropagation(); answer(a.id); }}>This one</button>} />
+        ))}
+      </div>
+      <div className="mt-2 flex shrink-0 flex-col items-center gap-1">
+        <div className="flex gap-1.5"><button className="btn !px-2.5 !py-1 text-xs" onClick={() => answer(null)}><Equal size={14} />Equal</button><button className="btn btn-ghost !px-2.5 !py-1 text-xs" onClick={() => next(pair)}><SkipForward size={14} />Skip</button></div>
+        <div className="text-[11px] text-muted">Tap a card to hear a song from it. Swipe it to pick it.</div>
+      </div>
     </div>
   );
 }

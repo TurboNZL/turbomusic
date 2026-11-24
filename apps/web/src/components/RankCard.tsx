@@ -17,8 +17,9 @@ export interface SwipeSpec { dirs: 'both' | 'right'; right: string; left?: strin
  * card previews 15 s; with `swipe` it can be dragged like a card (see `useSwipe`) and stamped with what the swipe will do.
  * The card sizes itself to the box it is in (container query units), so a parent only has to give it a height.
  */
-export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMenu, onStats, compact = false, accent = false, className }: {
-  t: Track; playing: boolean; onPreview: () => void; badge?: ReactNode; fx?: CardFx; swipe?: SwipeSpec | null; action?: ReactNode;
+export function RankCard({ t, sub, playing, onPreview, badge, fx, swipe, action, onMenu, onStats, compact = false, accent = false, className }: {
+  /** a track, or anything shaped like one (an album: cover, title, and `sub` for the line under it) */
+  t: Pick<Track, 'cover' | 'title' | 'file'> & Partial<Pick<Track, 'albumTitle' | 'leads' | 'featured'>>; sub?: ReactNode; playing: boolean; onPreview: () => void; badge?: ReactNode; fx?: CardFx; swipe?: SwipeSpec | null; action?: ReactNode;
   onMenu?: (e: React.MouseEvent) => void; onStats?: () => void; compact?: boolean; accent?: boolean; className?: string;
 }) {
   const [flung, setFlung] = useState(false); // a card that flew off has its own motion: the win animation must not fight it
@@ -55,7 +56,7 @@ export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMe
         <div className="rk-text">
           <div className="rk-names min-w-0 flex-1 leading-tight">
             <div className="rk-title truncate text-[13px] font-semibold" title={t.title}>{t.title}</div>
-            {!compact && <div className="rk-sub truncate text-[11px] text-muted"><ArtistLinks leads={t.leads} featured={t.featured} plain />{t.albumTitle && ` · ${t.albumTitle}`}</div>}
+            {!compact && <div className="rk-sub truncate text-[11px] text-muted">{sub ?? <><ArtistLinks leads={t.leads ?? []} featured={t.featured ?? []} plain />{t.albumTitle && ` · ${t.albumTitle}`}</>}</div>}
           </div>
           {action}
         </div>
