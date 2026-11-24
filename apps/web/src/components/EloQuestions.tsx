@@ -82,14 +82,14 @@ export function EloQuestions({ kind: fixedKind, embedded = false }: { kind?: Que
   const pickSwipe = (on: () => void, tone?: 'bad'): SwipeSpec => ({ dirs: 'both', right: tone ? 'Least' : 'Pick', tone: tone ?? 'pick', onSwipe: on });
 
   return (
-    <section className="card" aria-label="Ranking question">
-      <button type="button" className={cn('flex w-full items-center gap-2 px-4 py-3 text-left', embedded && 'pointer-events-none')} aria-expanded={open} onClick={embedded ? undefined : toggle}>
+    <section className={cn(!embedded && 'card')} aria-label="Ranking question">
+      {!embedded && <button type="button" className="flex w-full items-center gap-2 px-4 py-3 text-left" aria-expanded={open} onClick={toggle}>
         <h2 className="font-semibold">Sharpen your ranking</h2>
         <span className="chip">{LABEL[q.kind]}</span>
         <span className="ml-auto text-xs text-muted">{answered ? `${answered} answered` : open ? '' : 'one quick question'}</span>
-        {!embedded && <ChevronDown size={16} className={cn('shrink-0 text-muted transition-transform', open && 'rotate-180')} />}
-      </button>
-      {open && <div className="space-y-3 px-4 pb-4">
+        <ChevronDown size={16} className={cn('shrink-0 text-muted transition-transform', open && 'rotate-180')} />
+      </button>}
+      {open && <div className={cn('space-y-3', !embedded && 'px-4 pb-4')}>
         <p className="text-sm text-muted">{q.why}</p>
         {q.kind === 'duel' && <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">{tracks.map((t) => card(t, { wide: true, swipe: pickSwipe(() => answer(t.id)) }))}</div>}
         {q.kind === 'triple' && <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-3">{tracks.map((t) => card(t, { label: 'Best', swipe: pickSwipe(() => answer(t.id)) }))}</div>}
