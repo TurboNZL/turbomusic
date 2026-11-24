@@ -252,13 +252,14 @@ function DuelRank() {
       </div>
       {menu.element}
       <div className={cn('flex shrink-0 flex-col items-center gap-1', compact ? 'mt-1' : 'mt-2 sm:mt-3')}>
-        <div className="flex flex-wrap justify-center gap-1.5">
+        <div className="flex flex-nowrap justify-center gap-1.5">
           <button className="btn !px-2.5 !py-1 text-xs" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={14} />Equal<span className="max-sm:hidden"> (↓)</span></button>
           <button className={cn('btn !px-2.5 !py-1 text-xs', strong && 'btn-accent')} aria-pressed={strong} onClick={() => setStrong((x) => !x)} title="Your next pick counts for more: use it when the difference is obvious to you (M)"><ChevronsUp size={14} />Much better<span className="max-sm:hidden"> next (M)</span></button>
-          {last && <button className="btn btn-ghost !px-2.5 !py-1 text-xs" onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={14} />Undo</button>}
+          <button className={cn('btn btn-ghost !px-2.5 !py-1 text-xs', !last && 'invisible')} disabled={!last} tabIndex={last ? 0 : -1} onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={14} />Undo</button>
           <button className="btn btn-ghost !px-2.5 !py-1 text-xs" onClick={() => !picked && next()} title="Not sure, or you don't want to rank this pair. Nothing is saved; you just get a new pair."><SkipForward size={14} />Skip<span className="max-sm:hidden">, save nothing (↑)</span></button>
         </div>
-        <div className={cn('min-h-4 text-center text-[11px] text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap to preview, swipe to pick. </span>Equal records a draw; Skip records nothing.</span>}</div>
+        {/* one fixed line, whatever it says: a long title must never change the height under the cards, or they move when the next pair loads */}
+        <div className={cn('h-4 w-full truncate text-center text-[11px] leading-4 text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap to preview, swipe to pick. </span>Equal = draw; Skip = nothing.</span>}</div>
       </div>
     </div>
   );
