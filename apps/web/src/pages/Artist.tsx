@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import { MoreHorizontal } from 'lucide-react';
 import { PlayControls } from '../components/PlayControls.tsx';
+import { HideButton } from '../components/HideButton.tsx';
 import { Link, useParams } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { cn } from '../lib/cn.ts';
@@ -66,13 +67,14 @@ export function ArtistPage() {
   const where = (kind: 'albums' | 'singles' | 'tracks') => searchHref({ kind, chips: [idChip('artist', artist.id, artist.name), ...(era ? [idChip('era', era, lib.eraById.get(era)?.name ?? '')] : [])] });
   return (
     <DetailLayout right={<Notes lib={lib} type="artist" id={artist.id} />}>
-      <div className="flex items-center gap-4 sm:gap-5" onContextMenu={(e) => menu.onContextMenu(artistItems(artist.id), `Actions for ${artist.name}`, 'artist')(e)}>
+      <div className="flex flex-wrap items-center gap-4 sm:gap-5" onContextMenu={(e) => menu.onContextMenu(artistItems(artist.id), `Actions for ${artist.name}`, 'artist')(e)}>
         <Cover kind="artist" hash={artist.image} seed={artist.name} className="w-24 shrink-0 sm:w-40" />
-        <div><div className="text-xs uppercase tracking-wider text-muted">Artist</div><h1 className="text-2xl font-bold sm:text-3xl">{artist.name}</h1>
+        <div className="min-w-0 space-y-2"><div className="text-xs uppercase tracking-wider text-muted">Artist</div><h1 className="text-2xl font-bold sm:text-3xl">{artist.name}</h1>
           {akaLine(artist.aliases) && <div className="text-sm text-muted" title={artist.aliases!.join(', ')}>{akaLine(artist.aliases)}</div>}
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{albums.length} album{albums.length === 1 ? "" : "s"}</Link>{singles.length > 0 && <> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{singles.length} single{singles.length === 1 ? "" : "s"}</Link></>} · <Link className="hover:text-fg hover:underline" to={where('tracks')}>{tracks.length} tracks</Link></div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <PlayControls ids={playable} source={{ type: 'search', id: `Artist: ${artist.name}` }} label="this artist" />
+            <HideButton table="artists" id={artist.id} noun="artist" />
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" onClick={(e) => menu.toggle(e.currentTarget, 'artist', artistItems(artist.id), `Actions for ${artist.name}`)}><MoreHorizontal size={16} /></button></div></div>
       </div>
       {eraIds.length > 0 && <section className="flex flex-wrap items-center gap-2" aria-label="Eras">

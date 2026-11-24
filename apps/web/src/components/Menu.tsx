@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { ChevronRight, Minus, Plus } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { chosenIndex } from '../lib/menuDefaults.ts';
 
 export type MenuItem =
   | { separator: true }
@@ -20,7 +21,8 @@ export function group(label: string, icon: ReactNode, items: MenuItem[], primary
   if (!real.length) return [];
   if (real.length === 1) return real;
   // pressing the row does the group's main action (the first item, or `primary`); the arrow beside it opens all of them
-  const main = real[primary ?? 0] as Extract<MenuItem, { label: string | (() => string) }>;
+  const picked = chosenIndex(label, real.map((i) => labelOf(i as Leaf)));
+  const main = real[picked >= 0 ? picked : primary ?? 0] as Extract<MenuItem, { label: string | (() => string) }>;
   // a main action that cannot run (a song with no audio) leaves the row as a plain opener; the row is disabled only when nothing inside can be used
   const usable = !main.disabled;
   return [{ label, icon, children: items, run: usable ? main.run : undefined, to: usable ? main.to : undefined, disabled: real.every((i) => (i as Leaf).disabled) }];
@@ -99,8 +101,8 @@ export function ContextMenu({ at, onClose }: { at: MenuAt; onClose: () => void }
       const x = f.left >= cur.rect.right - 8 ? f.left : f.right;
       heading = inTriangle({ x: e.clientX, y: e.clientY }, leavePt.current, { x, y: f.top }, { x, y: f.bottom });
     }
-    if (group) later(cur ? (heading ? 380 : 120) : 140, () => openAt(d, i, el));
-    else if (cur) later(heading ? 380 : 110, () => closeFrom(d));
+    if (group) later(cur ? (heading ? 260 : 70) : 60, () => openAt(d, i, el));
+    else if (cur) later(heading ? 260 : 80, () => closeFrom(d));
     else clear();
   };
   const api = { at, nav, onClose, deltas, setDeltas, flipped, setFlipped, chain, hover, openAt, closeFrom, clear, pointer, leavePt, panels };

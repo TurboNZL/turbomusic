@@ -81,7 +81,7 @@ export function FilterBar({ chips, onChips, text, onText, scope, placeholder = '
 
   return (
     <>
-      <div ref={box} role="search" className={cn('input flex min-h-[2.25rem] min-w-0 flex-1 max-sm:basis-full sm:min-w-[min(16rem,100%)] cursor-text flex-wrap items-center gap-1.5 !py-1 sm:max-w-xl', focus && 'bt-focus')} onClick={() => input.current?.focus()}>
+      <div ref={box} role="search" className={cn('input flex min-h-[2.25rem] min-w-0 flex-1 max-sm:basis-full sm:min-w-[12rem] cursor-text flex-wrap items-center gap-1.5 !py-1', focus && 'bt-focus')} onClick={() => input.current?.focus()}>
         <Search size={14} className="shrink-0 text-muted" />
         {chips.map((c, i) => (
           <span key={`${c.key}${c.value}`} className="chip gap-1 !bg-accent/15 !text-fg">

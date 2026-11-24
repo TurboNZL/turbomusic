@@ -46,9 +46,9 @@ export function MiniQueue({ anchor }: { anchor: HTMLElement | null }) {
       <div className="max-h-[55vh] overflow-y-auto py-1">
         {current && <><div className="px-3 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Now playing</div>
           <div className="mx-1 rounded-theme bg-accent/10">{row(current.id, -1, false)}</div></>}
-        {q.user.length > 0 && head('Queued by you', q.user.length, shuffleQueued, clearQueued)}
+        {q.user.length > 0 && head('Queue · added by you', q.user.length, shuffleQueued, clearQueued)}
         {q.user.map((id, i) => row(id, i, true))}
-        {q.active.length > 0 && head(from ? `Next from ${from.text}` : 'Next from the album or list', q.active.length, shuffleRest, clearRest)}
+        {q.active.length > 0 && head(from ? `Lineup · from ${from.text}` : 'Lineup · the rest of the album or list', q.active.length, shuffleRest, clearRest)}
         {q.active.slice(0, 30).map((id, i) => row(id, i, false))}
         {q.active.length > 30 && <div className="px-3 py-1 text-xs text-muted">and {q.active.length - 30} more</div>}
         {!q.user.length && !q.active.length && <p className="px-3 py-3 text-sm text-muted">Nothing is queued after this track.</p>}

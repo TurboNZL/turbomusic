@@ -172,6 +172,7 @@ function Timeline({ listens, lib }: { listens: Listen[]; lib: ReturnType<typeof 
                     <div className="min-w-0 flex-1">{body}</div>
                     {l.skipped && <span className="chip text-warn">skipped</span>}
                     {l.source === 'spotify' && <span className="chip hidden sm:inline-flex">Spotify</span>}
+                    {l.source === 'turbomusic' && <span className="chip hidden sm:inline-flex" title={l.mirrored ? 'Played in TurboMusic; the silent mirror also played it on Spotify, which is counted once, as this play' : 'Played in TurboMusic'}>TurboMusic{l.mirrored ? ' · also on Spotify' : ''}</span>}
                     {!t && <span className="chip hidden text-muted md:inline-flex" title="Not in your library">not in library</span>}
                     <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted">{Math.floor(l.ms / 60000)}:{String(Math.floor((l.ms % 60000) / 1000)).padStart(2, '0')}</span>
                   </li>);

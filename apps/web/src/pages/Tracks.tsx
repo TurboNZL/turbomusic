@@ -49,7 +49,7 @@ export function TracksPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Tracks <span className="text-base font-normal text-muted">{tracks.length}</span></h1>
       </div>
-      <ListToolbar actions={<><PlayControls ids={playable} source={{ type: 'search', id: 'All tracks' }} label="these tracks" /></>} scope="tracks" chips={chips} onChips={setChips} text={q} onText={setQ}
+      <ListToolbar actions={<><PlayControls ids={playable} source={{ type: 'search', id: 'All tracks' }} label="these tracks" lineup={false} /></>} scope="tracks" chips={chips} onChips={setChips} text={q} onText={setQ}
         sorts={TRACK_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       <UnimportedNote kind="tracks" />
       {page.view === 'grid'
