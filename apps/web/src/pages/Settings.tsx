@@ -20,6 +20,7 @@ import { ServerAppCard } from '../components/ServerAppCard.tsx';
 import { TermuxServerCard } from '../components/TermuxServerCard.tsx';
 import { SpotifyCard } from '../components/SpotifyCard.tsx';
 import { BackupCard } from '../components/BackupCard.tsx';
+import { MenuDefaultsCard } from '../components/MenuDefaultsCard.tsx';
 import { RatingModelCard, TenLineCard } from '../components/RatingModelCard.tsx';
 import { RecapDismissals } from '../components/RecapDismissals.tsx';
 import { LibraryFilesCard } from '../components/LibraryFilesCard.tsx';
@@ -174,6 +175,8 @@ export function SettingsPage() {
       <Section title="Crossfade"><CrossfadeCard /></Section>
 
       <Section title="Playback rules"><PlaybackRules /></Section>
+
+      <Section title="Menu defaults"><MenuDefaultsCard /></Section>
 
       <Section title="Offline copies and streaming">
         <label className="block space-y-1 text-sm">Quality of tracks saved offline

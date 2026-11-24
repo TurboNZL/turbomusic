@@ -22,7 +22,7 @@ export function ListToolbar<K extends string>({ actions, scope, chips, onChips, 
   return (
     <div className="mb-5 flex flex-wrap items-center gap-2" role="toolbar" aria-label="Search, sort and view">
       <FilterBar scope={scope} chips={chips} onChips={onChips} text={text} onText={onText} placeholder={placeholder} />
-      <div className="flex items-center gap-2 max-sm:-mx-1 max-sm:w-full max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-1 max-sm:pb-1 sm:ml-auto sm:flex-wrap [&>*]:shrink-0">
+      <div className="flex items-center gap-2 max-sm:-mx-1 max-sm:w-full max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-1 max-sm:pb-1 sm:flex-nowrap [&>*]:shrink-0">
         {actions && <div className="flex items-center gap-2 max-sm:order-last sm:contents">{actions}</div>}
         <Select className="!w-44 max-sm:!w-36" aria-label="Sort by" value={sort} onChange={(v) => v !== sort && onSort(v as K)} options={sorts.map((o) => ({ value: o.value, label: `Sort: ${o.label}` }))} />
         <button type="button" className="btn !px-2.5" onClick={onFlip} aria-label={dir === 'asc' ? 'Ascending: switch to descending' : 'Descending: switch to ascending'} title={dir === 'asc' ? 'Ascending' : 'Descending'}>
@@ -44,9 +44,9 @@ export function PlainToolbar<K extends string>({ actions, text, onText, placehol
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-center gap-2" role="toolbar" aria-label="Search and sort">
-      <label className="relative min-w-0 flex-1 max-sm:basis-full sm:min-w-[16rem]"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+      <label className="relative min-w-0 flex-1 max-sm:basis-full sm:min-w-[12rem]"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input className="input !pl-9" type="search" aria-label={placeholder} placeholder={placeholder} value={text} onChange={(e) => onText(e.target.value)} /></label>
-      <div className="flex items-center gap-2 max-sm:-mx-1 max-sm:w-full max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-1 max-sm:pb-1 sm:ml-auto sm:flex-wrap [&>*]:shrink-0">
+      <div className="flex items-center gap-2 max-sm:-mx-1 max-sm:w-full max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-1 max-sm:pb-1 sm:flex-nowrap [&>*]:shrink-0">
         {actions && <div className="flex items-center gap-2 max-sm:order-last sm:contents">{actions}</div>}
         <Select className="!w-44 max-sm:!w-36" aria-label="Sort by" value={sort} onChange={(v) => v !== sort && onSort(v as K)} options={sorts.map((o) => ({ value: o.value, label: `Sort: ${o.label}` }))} />
         <button type="button" className="btn !px-2.5" onClick={onFlip} aria-label={dir === 'asc' ? 'Ascending: switch to descending' : 'Descending: switch to ascending'} title={dir === 'asc' ? 'Ascending' : 'Descending'}>{dir === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}</button>

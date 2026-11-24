@@ -19,6 +19,7 @@ import { useMenu, type MenuItem } from '../components/Menu.tsx';
 import { useImportSearching } from '../lib/openImport.ts';
 import { useAlbumMenuItems } from '../components/entityMenus.tsx';
 import { PlayControls } from '../components/PlayControls.tsx';
+import { HideButton } from '../components/HideButton.tsx';
 
 export function AlbumPage() {
   const { id } = useParams();
@@ -92,9 +93,10 @@ export function AlbumPage() {
             {album.eraIds.map((e) => lib.eraById.get(e) && <span key={e}> · <Link to={`/eras/${e}`} className="text-muted hover:text-fg hover:underline">{lib.eraById.get(e)!.name}</Link></span>)}
           </div>
           <div className="flex flex-wrap gap-1.5">{album.genres.map((g) => <Link key={g} to={`/tracks?genre=${encodeURIComponent(g)}`} className="chip hover:brightness-125" title={`Tracks in ${g}`}>{g}</Link>)}</div>
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <PlayControls ids={playable} source={{ type: 'album', id: album.id }} label="this album" />
             <KeepOffline hashes={tracks.flatMap((t) => (t.file ? [t.file] : []))} />
+            {!release && <HideButton table="albums" id={album.id} noun="album" />}
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, add files, import, merge…" onClick={(e) => menu.toggle(e.currentTarget, 'album', fullMenu, `Actions for ${album.title}`)}><MoreHorizontal size={16} /></button>
             {searchingImport && <span className="flex items-center gap-1.5 text-xs text-muted" role="status"><Loader2 size={14} className="animate-spin" />Searching YouTube Music…</span>}
           </div>

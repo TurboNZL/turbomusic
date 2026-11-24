@@ -18,6 +18,7 @@ import { SearchPage } from './pages/Search.tsx';
 
 // rarely-first pages load when first opened, so the app starts with less to parse
 const HealthPage = lazy(() => import('./pages/Health.tsx').then((m) => ({ default: m.HealthPage })));
+const OrderPage = lazy(() => import('./pages/OrderPage.tsx').then((m) => ({ default: m.OrderPage })));
 const NotesPage = lazy(() => import('./pages/NotesPage.tsx').then((m) => ({ default: m.NotesPage })));
 const NotePage = lazy(() => import('./pages/NotePage.tsx').then((m) => ({ default: m.NotePage })));
 const DiscoverPage = lazy(() => import('./pages/Discover.tsx').then((m) => ({ default: m.DiscoverPage })));
@@ -46,6 +47,7 @@ export function App() {
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="health" element={<HealthPage />} />
+        <Route path="order/:albumId" element={<OrderPage />} />
         <Route path="notes" element={<NotesPage />} />
         <Route path="notes/:id" element={<NotePage />} />
         <Route path="bios" element={<Navigate to="/notes" replace />} />

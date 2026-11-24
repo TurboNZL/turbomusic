@@ -90,7 +90,7 @@ export function useAlbumMenuItems() {
     { separator: true },
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
     { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
-    ...(album.trackIds.length > 1 ? [{ label: 'Order its songs by preference…', icon: <ListOrdered size={15} />, run: () => edit({ kind: 'order-rank', id: album.id }) } as MenuItem] : []),
+    ...(album.trackIds.length > 1 ? [{ label: 'Order its songs by preference…', icon: <ListOrdered size={15} />, to: `/order/${album.id}` } as MenuItem] : []),
     { label: 'Add to an album playlist…', icon: <ListMusic size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
     ...group('Import and merge', <YouTubeMusicIcon size={15} />, [
       { label: 'Import a release from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => void openImportIntoAlbum(album.id), keepOpen: true },
@@ -103,8 +103,8 @@ export function useAlbumMenuItems() {
       { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) } as MenuItem,
       { label: 'New release…', icon: <PackagePlus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) } as MenuItem,
       (album as { complete?: boolean }).complete
-        ? { label: 'Suggest it again', icon: <RotateCcw size={15} />, run: () => patch('albums', album.id, { complete: false }) }
-        : { label: 'Mark complete (stop suggesting it)', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
+        ? { label: 'Suggest a YouTube Music link for it again', icon: <RotateCcw size={15} />, run: () => patch('albums', album.id, { complete: false }) }
+        : { label: 'Stop suggesting a YouTube Music link for it', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
       (album as { hidden?: boolean }).hidden
         ? { label: 'Show this album again', icon: <Eye size={15} />, run: () => patch('albums', album.id, { hidden: false }) }
         : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
@@ -122,6 +122,7 @@ export function useAlbumMenuItems() {
 /** The menu of an artist: everything they are credited on. */
 export function useArtistMenuItems() {
   const lib = useLibrary();
+  const patch = useStore((s) => s.patch);
   const edit = useEditor((s) => s.open);
   const actions = useTrackListActions();
   const replaceRest = usePlayer((s) => s.replaceRest);
@@ -135,6 +136,9 @@ export function useArtistMenuItems() {
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
       { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
+      (lib.artistById.get(artistId) as { hidden?: boolean } | undefined)?.hidden
+        ? { label: 'Show this artist again', icon: <Eye size={15} />, run: () => patch('artists', artistId, { hidden: false }) }
+        : { label: 'Hide this artist', icon: <EyeOff size={15} />, run: () => patch('artists', artistId, { hidden: true }) },
       { label: 'Merge with another artist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `artist:${artistId}` }) },
     ];
   };

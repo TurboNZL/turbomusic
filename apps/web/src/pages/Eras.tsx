@@ -105,7 +105,7 @@ export function EraPage() {
           <h1 className="text-3xl font-bold">{era.name}</h1>
           <div className="text-sm text-muted"><Link className="hover:text-fg hover:underline" to={where('albums')}>{plural(total.albums, 'album')}</Link> · <Link className="hover:text-fg hover:underline" to={where('singles')}>{plural(total.singles, 'single')}</Link>{playlists.length > 0 && ` · ${plural(playlists.length, 'playlist')}`}</div>
           {era.description && <p className="max-w-prose text-sm">{era.description}</p>}
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <PlayControls ids={ids} source={{ type: 'search', id: `Era: ${era.name}` }} label={era.name} />
             <button data-menu-trigger className="btn btn-ghost !p-2" aria-label="More actions" aria-haspopup="menu" title="Stats, edit, the tracks in this era…" onClick={(e) => menu.toggle(e.currentTarget, 'era', [
               { label: 'Tracks in this era', icon: <Layers size={15} />, to: where('tracks') },

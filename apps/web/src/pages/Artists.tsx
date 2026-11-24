@@ -8,6 +8,7 @@ import { Cover } from '../components/Cover.tsx';
 import { useMenu } from '../components/Menu.tsx';
 import { plural } from '../lib/cn.ts';
 import { useArtistMenuItems } from '../components/entityMenus.tsx';
+import { Eye, EyeOff } from 'lucide-react';
 import { UnimportedNote } from '../components/UnimportedNote.tsx';
 import { ListToolbar } from '../components/ListToolbar.tsx';
 import { EntityList } from '../components/EntityList.tsx';
@@ -24,11 +25,13 @@ export function ArtistsPage() {
   const [chips, setChips] = useState<Chip[]>([]);
   const page = usePageState('artists', ARTIST_SORTS, { sort: 'tracks' });
   const all = useMemo(() => artistRows(lib), [lib]);
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenCount = useMemo(() => lib.artists.filter((a) => (a as { hidden?: boolean }).hidden).length, [lib]);
   const rows = useMemo(() => {
     const needle = splitTyped(q, 'artists') ? '' : q.toLowerCase();
-    const f = all.filter((a) => a.name.toLowerCase().includes(needle) && (!chips.length || matchesAll(chips, artistSubject(lib, a.id))));
+    const f = all.filter((a) => (showHidden || !(lib.artistById.get(a.id) as { hidden?: boolean } | undefined)?.hidden) && a.name.toLowerCase().includes(needle) && (!chips.length || matchesAll(chips, artistSubject(lib, a.id))));
     return sortArtists(f, page.sort, page.dir);
-  }, [lib, all, q, chips, page.sort, page.dir]);
+  }, [lib, all, q, chips, page.sort, page.dir, showHidden]);
   const CH = useChunks(rows.length, 60, `${q}|${chips.length}|${page.sort}|${page.dir}|${page.view}`);
   const shownRows = rows.slice(0, CH.shown);
   return (
@@ -36,7 +39,7 @@ export function ArtistsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-2xl font-bold">Artists <span className="text-base font-normal text-muted">{rows.length}</span></h1>
       </div>
-      <ListToolbar scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
+      <ListToolbar actions={hiddenCount > 0 ? <button type="button" className={`btn ${showHidden ? 'btn-accent' : ''}`} aria-pressed={showHidden} title={showHidden ? 'Hidden artists are shown: press to leave them out again' : 'Artists you hid are left out of this list: press to show them'} onClick={() => setShowHidden(!showHidden)}>{showHidden ? <Eye size={15} /> : <EyeOff size={15} />}{showHidden ? 'Showing hidden' : 'Hidden'} {hiddenCount}</button> : undefined} scope="artists" chips={chips} onChips={setChips} text={q} onText={setQ} placeholder="Search artists, or filter: era, genre, before…" sorts={ARTIST_SORTS} sort={page.sort} dir={page.dir} onSort={page.setSort} onFlip={page.flip} view={page.view} onView={page.setView} />
       <UnimportedNote kind="artists" />
       {page.view === 'list'
         ? <EntityList rows={shownRows.map((a) => ({ id: a.id, to: `/artists/${a.id}`, cover: a.image, seed: a.name, title: a.name, kind: 'artist' as const,
