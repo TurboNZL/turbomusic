@@ -17,8 +17,9 @@ export interface SwipeSpec { dirs: 'both' | 'right'; right: string; left?: strin
  * card previews 15 s; with `swipe` it can be dragged like a card (see `useSwipe`) and stamped with what the swipe will do.
  * The card sizes itself to the box it is in (container query units), so a parent only has to give it a height.
  */
-export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMenu, onStats, compact = false, accent = false, className }: {
-  t: Track; playing: boolean; onPreview: () => void; badge?: ReactNode; fx?: CardFx; swipe?: SwipeSpec | null; action?: ReactNode;
+export function RankCard({ t, sub, playing, onPreview, badge, fx, swipe, action, onMenu, onStats, compact = false, accent = false, className }: {
+  /** a track, or anything shaped like one (an album: cover, title, and `sub` for the line under it) */
+  t: Pick<Track, 'cover' | 'title' | 'file'> & Partial<Pick<Track, 'albumTitle' | 'leads' | 'featured'>>; sub?: ReactNode; playing: boolean; onPreview: () => void; badge?: ReactNode; fx?: CardFx; swipe?: SwipeSpec | null; action?: ReactNode;
   onMenu?: (e: React.MouseEvent) => void; onStats?: () => void; compact?: boolean; accent?: boolean; className?: string;
 }) {
   const [flung, setFlung] = useState(false); // a card that flew off has its own motion: the win animation must not fight it
@@ -29,7 +30,7 @@ export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMe
       onClick={(e) => { if (sw.swallowClick() || fx || (e.target as Element).closest('a, button, input')) return; onPreview(); }}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!fx) onPreview(); } }}
       {...(swipe ? sw.bind : {})}
-      style={{ touchAction: swipe ? 'pan-y' : undefined, transformOrigin: '50% 115%', willChange: swipe ? 'transform' : undefined, ['--band' as string]: compact ? '2.1rem' : '3rem' }}
+      style={{ touchAction: swipe ? 'none' : undefined, transformOrigin: '50% 115%', willChange: swipe ? 'transform' : undefined, ['--band' as string]: compact ? '2.1rem' : '3rem' }}
       data-selected={playing || undefined}
       className={cn('card bt-sel vote-card relative min-h-0 min-w-0 cursor-pointer select-none overflow-hidden [container-type:size]', !t.file && 'cursor-default', accent && 'ring-1 ring-accent/40',
         fx === 'win' && !flung && 'bt-vote-win', (fx === 'lose' || fx === 'down') && 'bt-vote-lose', fx === 'equal' && 'bt-vote-equal', className)}>
@@ -38,11 +39,12 @@ export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMe
       <div className="rk-body">
         <div className="rk-coverbox">
           <div className="rk-cover relative">
-            <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-full w-full shadow-lg" />
+            <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-full w-full">
             {!playing && t.file && <span className="absolute inset-0 flex items-center justify-center text-white/0 transition-colors" aria-hidden><span className="grid h-10 w-10 place-items-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm"><Play size={18} fill="currentColor" /></span></span>}
-            {playing && <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }}><Volume2 className="animate-pulse" size={28} /></span>}
-            {(fx === 'win') && <span className="absolute inset-0 flex items-center justify-center bg-accent/45 text-accent-fg" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }}><Check className="bt-vote-check" size={44} strokeWidth={3} /></span>}
-            {fx === 'down' && <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-white" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }}><ThumbsDown className="bt-vote-check" size={34} /></span>}
+            {playing && <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white"><Volume2 className="animate-pulse" size={28} /></span>}
+            {(fx === 'win') && <span className="absolute inset-0 flex items-center justify-center bg-accent/45 text-accent-fg"><Check className="bt-vote-check" size={44} strokeWidth={3} /></span>}
+            {fx === 'down' && <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-white"><ThumbsDown className="bt-vote-check" size={34} /></span>}
+            </Cover>
             {badge && <span className="chip absolute bg-black/70 text-[11px] text-white" style={{ left: 'calc(var(--radius, 8px) * 0.4 + 4px)', top: 'calc(var(--radius, 8px) * 0.4 + 4px)' }}>{badge}</span>}
             {onStats && <button type="button" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white/90 hover:bg-black/70" title="Stats" aria-label={`Stats for ${t.title}`} onClick={(e) => { e.stopPropagation(); onStats(); }}><BarChart3 size={14} /></button>}
             {swipe && <>
@@ -54,7 +56,7 @@ export function RankCard({ t, playing, onPreview, badge, fx, swipe, action, onMe
         <div className="rk-text">
           <div className="rk-names min-w-0 flex-1 leading-tight">
             <div className="rk-title truncate text-[13px] font-semibold" title={t.title}>{t.title}</div>
-            {!compact && <div className="rk-sub truncate text-[11px] text-muted"><ArtistLinks leads={t.leads} featured={t.featured} plain />{t.albumTitle && ` · ${t.albumTitle}`}</div>}
+            {!compact && <div className="rk-sub truncate text-[11px] text-muted">{sub ?? <><ArtistLinks leads={t.leads ?? []} featured={t.featured ?? []} plain />{t.albumTitle && ` · ${t.albumTitle}`}</>}</div>}
           </div>
           {action}
         </div>

@@ -12,7 +12,7 @@ function gradient(seed: string) {
   return `linear-gradient(135deg, hsl(${h % 360} 45% 38%), hsl(${(h * 7) % 360} 50% 22%))`;
 }
 
-export function Cover({ hash, seed, kind = 'album', className, radius }: { hash: string | null | undefined; seed: string; kind?: 'album' | 'artist'; className?: string; /** a corner radius of its own (the phone player bar's cover follows the bar's roundness) */ radius?: string }) {
+export function Cover({ hash, seed, kind = 'album', className, radius, children }: { hash: string | null | undefined; seed: string; kind?: 'album' | 'artist'; className?: string; /** a corner radius of its own (the phone player bar's cover follows the bar's roundness) */ radius?: string; /** layers that must follow the cover's own shape (a play or preview shade): they are clipped by the cover, so they can never miss a corner */ children?: React.ReactNode }) {
   const Icon = kind === 'artist' ? User : Disc3;
   const fallback = defaultImage(useLibrary(), kind === 'artist' ? 'defaultArtistImage' : 'defaultAlbumCover');
   const url = useFileUrl(hash || fallback);
@@ -24,6 +24,7 @@ export function Cover({ hash, seed, kind = 'album', className, radius }: { hash:
       {url
         ? <img src={url} alt="" loading={still ? 'eager' : 'lazy'} className="h-full w-full object-cover" />
         : <Icon className="absolute inset-0 m-auto h-1/3 w-1/3 text-white/40" strokeWidth={1.25} />}
+      {children}
     </div>
   );
 }

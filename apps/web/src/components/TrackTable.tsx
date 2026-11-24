@@ -80,8 +80,9 @@ export function TrackTable({ tracks, queue, source, sourceId = null, numbered = 
             {/* the cover is the play button: the Play glyph appears over it on hover or focus (and a tap on a phone plays) */}
             <button className="relative block w-10 shrink-0 overflow-hidden leading-none disabled:cursor-not-allowed" style={{ borderRadius: 'min(var(--radius, 0.5rem), 22%)' }} disabled={!canPlay(t)} aria-label={canPlay(t) ? `Play ${t.title}` : 'No audio file yet'}
               onClick={() => playRow(t.id)} title={canPlay(t) ? 'Play' : 'No audio file yet'}>
-              <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="w-full" />
-              {canPlay(t) && <span className="absolute inset-0 grid place-items-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"><Play size={16} fill="currentColor" /></span>}
+              <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="w-full">
+                {canPlay(t) && <span className="absolute inset-0 grid place-items-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"><Play size={16} fill="currentColor" /></span>}
+              </Cover>
             </button>
           </> : (
           <button className="relative w-6 shrink-0 text-center text-sm text-muted disabled:cursor-not-allowed" disabled={!canPlay(t)}

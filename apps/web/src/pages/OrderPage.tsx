@@ -47,8 +47,9 @@ export function OrderPage() {
             <GripVertical size={15} className="shrink-0 cursor-grab text-muted" aria-hidden />
             <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted">{i + 1}</span>
             <button type="button" disabled={!ok} className="group relative shrink-0 disabled:opacity-50" aria-label={here && playing ? `Pause ${t.title}` : `Play ${t.title}`} onClick={() => (here ? toggle() : play(tid, list, { type: 'search', id: `Order: ${album.title}` }))}>
-              <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-10 w-10" />
-              <span className="absolute inset-0 flex items-center justify-center rounded-theme bg-black/50 text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 data-[on=true]:opacity-100" data-on={here}>{here && playing ? <Pause size={16} /> : <Play size={16} />}</span>
+              <Cover hash={t.cover} seed={t.albumTitle ?? t.title} className="h-10 w-10">
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 data-[on=true]:opacity-100" data-on={here}>{here && playing ? <Pause size={16} /> : <Play size={16} />}</span>
+              </Cover>
             </button>
             <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.title}</span><span className="block truncate text-xs text-muted">{t.artistName}</span></span>
             <button type="button" className="btn btn-ghost !p-1.5" aria-label={`Move ${t.title} up`} disabled={i === 0} onClick={() => move(i, i - 1)}><ArrowUp size={14} /></button>
