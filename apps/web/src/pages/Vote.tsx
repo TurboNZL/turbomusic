@@ -39,18 +39,22 @@ function useFitHeight() {
     const main = el?.closest('main');
     if (!el || !main) return;
     const measure = () => {
-      const css = getComputedStyle(main);
       // offsetTop, not getBoundingClientRect: the page's entrance animation moves it with a transform, which made the first measurement wrong and the cards jump when it ended
       let top = 0; for (let n: HTMLElement | null = el; n && n !== main; n = n.offsetParent as HTMLElement | null) top += n.offsetTop;
-      const below = parseFloat(css.paddingBottom) + 16; // whatever floats over the bottom of the area, and the page padding
-      setHeight(Math.max(200, Math.floor(main.clientHeight - top - below)));
+      const mainBox = main.getBoundingClientRect();
+      const pageTop = mainBox.top + top - main.scrollTop;
+      // the page ends just above whatever floats over the bottom of the screen (player bar, tab bar, dock): measured, not guessed from the area's padding, which reserves more room than those bars use
+      let barTop = mainBox.bottom;
+      for (const bar of document.querySelectorAll('.bt-player, .bt-tabbar, .bt-dock')) { const r = bar.getBoundingClientRect(); if (r.height > 0 && r.bottom > 0 && r.top < barTop) barTop = r.top; }
+      setHeight(Math.max(200, Math.floor(barTop - pageTop - 10)));
     };
+    const poll = setInterval(measure, 500); // the player bar appears and goes without the area itself resizing
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(main);
     window.addEventListener('resize', measure);
     window.visualViewport?.addEventListener('resize', measure);
-    return () => { ro.disconnect(); window.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('resize', measure); };
+    return () => { clearInterval(poll); ro.disconnect(); window.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('resize', measure); };
   }, [el]);
   return { ref, height };
 }
