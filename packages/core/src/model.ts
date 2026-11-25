@@ -45,6 +45,8 @@ export interface AlbumData {
   needsSource?: boolean;
   /** the user marked that this album is not on YouTube Music: Health keeps it out of the main "missing YouTube link" list and shows it in its own */
   noYoutube?: boolean;
+  /** from the vault (unreleased, leaked or otherwise unofficial): the artist page lists it apart from the released music */
+  vault?: boolean;
   /** the user says nothing more is missing from this album (no tracks to add, no links to find): it is left out of the "to do" lists */
   complete?: boolean;
   /** kept out of the Albums list and of search (unless nothing else matches); still there for the tracks that belong to it */
@@ -66,9 +68,15 @@ export interface ReleaseData {
   trackIds: string[];
   /** a release that stands for a single the song came out as: it has one track, needs no name, is left out of the album's release list and shows on the Singles page (and under the releases of its album) */
   single?: boolean;
+  /** the YouTube Music album page this release was read from (or was tied to by hand): "Re-read credits from YouTube Music" uses it */
+  youtubeMusicUrl?: string | null;
+  /** this edition is from the vault (see AlbumData.vault); an album whose releases are all from the vault counts as one */
+  vault?: boolean;
 }
 export interface TrackData {
   title: string;
+  /** a single from the vault (see AlbumData.vault) */
+  vault?: boolean;
   /** @deprecated see AlbumData.artistId */
   artistId?: string;
   credits: Credit[];

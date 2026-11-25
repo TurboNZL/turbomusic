@@ -6,7 +6,7 @@ import { readShuffle, writeShuffle } from './PlayControls.tsx';
 import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { YouTubeMusicIcon } from './BrandIcons.tsx';
-import { ListOrdered, FolderInput, PackagePlus, RotateCcw, GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListMusic, ListPlus, ListStart, Pencil, Replace, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { ListOrdered, FolderInput, PackagePlus, RotateCcw, GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListMusic, ListPlus, ListStart, Pencil, Replace, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff, Trash2, Vault } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibrary, type Library } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
@@ -90,11 +90,15 @@ export function useAlbumMenuItems() {
     { separator: true },
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
     { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
+    (album as { vault?: boolean }).vault
+      ? { label: 'Not from the vault after all', icon: <Vault size={15} />, run: () => patch('albums', album.id, { vault: false }) }
+      : { label: 'Mark as from the vault', icon: <Vault size={15} />, run: () => patch('albums', album.id, { vault: true }) },
     ...(album.trackIds.length > 1 ? [{ label: 'Order its songs by preference…', icon: <ListOrdered size={15} />, to: `/order/${album.id}` } as MenuItem] : []),
     { label: 'Add to an album playlist…', icon: <ListMusic size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
     ...group('Import and merge', <YouTubeMusicIcon size={15} />, [
       { label: 'Import a release from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => void openImportIntoAlbum(album.id), keepOpen: true },
       ...(full && lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <FolderInput size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
+      { label: 'Re-read credits from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => edit({ kind: 'reparse-credits', id: album.id }) },
       { label: 'Fix artists from a pasted list…', icon: <User size={15} />, run: () => edit({ kind: 'paste-credits', id: album.id }) },
       { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
       ...(full && planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),

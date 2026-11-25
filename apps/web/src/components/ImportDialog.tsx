@@ -41,6 +41,8 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
   const [linkCover, setLinkCover] = useState<{ state: 'loading' | 'ok' | 'failed'; hash?: string; error?: string }>({ state: 'loading' });
   const picker = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  /** the link the preview was read from (kept on the album's release, so its credits can be re-read later) */
+  const [source, setSource] = useState('');
   const [download, setDownload] = useState(true);
   /** import each chosen track as a single (no album) with its own cover and release date, instead of making an album */
   const [asSingle, setAsSingle] = useState(singleFirst);
@@ -64,6 +66,7 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
     setBusy('Looking it up…'); setError(null); setHits(null);
     try {
       const p = await api().importPreview(link.trim());
+      setSource(link.trim());
       setPv(p); setThumbBroken(false);
       const links = p.thumbnails?.length ? p.thumbnails : p.thumbnail ? [p.thumbnail] : [];
       if (links.length) {
@@ -123,7 +126,7 @@ export function ImportDialog({ onClose, singleFirst = false }: { onClose: () => 
         const albumId = put('albums', newAlbumData({ title: title.trim(), credits, genres, cover: null, covers: cover ? [cover] : [], coverPicked: false }));
         ids = picked.map((r, i) => put('tracks', newTrackData({ title: r.title.trim(), credits: trackCredits(r), ...(r.artists.length ? { genres, syncWithAlbumCredits: false } : {}), youtubeMusicUrl: r.url, sourceSeconds: r.seconds, albums: [{ albumId, order: i }] })));
         // the imported edition is the album's default release: it carries the cover and the tracklist
-        const releaseId = put('releases', { albumId, title: '', cover, releaseDate, trackIds: ids });
+        const releaseId = put('releases', { albumId, title: '', cover, releaseDate, trackIds: ids, youtubeMusicUrl: source || null });
         useStore.getState().patch('albums', albumId, { trackOrder: ids, defaultReleaseId: releaseId });
         logJournal('add', `Imported album: ${title.trim()}`, `${ids.length} tracks from YouTube`, albumId);
         to = `/albums/${albumId}`; what = 'The album';

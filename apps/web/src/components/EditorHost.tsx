@@ -7,6 +7,7 @@ import { DeleteAlbumDialog, DeleteTracksDialog, LooseSinglesDialog } from './Del
 import { MergeWithDialog, type MergeKind } from './MergeWith.tsx';
 import { SpotifyLinks } from './SpotifyLinks.tsx';
 import { PasteCreditsDialog } from './PasteCredits.tsx';
+import { ReparseCreditsDialog } from './ReparseCredits.tsx';
 import { Loader2, Search, X } from 'lucide-react';
 import { makePrimary } from '../lib/autofill.ts';
 import { Select, albumOptions } from './Select.tsx';
@@ -79,6 +80,7 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
   });
   const [after, setAfter] = useState<string | null>(rule?.trackBId ?? null);
   const [first, setFirst] = useState(rule?.playFirstOnShuffle ?? true);
+  const [firstIfSecond, setFirstIfSecond] = useState(!!rule?.firstIfSecondShuffled);
   const [albumOnly, setAlbumOnly] = useState(rule?.applyToAlbumSource ?? false);
   const [fadeSec, setFadeSec] = useState<number | null>(rule?.crossfadeSec ?? null);
   const [shiftSec, setShiftSec] = useState<number>(rule?.crossfadeShiftSec ?? 0);
@@ -125,8 +127,8 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
     }
     // playback rule lives on the profile: replace this track's rule
     const others = lib.rules.filter((r) => r.trackAId !== id);
-    const rules: PlaybackRule[] = after ? [...others, { trackAId: id, trackBId: after, playFirstOnShuffle: first, applyToAlbumSource: albumOnly, crossfadeSec: fadeSec, ...(shiftSec > 0 ? { crossfadeShiftSec: shiftSec } : {}), ...(fadeOut ? {} : { crossfadeOut: false }), ...(fadeIn ? {} : { crossfadeIn: false }) }] : others;
-    if (rules.length !== lib.rules.length || after !== (rule?.trackBId ?? null) || first !== (rule?.playFirstOnShuffle ?? true) || albumOnly !== (rule?.applyToAlbumSource ?? false) || fadeSec !== (rule?.crossfadeSec ?? null) || shiftSec !== (rule?.crossfadeShiftSec ?? 0) || fadeOut !== (rule?.crossfadeOut !== false) || fadeIn !== (rule?.crossfadeIn !== false)) {
+    const rules: PlaybackRule[] = after ? [...others, { trackAId: id, trackBId: after, playFirstOnShuffle: first, ...(firstIfSecond ? { firstIfSecondShuffled: true } : {}), applyToAlbumSource: albumOnly, crossfadeSec: fadeSec, ...(shiftSec > 0 ? { crossfadeShiftSec: shiftSec } : {}), ...(fadeOut ? {} : { crossfadeOut: false }), ...(fadeIn ? {} : { crossfadeIn: false }) }] : others;
+    if (rules.length !== lib.rules.length || after !== (rule?.trackBId ?? null) || first !== (rule?.playFirstOnShuffle ?? true) || firstIfSecond !== !!rule?.firstIfSecondShuffled || albumOnly !== (rule?.applyToAlbumSource ?? false) || fadeSec !== (rule?.crossfadeSec ?? null) || shiftSec !== (rule?.crossfadeShiftSec ?? 0) || fadeOut !== (rule?.crossfadeOut !== false) || fadeIn !== (rule?.crossfadeIn !== false)) {
       saveRules(lib, rules);
     }
     onClose();
@@ -201,6 +203,7 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="text-sm font-medium">Playback rule: play another track right after this one</div>
         <TrackPicker value={after} onChange={setAfter} exclude={id} />
         {after && <><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={first} onChange={(e) => setFirst(e.target.checked)} />Keep them together when shuffling</label>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={firstIfSecond} onChange={(e) => setFirstIfSecond(e.target.checked)} /><span>If the second song comes up in a shuffle, play this one first<span className="block text-xs text-muted">Only shuffles change: playing the second song yourself still plays just that song.</span></span></label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={albumOnly} onChange={(e) => setAlbumOnly(e.target.checked)} />Only when playing from an album</label>
           <div className="space-y-1 text-sm"><div>Crossfade into it</div><CrossfadePick value={fadeSec} onChange={setFadeSec} shift={shiftSec} onShift={setShiftSec} shape={{ out: fadeOut, in: fadeIn }} onShape={(p) => { if (p.crossfadeOut !== undefined) setFadeOut(p.crossfadeOut); if (p.crossfadeIn !== undefined) setFadeIn(p.crossfadeIn); }} /></div></>}
       </div>
@@ -562,6 +565,8 @@ function ReleaseDialog({ releaseId, albumId, onClose }: { releaseId?: string; al
         <Select value={r.title} onChange={(v) => setR({ ...r, title: v })} searchable placeholder={`Same as the album (${album.title})`}
           options={[{ value: '', label: `Same as the album (${album.title})` }, ...[...lib.releaseNames].sort((a, b) => a.name.localeCompare(b.name)).map((n) => ({ value: n.name, label: n.name }))]}
           creatable={{ label: (n) => `Create name: “${n}”`, create: (n) => n }} /></Field>}
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={!!r.vault} onChange={(e) => setR({ ...r, vault: e.target.checked || undefined })} /><span><span className="font-medium">From the vault</span><span className="block text-xs text-muted">An unreleased, leaked or otherwise unofficial edition. The artist page lists an album whose releases are all from the vault apart from the released music.</span></span></label>
+      <Field label="YouTube Music link" hint="The album page this release was read from. “Re-read credits from YouTube Music” in the album menu uses it."><input className="input" placeholder="https://music.youtube.com/playlist?list=…" value={r.youtubeMusicUrl ?? ''} onChange={(e) => setR({ ...r, youtubeMusicUrl: e.target.value.trim() || null })} /></Field>
       <Field label="Release date"><input type="date" className="input" value={r.releaseDate ?? ''} onChange={(e) => setR({ ...r, releaseDate: e.target.value || null })} />
         <DateLookup title={lookup.album} artist={lookup.artist} onFound={(d) => setR({ ...r, releaseDate: d })} /></Field>
       <div className="space-y-1"><div className="text-sm text-muted">Tracklist ({live.length})</div>
@@ -635,6 +640,7 @@ export function EditorFor({ target, close }: { target: EditTarget; close: () => 
   if (target.kind === 'import-spotify') return <SpotifyImportDialog key="import-spotify" onClose={close} />;
   if (target.kind === 'new-synced-playlist') return <SyncedPlaylistDialog key="new-synced-playlist" onClose={close} />;
   if (target.kind === 'merge-playlist') return <MergePlaylistDialog key={key} spec={target.id} onClose={close} />;
+  if (target.kind === 'reparse-credits') return <ReparseCreditsDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'paste-credits') return <PasteCreditsDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'merge-with') { const [k, ...rest] = target.id.split(':'); return <MergeWithDialog key={key} kind={k as MergeKind} id={rest.join(':')} onClose={close} />; }
   if (target.kind === 'delete-album') return <DeleteAlbumDialog key={key} albumId={target.id} onClose={close} />;

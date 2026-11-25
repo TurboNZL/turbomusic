@@ -72,7 +72,7 @@ export function AlbumPage() {
               <div key={r.id} data-selected={on || undefined} className="card bt-sel group flex items-center gap-2 py-2 pl-2 pr-1">
                 <button role="radio" aria-checked={on} className="flex min-w-0 flex-1 items-center gap-3 text-left text-sm" onClick={() => choose({ kind: 'release', id: r.id })}>
                   <Cover hash={r.cover || album.cover} seed={r.title} className="h-11 w-11 shrink-0" />
-                  <span className="min-w-0 flex-1"><span className="flex items-center gap-1.5 font-medium"><span className="truncate">{reuse ? (r.releaseDate ?? 'Undated') : r.title}</span>{isDefault && <span className="chip shrink-0">default</span>}</span>
+                  <span className="min-w-0 flex-1"><span className="flex items-center gap-1.5 font-medium"><span className="truncate">{reuse ? (r.releaseDate ?? 'Undated') : r.title}</span>{isDefault && <span className="chip shrink-0">default</span>}{(r as { vault?: boolean }).vault && <span className="chip shrink-0">vault</span>}</span>
                     <span className="block text-xs text-muted">{reuse ? plural(r.trackIds.length, 'track') : `${r.releaseDate ?? 'undated'} · ${plural(r.trackIds.length, 'track')}`}</span></span>
                 </button>
                 <button className="-my-2 flex shrink-0 items-center self-stretch px-2.5 text-muted hover:text-fg" aria-label={`Edit ${r.title}`} title="Edit release" onClick={() => edit({ kind: 'release', id: r.id })}><Pencil size={14} /></button>

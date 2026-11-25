@@ -1,5 +1,5 @@
 import { statsPath } from '../lib/entityStats.ts';
-import { BarChart3, Swords, Info, ListEnd, ListMusic, ListPlus, ListStart, Replace, Pencil, Play, Plus, Minus, Disc3, Disc, Brain, Flag, FolderInput, GitMerge, StickyNote, User } from 'lucide-react';
+import { BarChart3, Swords, Info, ListEnd, ListMusic, ListPlus, ListStart, Replace, Pencil, Play, Plus, Minus, Disc3, Disc, Vault, Brain, Flag, FolderInput, GitMerge, StickyNote, User } from 'lucide-react';
 import { canPlay } from '../lib/spotifyPlayer.ts';
 import type { Track } from '../lib/derive.ts';
 import type { EditTarget } from '../lib/editor.ts';
@@ -8,6 +8,7 @@ import { usePlayer } from '../lib/player.ts';
 import { addMemory, removeMemory } from '../lib/memories.ts';
 import { trackPath } from '../lib/trackPath.ts';
 import { updateProfile } from '../lib/profile.ts';
+import { useStore } from '../lib/store.ts';
 import { group, type MenuItem } from './Menu.tsx';
 import { PlaylistFlyout } from './PlaylistFlyout.tsx';
 import { useLibrary } from '../lib/derive.ts';
@@ -16,6 +17,7 @@ import { makeSingleRelease } from '../lib/singleRelease.ts';
 /** The per-track menu (the old right-click menu) as menu items; shown by useMenu()/ContextMenu. */
 export function useTrackMenuItems() {
   const edit = useEditor((s) => s.open);
+  const patch = useStore((s) => s.patch);
   const enqueue = usePlayer((s) => s.enqueue);
   const lib = useLibrary();
   const replaceRest = usePlayer((s) => s.replaceRest);
@@ -53,8 +55,8 @@ export function useTrackMenuItems() {
         // a single that promoted an album joins it here once the album is out (also: a song on one album can be added to another)
         { label: t.albumId ? 'Add to another album…' : 'Add this single to an album…', icon: <FolderInput size={15} />, run: open({ kind: 'add-to-album', id: t.id }) },
         ...(t.albumId ? [{ label: 'Make a single release (looks up its date)', icon: <Disc size={15} />, run: () => { void makeSingleRelease(lib, t).then((id) => id && edit({ kind: 'release', id })); } }] : []),
-        ...(t.comparisons > 0 ? [{ label: lib.profile?.settings?.tenLine === t.id ? 'Remove the 10/10 line from here' : 'This is my last 10/10 (draw the line here)', icon: <Flag size={15} />, run: () => updateProfile(lib, (p) => ({ ...p, settings: { ...p.settings, tenLine: p.settings?.tenLine === t.id ? null : t.id } })) } as MenuItem] : []),
         { label: 'Merge with another track…', icon: <GitMerge size={15} />, run: open({ kind: 'merge-with', id: `track:${t.id}` }) },
+        ...(!t.albumId ? [t.vault ? { label: 'Not from the vault after all', icon: <Vault size={15} />, run: () => patch('tracks', t.id, { vault: false }) } : { label: 'Mark as from the vault', icon: <Vault size={15} />, run: () => patch('tracks', t.id, { vault: true }) }] as MenuItem[] : []),
       ]),
     ];
   };

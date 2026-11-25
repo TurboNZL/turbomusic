@@ -7,7 +7,7 @@ export const GROUP_CHOICES: { group: string; title: string; options: string[] }[
   { group: 'Queue', title: 'Queue (songs, albums, playlists)', options: ['Add to queue', 'Play next', 'Replace lineup', 'Add to lineup'] },
   { group: 'Import and merge', title: 'Import and merge (albums)', options: ['Import a release from YouTube Music', 'Fix artists from a pasted list', 'Merge with another album'] },
   { group: 'Info, notes and stats', title: 'Info, notes and stats (songs)', options: ['Info', 'Stats page', 'Write a note', 'Rank it against other songs'] },
-  { group: 'Edit and organise', title: 'Edit and organise (songs)', options: ['Edit', 'Merge with another track', 'This is my last 10/10'] },
+  { group: 'Edit and organise', title: 'Edit and organise (songs)', options: ['Edit', 'Merge with another track'] },
 ];
 const KEY = 'turbomusic.menuDefaults';
 

@@ -51,7 +51,13 @@ export function MiniQueue({ anchor }: { anchor: HTMLElement | null }) {
         {q.active.length > 0 && head(from ? `Lineup · from ${from.text}` : 'Lineup · the rest of the album or list', q.active.length, shuffleRest, clearRest)}
         {q.active.slice(0, 30).map((id, i) => row(id, i, false))}
         {q.active.length > 30 && <div className="px-3 py-1 text-xs text-muted">and {q.active.length - 30} more</div>}
-        {!q.user.length && !q.active.length && <p className="px-3 py-3 text-sm text-muted">Nothing is queued after this track.</p>}
+        {(q.parked ?? []).map((g, gi) => { const gl = sourceLabel(lib, g.source); return (
+          <div key={`p${gi}`}>
+            {head(gl ? `Waiting · from ${gl.text}` : 'Waiting · an earlier lineup', 0, () => undefined, () => usePlayer.getState().dropParked(gi))}
+            {g.ids.slice(0, 15).map((id, i) => row(id, i, false))}
+            {g.ids.length > 15 && <div className="px-3 py-1 text-xs text-muted">and {g.ids.length - 15} more</div>}
+          </div>); })}
+        {!q.user.length && !q.active.length && !(q.parked ?? []).length && <p className="px-3 py-3 text-sm text-muted">Nothing is queued after this track.</p>}
       </div>
       <div className="border-t border-line/60 px-3 py-2 text-right text-xs"><Link to="/queue" className="text-accent hover:underline" onClick={() => !pinned && closeQueue()}>Open the full queue</Link></div>
     </Popover>

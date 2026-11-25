@@ -8,6 +8,7 @@ import { buildListens, type Listen } from '../lib/listens.ts';
 import { computeListenStats, dayKey, hourLabel, lastMonths, timeSeries, type ListenStats, type Range, type TopRow } from '../lib/listenStats.ts';
 import { filterListens, filterRange, applyFilter, loadFilter, saveFilter, type StatsFilter } from '../lib/statsFilter.ts';
 import { statsPath } from '../lib/entityStats.ts';
+import { usePlayer } from '../lib/player.ts';
 import { StatsFilters } from '../components/StatsFilters.tsx';
 import { TopGrid } from '../components/TopGrid.tsx';
 import { useNearEnd } from '../lib/useChunks.ts';
@@ -259,8 +260,15 @@ export function StatsPage() {
   const s = useMemo(() => computeListenStats(narrowed, range, { minMs: filter.minMs }), [narrowed, range, filter.minMs]);
   const shown = useMemo(() => filterListens(lib, listens, filter), [lib, listens, filter]);
   const imported = listens.filter((l) => l.source === 'spotify').length;
+  const nowId = usePlayer((p) => (p.playing ? p.queue.currentId : null));
+  const nowTrack = nowId ? lib.trackById.get(nowId) : undefined;
   return (
     <div className="space-y-5">
+      {nowTrack && <Link to={statsPath('track', nowTrack.id)} className="flex items-center gap-3 rounded-theme bg-accent/10 px-3 py-2 text-sm" role="status">
+        <span className="flex h-3.5 items-end gap-0.5" aria-hidden>{[0, 1, 2].map((i) => <span key={i} className="w-0.5 animate-pulse rounded-full bg-accent" style={{ height: `${60 + i * 20}%`, animationDelay: `${i * 160}ms` }} />)}</span>
+        <span className="min-w-0 flex-1 truncate"><span className="text-muted">Listening now · </span><b className="font-semibold">{nowTrack.title}</b><span className="text-muted"> · {nowTrack.artistName}</span></span>
+        <span className="shrink-0 text-xs text-accent">Its stats →</span>
+      </Link>}
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-2xl font-bold">Stats</h1>
         <Link to="/recaps" className="btn"><CalendarDays size={15} />Weekly recap</Link>

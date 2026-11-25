@@ -42,6 +42,7 @@ export function PlaybackRules() {
           {isOpen && <div className="space-y-2 border-t border-line/60 p-3">
             <div className="flex flex-wrap gap-4 text-xs text-muted">
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.playFirstOnShuffle} onChange={(e) => setRule(i, { playFirstOnShuffle: e.target.checked })} />Keep together when shuffling</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!r.firstIfSecondShuffled} onChange={(e) => setRule(i, { firstIfSecondShuffled: e.target.checked || undefined })} />If the second shuffles in, play the first before it</label>
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={r.applyToAlbumSource} onChange={(e) => setRule(i, { applyToAlbumSource: e.target.checked })} />Only when playing from an album</label>
             </div>
             <div className="space-y-0.5 text-xs text-muted"><div>Crossfade into it</div><CrossfadePick value={r.crossfadeSec} onChange={(v) => setRule(i, { crossfadeSec: v })} shift={r.crossfadeShiftSec} onShift={(v) => setRule(i, { crossfadeShiftSec: v })} shape={{ out: r.crossfadeOut, in: r.crossfadeIn }} onShape={(p) => setRule(i, p)} /></div>

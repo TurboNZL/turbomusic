@@ -52,6 +52,7 @@ export function EntityStatsPage() {
   const [combine, setCombine] = useState(false);
   // the play happening right now counts as soon as it passes the minimum length (and stops counting if you pause and cut it back), so the numbers move while you listen
   const curId = usePlayer((s) => s.queue.currentId);
+  const nowPlaying = usePlayer((s) => s.playing);
   const curSecs = usePlayer((s) => Math.floor(s.time / 2) * 2);
   const live = useMemo(() => (ids && curId && ids.includes(curId) ? liveListen(lib, curId, curSecs) : null), [lib, ids, curId, curSecs]);
   const stats = useMemo(() => (ids ? entityStats(lib, ids, minMs, combine, live) : null), [lib, ids, minMs, combine, live]);
@@ -90,6 +91,7 @@ export function EntityStatsPage() {
         <div className="min-w-0 space-y-2">
           <div className="text-xs uppercase tracking-wider text-muted">{KIND_LABEL[kind]} stats</div>
           <h1 className="text-3xl font-bold leading-tight">{title}</h1>
+          {nowPlaying && live && <div className="inline-flex items-center gap-2 rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent" role="status"><span className="flex h-3 items-end gap-0.5" aria-hidden>{[0, 1, 2].map((i) => <span key={i} className="w-0.5 animate-pulse rounded-full bg-accent" style={{ height: `${60 + i * 20}%`, animationDelay: `${i * 160}ms` }} />)}</span>{kind === 'track' ? 'You are listening to this right now' : `Playing now: ${lib.trackById.get(curId!)?.title ?? ''}`}<span className="text-muted">· counted once it passes {Math.round(minMs / 1000)} s</span></div>}
           {ids.some((tid) => lib.trackById.get(tid)?.preReleaseIds.length) && <label className="flex items-center gap-1.5 text-sm text-muted"><input type="checkbox" checked={combine} onChange={(e) => setCombine(e.target.checked)} />Include the plays of pre-release versions ([U])</label>}
           <div className="text-sm text-muted">
             {track && <><ArtistLinks leads={track.leads} featured={track.featured} />{track.albumTitle && <> · {track.albumTitle}</>}</>}

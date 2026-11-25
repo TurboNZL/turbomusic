@@ -3,8 +3,9 @@ import { playLogged, startSessionSaving } from './session.ts';
 import { create } from 'zustand';
 import { advance, ruleFor, crossfadeFor, crossfadeShapeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
 import { moveTrack } from './defaults.ts';
-import { audioSource, cancelPrefetch, imageSource, localAudio, prefetchAudio, streamUrl } from './files.ts';
+import { audioSource, cancelPrefetch, imageSource, prefetchAudio, streamUrl } from './files.ts';
 import { nativeAudio, nativeAudioAvailable, type NativeEvent, type NativeItem } from './nativeAudio.ts';
+import { getMeta } from './idb.ts';
 import { BEAM_ID, beamActive, beamFailed, beamNativeEvent, setBeamVolume } from './beam.ts';
 import { getLibrary } from './derive.ts';
 import { useStore } from './store.ts';
@@ -53,6 +54,8 @@ interface PlayerState {
   /** what is playing keeps playing; the "Then" part (rest of the album or list) becomes this list, or this list is added to its end */
   replaceRest(list: string[], source?: Source): void;
   appendRest(list: string[]): void;
+  /** forget the parked lineup at this position (see core ParkedLineup) */
+  dropParked(i: number): void;
   /** the rest of the album or list becomes part of the user queue / is dropped */
   keepRest(): void;
   clearRest(): void;
@@ -141,6 +144,13 @@ export const usePlayer = create<PlayerState>((set, get) => {
     return audio;
   };
 
+  /** The real next step of the queue. When the lineup above has run out and a parked one carries on, the list being played is that one's. */
+  function step(q: QueueState): QueueState {
+    const nq = advance(q, rules(), get().source.type);
+    if ((q.parked?.length ?? 0) > (nq.parked?.length ?? 0) && !q.user.length && !q.active.length && q.parked?.[0]) set({ source: q.parked[0].source });
+    return nq;
+  }
+
   // ---- crossfade -------------------------------------------------------------------------------------------------------------------
   // Only for tracks the page itself plays (not the Android app's own player, not Spotify), and only for changes that happen by themselves
   // (a track running out). Next/Previous/choosing a track still cut at once. A track's rule can set its own length (core `crossfadeFor`).
@@ -203,7 +213,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       await p.el.play();
     } catch { prepFailed = nextId; dropPrep(); fading = false; return; } // the browser would not start it (autoplay rules): a plain change instead
     fading = false;
-    const q = get().queue, nq = advance(q, rules(), get().source.type);
+    const q = get().queue, nq = step(q);
     if (loads !== loadSeq || audio !== out || prep !== p || nq.currentId !== nextId) { if (prep === p) dropPrep(); return; } // the user did something meanwhile
     // the change itself, as next() makes it when a track ends
     logPlay(false);
@@ -266,7 +276,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
   /** Can the Android app's own player play this track? (needs the server's address, and no copy that only this page holds) */
   function nativeCan(file: string | null | undefined): boolean {
     if (!file || !nativeAudioAvailable() || nativeBad.has(file)) return false;
-    if (useStore.getState().audioCache[file]) return false;
+    // a copy kept on this device is only the page's to play when there is no network: the page's own <audio> stops being fed once the app is in the background (no next track, no Next/Previous), while the app's player keeps going
+    if (useStore.getState().audioCache[file] && !navigator.onLine) return false;
     return /^https?:/i.test(streamUrl(file));
   }
 
@@ -353,7 +364,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const file = track.file;
     void (async () => {
       // the app's own player streams from the server; a copy kept on this device (or not uploaded yet) is played by the page
-      if (nativeCan(file) && !(await localAudio(file).then((u) => { if (u) URL.revokeObjectURL(u); return !!u; }))) {
+      if (nativeCan(file) && !(await getMeta<string[]>('pendingUploads', [])).includes(file)) {
         if (seq !== loadSeq) return;
         useEngine('native');
         const at = pendingSeek ?? 0; pendingSeek = null;
@@ -384,7 +395,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       logPlay(false);
       const q = get().queue;
       set({ history: pushHistory(get().history, q.currentId) });
-      go(advance(q, rules(), get().source.type));
+      go(step(q));
       return;
     }
     if (r.playing && r.timeMs > 0) playLog.started(get().queue.currentId ?? undefined);
@@ -479,7 +490,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (!q.currentId) { set({ queue: q }); load(null); return; }
     if (load(q.currentId)) { set({ queue: q }); return; }
     if (guard > 100) { set({ queue: q, error: 'No playable tracks in the queue', playing: false }); return; }
-    go(advance(q, rules(), get().source.type), guard + 1);
+    go(step(q), guard + 1);
   }
 
   /**
@@ -518,11 +529,19 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (!track || (!track.file && !spotifyCan(track))) { set({ error: 'This track has no audio file yet', source }); return; }
       if (remoteHooks.play?.(trackId, list, source)) return;
       const ordered = list;
-      const prev = get().queue.currentId;
+      const q0 = get().queue, oldSource = get().source;
+      const prev = q0.currentId;
       if (prev) logPlay(true);
       set({ source, history: pushHistory(get().history, prev) });
       pendingSeek = at && at > 1 ? at : null;
-      go(startTrack(get().queue, trackId, ordered, rules(), source.type));
+      const started = startTrack(q0, trackId, ordered, rules(), source.type);
+      // a lineup that is already waiting is not thrown away by starting another list: the new rest-of-the-list goes on top and the old one stays under it (the mini queue lists it apart, so it can be cleared there)
+      const replace = useStore.getState().settings.playReplacesLineup;
+      const sameList = oldSource.type === source.type && oldSource.id === source.id;
+      const park = !replace && !sameList && !!prev && q0.active.length > 0;
+      const parked = replace ? [] : [...(park ? [{ source: oldSource, ids: q0.active }] : []), ...(q0.parked ?? [])];
+      const { parked: _drop, ...bare } = started; void _drop;
+      go(parked.length ? { ...bare, parked } : bare);
     },
 
     toggle() {
@@ -540,7 +559,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const q = get().queue;
       if (native || spotifyEngine.active() || (audio && !audio.ended)) logPlay(true);
       set({ history: pushHistory(get().history, q.currentId) });
-      go(advance(q, rules(), get().source.type));
+      go(step(q));
     },
 
     prev() {
@@ -580,6 +599,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     shuffleRest() { const q = get().queue; set({ queue: { ...q, active: shuffleWithRules(q.active, rules()) } }); },
     keepRest() { const q = get().queue; set({ queue: { ...q, user: [...q.user, ...q.active], active: [] } }); },
     clearRest() { set({ queue: { ...get().queue, active: [] } }); },
+    dropParked(i) { const q = get().queue; const parked = (q.parked ?? []).filter((_, j) => j !== i); set({ queue: { ...q, ...(parked.length ? { parked } : { parked: undefined }) } }); },
     replaceRest(list, source) {
       const q = get().queue;
       if (!q.currentId) { if (list.length) get().play(list[0], list, source); return; } // nothing is playing: this is just a normal play

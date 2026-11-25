@@ -2,6 +2,11 @@ export interface PlaybackRule {
   trackAId: string;
   trackBId: string;
   playFirstOnShuffle: boolean;
+  /**
+   * When B comes up in a shuffle (not chosen on purpose), A is played right before it, wherever A was or if it was not in the shuffled list
+   * at all. Only shuffles are changed: playing B by hand still plays B.
+   */
+  firstIfSecondShuffled?: boolean;
   /** only apply when the track was started from an album */
   applyToAlbumSource: boolean;
   /**
@@ -51,12 +56,17 @@ export function crossfadeShapeFor(rules: PlaybackRule[], fromId: string, toId: s
 
 export type SourceType = 'album' | 'playlist' | 'track' | 'shuffle' | 'search';
 
+/** A lineup that was set aside when another list was started on top of it; it carries on once the lineup above it has run out. */
+export interface ParkedLineup { source: { type: SourceType; id: string | null }; ids: string[] }
+
 export interface QueueState {
   /** manually queued ("play next") */
   user: string[];
   /** remainder of the album/playlist being played */
   active: string[];
   currentId: string | null;
+  /** lineups set aside under `active`, the nearest first (see ParkedLineup) */
+  parked?: ParkedLineup[];
 }
 
 /** Does a "play B after A" rule fire for this track + source? */
@@ -79,19 +89,22 @@ export function startTrack(
   const user = [...state.user];
   const rule = ruleFor(rules, trackId, source);
   if (rule && user[0] !== rule.trackBId && active[0] !== rule.trackBId) user.unshift(rule.trackBId);
-  return { currentId: trackId, active, user };
+  return { currentId: trackId, active, user, ...(state.parked?.length ? { parked: state.parked } : {}) };
 }
 
 /** Advance: user queue first, then the active list. Rules were already injected by startTrack/advance. */
 export function advance(state: QueueState, rules: PlaybackRule[], source?: SourceType): QueueState {
   let { user, active } = state;
+  let parked = (state.parked ?? []).filter((g) => g.ids.length);
   let next: string | undefined;
   if (user.length) [next, ...user] = user;
   else if (active.length) [next, ...active] = active;
-  if (!next) return { currentId: null, user, active };
+  else if (parked.length) { const [g, ...rest] = parked; parked = rest; [next, ...active] = g.ids; } // the lineup under this one carries on
+  const keep = parked.length ? { parked } : {};
+  if (!next) return { currentId: null, user, active, ...keep };
   const rule = ruleFor(rules, next, source);
   if (rule && user[0] !== rule.trackBId && active[0] !== rule.trackBId) user = [rule.trackBId, ...user];
-  return { currentId: next, user, active };
+  return { currentId: next, user, active, ...keep };
 }
 
 /** Fisher-Yates (the old `sort(() => Math.random() - 0.5)` is biased). Honors playFirstOnShuffle rules. */
@@ -107,6 +120,14 @@ export function shuffleWithRules(ids: string[], rules: PlaybackRule[], rnd: () =
     if (a === -1 || b === -1) continue;
     out.splice(b, 1);
     out.splice(out.indexOf(r.trackAId) + 1, 0, r.trackBId); // recompute A: removing B may shift it
+  }
+  for (const r of rules.filter((x) => x.firstIfSecondShuffled && x.trackAId !== x.trackBId)) {
+    const b = out.indexOf(r.trackBId);
+    if (b === -1) continue;
+    const a = out.indexOf(r.trackAId);
+    if (a !== -1 && a === b - 1) continue; // already right before it
+    if (a !== -1) out.splice(a, 1);
+    out.splice(out.indexOf(r.trackBId), 0, r.trackAId); // recompute B: removing A may shift it
   }
   return out;
 }
