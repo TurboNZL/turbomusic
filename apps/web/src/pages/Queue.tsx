@@ -10,7 +10,7 @@ export function QueuePage() {
   const lib = useLibrary();
   const source = usePlayer((s) => s.source);
   const labels = usePlayer((st) => st.queueLabels);
-  const { queue, dequeue, moveQueued, clearQueued, shuffleQueued, shuffleRest, keepRest, clearRest } = usePlayer();
+  const { queue, dequeue, moveQueued, clearQueued, shuffleQueued, shuffleRest, keepRest, clearRest, dropParked } = usePlayer();
   const get = (ids: string[]) => ids.map((id) => lib.trackById.get(id)).filter((t) => !!t);
   const current = queue.currentId ? lib.trackById.get(queue.currentId) : null;
   const user = get(queue.user), active = get(queue.active);
@@ -32,6 +32,9 @@ export function QueuePage() {
       </section>
       {active.length > 0 && <section><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Lineup, from {from ? (from.to ? <Link to={from.to} className="normal-case text-fg hover:underline">{from.text}</Link> : <span className="normal-case text-fg">{from.text}</span>) : 'the album or list'}</h2>
         <div className="flex gap-1"><button className="btn btn-ghost" onClick={shuffleRest}><Shuffle size={14} />Shuffle</button><button className="btn btn-ghost" onClick={keepRest} title="Move these into your own queue">Add all to my queue</button><button className="btn btn-ghost" onClick={clearRest}>Clear</button></div></div><div className="card overflow-hidden"><TrackTable tracks={active.slice(0, 100)} source="track" covers /></div></section>}
+      {(queue.parked ?? []).map((g, gi) => { const gl = sourceLabel(lib, g.source); const tracks = get(g.ids); return (
+        <section key={`p${gi}`}><div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Waiting underneath · from {gl ? (gl.to ? <Link to={gl.to} className="normal-case text-fg hover:underline">{gl.text}</Link> : <span className="normal-case text-fg">{gl.text}</span>) : 'an earlier lineup'}</h2>
+          <button className="btn btn-ghost" onClick={() => dropParked(gi)}>Clear</button></div><div className="card overflow-hidden"><TrackTable tracks={tracks.slice(0, 100)} source="track" covers /></div></section>); })}
     </div>
   );
 }

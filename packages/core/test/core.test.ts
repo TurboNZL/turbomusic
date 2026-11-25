@@ -123,3 +123,37 @@ describe('crossfade shift', () => {
     expect(crossfadeShiftFor([{ ...base, crossfadeShiftSec: Number.NaN }], 'a', 'b')).toBe(0);
   });
 });
+
+describe('firstIfSecondShuffled', () => {
+  const rule = { trackAId: 'a', trackBId: 'b', playFirstOnShuffle: false, firstIfSecondShuffled: true, applyToAlbumSource: false };
+  it('puts A right before B when A is elsewhere in the shuffle', () => {
+    const out = shuffleWithRules(['x', 'b', 'y', 'a', 'z'], [rule], () => 0.99);
+    expect(out.indexOf('a')).toBe(out.indexOf('b') - 1);
+    expect(out).toHaveLength(5);
+  });
+  it('adds A before B when A is not in the list at all', () => {
+    const out = shuffleWithRules(['x', 'b', 'y'], [rule], () => 0.99);
+    expect(out.indexOf('a')).toBe(out.indexOf('b') - 1);
+    expect(out).toHaveLength(4);
+  });
+  it('leaves a shuffle without B alone', () => {
+    expect(shuffleWithRules(['x', 'y'], [rule], () => 0.99)).toHaveLength(2);
+  });
+});
+
+describe('parked lineups', () => {
+  it('carries on with the lineup underneath once the one above has run out', () => {
+    const q = { currentId: 'a1', user: [], active: ['a2'], parked: [{ source: { type: 'album' as const, id: 'x' }, ids: ['b1', 'b2'] }] };
+    const one = advance(q, []);
+    expect(one.currentId).toBe('a2');
+    const two = advance(one, []);
+    expect(two.currentId).toBe('b1');
+    expect(two.active).toEqual(['b2']);
+    expect(two.parked).toBeUndefined();
+    expect(advance(advance(two, []), []).currentId).toBeNull();
+  });
+  it('startTrack keeps what was parked', () => {
+    const q = { currentId: null, user: [], active: [], parked: [{ source: { type: 'album' as const, id: 'x' }, ids: ['b1'] }] };
+    expect(startTrack(q, 'c1', ['c1', 'c2'], []).parked).toHaveLength(1);
+  });
+});

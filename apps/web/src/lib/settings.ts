@@ -60,6 +60,8 @@ export interface DeviceSettings {
   preferLocalCopy: boolean;
   /** playing a track from search results queues every other result after it; off = only that track is played and the queue stays as it was */
   searchPlaysAll: boolean;
+  /** playing a song from another list replaces the waiting lineup instead of setting it aside under the new one */
+  playReplacesLineup: boolean;
   /** the order of the pages in the navigation (their addresses), and which of them are tabs on a phone (lib/navOrder.ts); unset = the defaults */
   navOrder?: string[];
   phoneTabs?: string[];
@@ -119,7 +121,7 @@ export function loadSettings(): DeviceSettings {
   let saved: Partial<DeviceSettings> = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { /* storage blocked */ }
   const s: DeviceSettings = {
-    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, ...saved,
+    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, playReplacesLineup: false, ...saved,
   };
   s.eqBands = cleanBands(s.eqBands);
   s.eqPreamp = Math.min(12, Math.max(-12, Number(s.eqPreamp) || 0));

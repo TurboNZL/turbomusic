@@ -30,4 +30,9 @@ describe('lyrics', () => {
     const f = (async () => json({ instrumental: true, plainLyrics: null, syncedLyrics: null })) as unknown as typeof fetch;
     expect(await new LyricsFinder(f).find(q)).toMatchObject({ instrumental: true });
   });
+  it('prefers a record with words over an instrumental one', async () => {
+    const f = (async (u: string) => (u.includes('/api/get') ? json({ instrumental: true, plainLyrics: null, syncedLyrics: null })
+      : json([{ duration: 200, instrumental: true, syncedLyrics: null, plainLyrics: null }, { duration: 190, instrumental: false, syncedLyrics: '[00:01.00] words', plainLyrics: 'words' }]))) as unknown as typeof fetch;
+    expect(await new LyricsFinder(f).find(q)).toMatchObject({ instrumental: false, plain: 'words' });
+  });
 });

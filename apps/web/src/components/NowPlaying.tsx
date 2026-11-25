@@ -136,7 +136,7 @@ export function NowPlaying() {
       <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:justify-start max-md:gap-3 max-md:overflow-hidden max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'absolute inset-0 justify-center !p-6')}>
         <div style={saver ? { width: `min(78vmin, 44rem, calc(100dvh - ${frame} - 8rem))` } : undefined} className={cn('shrink-0', saver ? 'bt-drift' : showLyrics ? 'w-[min(24vh,56vw,20rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
           {cover ? <img src={cover} alt="" className="aspect-square w-full rounded-theme object-cover shadow-2xl" draggable={false} /> : <div className="aspect-square w-full rounded-theme bg-raised" />}
-          {!saver && <div className="mt-2 min-w-0 text-center md:mt-4 md:text-left"><div className="truncate text-2xl font-bold md:text-3xl">{track.title}</div>
+          {!saver && <div className="mt-2 min-w-0 text-center max-md:relative max-md:left-1/2 max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2 md:mt-4 md:text-left"><div className="line-clamp-2 text-2xl font-bold leading-tight md:truncate md:text-3xl">{track.title}</div>
             <div className="truncate text-base text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}
         </div>
         {showLyrics && !saver && (
@@ -159,7 +159,7 @@ export function NowPlaying() {
           </div>)}
       </div>
       {showLyrics && !saver && lines && !follow && !hidden && <button className="btn btn-accent absolute bottom-28 left-1/2 z-20 -translate-x-1/2 shadow-lg max-md:bottom-36" onClick={() => setFollow(true)}><Mic2 size={15} />Back to the current line</button>}
-      {saver && hidden && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[60vw] opacity-80"><div className="truncate text-lg font-semibold">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
+      {saver && hidden && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[calc(100vw-3rem)] opacity-80 md:max-w-[60vw]"><div className="line-clamp-2 text-lg font-semibold md:truncate">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
       <footer className={cn('relative z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
         <div className="flex items-center gap-2 text-xs tabular-nums text-muted">
           <span className="w-10 text-right">{fmtTime(v.time)}</span>
