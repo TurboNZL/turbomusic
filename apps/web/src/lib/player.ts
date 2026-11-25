@@ -3,8 +3,9 @@ import { playLogged, startSessionSaving } from './session.ts';
 import { create } from 'zustand';
 import { advance, ruleFor, crossfadeFor, crossfadeShapeFor, crossfadeShiftFor, newId, pushHistory, type PlaybackSnapshot, shuffleWithRules, startTrack, type PlaybackLogData, type QueueState, type SourceType } from '@turbomusic/core';
 import { moveTrack } from './defaults.ts';
-import { audioSource, cancelPrefetch, imageSource, localAudio, prefetchAudio, streamUrl } from './files.ts';
+import { audioSource, cancelPrefetch, imageSource, prefetchAudio, streamUrl } from './files.ts';
 import { nativeAudio, nativeAudioAvailable, type NativeEvent, type NativeItem } from './nativeAudio.ts';
+import { getMeta } from './idb.ts';
 import { BEAM_ID, beamActive, beamFailed, beamNativeEvent, setBeamVolume } from './beam.ts';
 import { getLibrary } from './derive.ts';
 import { useStore } from './store.ts';
@@ -266,7 +267,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
   /** Can the Android app's own player play this track? (needs the server's address, and no copy that only this page holds) */
   function nativeCan(file: string | null | undefined): boolean {
     if (!file || !nativeAudioAvailable() || nativeBad.has(file)) return false;
-    if (useStore.getState().audioCache[file]) return false;
+    // a copy kept on this device is only the page's to play when there is no network: the page's own <audio> stops being fed once the app is in the background (no next track, no Next/Previous), while the app's player keeps going
+    if (useStore.getState().audioCache[file] && !navigator.onLine) return false;
     return /^https?:/i.test(streamUrl(file));
   }
 
@@ -353,7 +355,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const file = track.file;
     void (async () => {
       // the app's own player streams from the server; a copy kept on this device (or not uploaded yet) is played by the page
-      if (nativeCan(file) && !(await localAudio(file).then((u) => { if (u) URL.revokeObjectURL(u); return !!u; }))) {
+      if (nativeCan(file) && !(await getMeta<string[]>('pendingUploads', [])).includes(file)) {
         if (seq !== loadSeq) return;
         useEngine('native');
         const at = pendingSeek ?? 0; pendingSeek = null;

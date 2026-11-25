@@ -88,9 +88,9 @@ export function FilterBar({ chips, onChips, text, onText, scope, placeholder = '
             <span className="text-muted">{c.key}:</span>{c.label}
             <button type="button" aria-label={`Remove ${c.key} filter ${c.label}`} className="text-muted hover:text-fg" onClick={(e) => { e.stopPropagation(); onChips(chips.filter((_, j) => j !== i)); }}><X size={12} /></button>
           </span>))}
-        <input ref={input} className="min-w-[3.5rem] flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-muted" placeholder={chips.length ? 'Add a filter…' : placeholder} aria-label="Search and filter"
+        <input ref={input} className="min-w-[3.5rem] flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-muted" placeholder={focus ? (chips.length ? 'Add a filter…' : placeholder) : chips.length ? '' : 'Search'} aria-label="Search and filter"
           value={text} onChange={(e) => onText(e.target.value)} onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 120)} onKeyDown={onKey} />
-        {(chips.length > 0 || text) && <button type="button" className="shrink-0 text-xs text-muted hover:text-fg" onClick={(e) => { e.stopPropagation(); onChips([]); onText(''); }}>Clear</button>}
+        {(chips.length > 0 || text) && <button type="button" className="-my-1 -mr-2 flex shrink-0 items-center self-stretch px-2.5 text-xs text-muted hover:text-fg" onClick={(e) => { e.stopPropagation(); onChips([]); onText(''); }}>Clear</button>}
       </div>
       {mounted && createPortal(
         <div role="listbox" data-leaving={leaving || undefined} style={pos} className="bt-menu bt-popover fixed z-[70] max-h-80 overflow-y-auto py-1" onMouseDown={(e) => e.preventDefault()}>

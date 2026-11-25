@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus, Volume2, Info, ListOrdered } from 'lucide-react';
+import { EyeOff, Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus, Volume2, Info, ListOrdered } from 'lucide-react';
 import { desktop } from '../lib/settings.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { usePlaybackView } from '../lib/connect.ts';
@@ -52,6 +52,8 @@ export function NowPlaying() {
   const [saver, setSaver] = useState(false);
   const [showLyrics, setShowLyrics] = useState(true);
   const [idle, setIdle] = useState(false);
+  /** controls hidden by hand: they stay hidden until a click, not only until the pointer moves */
+  const held = useRef(false);
   const [full, setFull] = useState(isFullscreen);
   const [pinned, setPinnedState] = useState(loadPinned);
   const setPinned = (v: boolean) => { setPinnedState(v); try { localStorage.setItem(PIN_KEY, v ? '1' : '0'); } catch { /* private mode */ } };
@@ -76,7 +78,7 @@ export function NowPlaying() {
   const touch = useRef(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
   const saverRef = useRef(saver); saverRef.current = saver;
   const pinnedRef = useRef(pinned); pinnedRef.current = pinned;
-  const wake = () => { setIdle(false); window.clearTimeout(idleTimer.current); if (pinnedRef.current && !saverRef.current) return; if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
+  const wake = (force = false) => { if (force) held.current = false; if (held.current) return; setIdle(false); window.clearTimeout(idleTimer.current); if (pinnedRef.current) return; if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
   useEffect(() => {
     if (!open) return;
     wake();
@@ -118,7 +120,7 @@ export function NowPlaying() {
   // a drawn title bar stays usable (and draggable) above the player unless the window is full screen
   const frame = desktop()?.customFrame && !full ? '2.25rem' : '0px';
   return (
-    <div className={cn('bt-now fixed inset-x-0 z-[90] flex flex-col overflow-hidden bg-bg text-fg', hidden && 'cursor-none')} style={{ top: frame, height: `calc(100dvh - ${frame})` }} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={wake} onTouchStart={wake} onClick={() => { if (saver) setSaver(false); else if (idle) wake(); }}>
+    <div className={cn('bt-now fixed inset-x-0 z-[90] flex flex-col overflow-hidden bg-bg text-fg', hidden && 'cursor-none')} style={{ top: frame, height: `calc(100dvh - ${frame})` }} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={() => wake()} onTouchStart={() => wake()} onClick={() => { if (held.current || idle) wake(true); else if (saver) setSaver(false); }}>
       {cover && <div className="absolute inset-0 scale-125 bg-cover bg-center opacity-50 blur-3xl" style={{ backgroundImage: `url(${cover})` }} aria-hidden />}
       <div className="absolute inset-0 bg-bg/55" aria-hidden />
       <header className={cn('relative z-20 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
@@ -126,12 +128,13 @@ export function NowPlaying() {
         <div className="ml-auto flex gap-2">
           <button className={cn('btn', showLyrics && !saver && 'btn-accent')} aria-pressed={showLyrics} title="Lyrics (L)" onClick={pickLyrics}><Mic2 size={16} /><span className="max-sm:hidden">Lyrics</span></button>
           <button className={cn('btn', saver && 'btn-accent')} aria-pressed={saver} title="Screensaver (S)" onClick={() => setSaver((x) => !x)}><Moon size={16} /><span className="max-sm:hidden">Screensaver</span></button>
+          <button className="btn" title="Hide the controls (click anywhere to bring them back)" aria-label="Hide the controls" onClick={(e) => { e.stopPropagation(); held.current = true; window.clearTimeout(idleTimer.current); setIdle(true); }}><EyeOff size={16} /></button>
           <button className={cn('btn', pinned && 'btn-accent')} aria-pressed={pinned} title={pinned ? 'Controls stay on screen (click to let them hide)' : 'Keep the controls on screen'} aria-label="Pin the controls" onClick={() => setPinned(!pinned)}>{pinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
           {canFull && <button className="btn" title="Full screen (F11 also works)" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
         </div>
       </header>
-      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:justify-start max-md:gap-3 max-md:overflow-hidden max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center')}>
-        <div className={cn('shrink-0', saver ? 'bt-drift w-[min(78vmin,44rem)]' : showLyrics ? 'w-[min(24vh,56vw,20rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
+      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:justify-start max-md:gap-3 max-md:overflow-hidden max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'absolute inset-0 justify-center !p-6')}>
+        <div style={saver ? { width: `min(78vmin, 44rem, calc(100dvh - ${frame} - 8rem))` } : undefined} className={cn('shrink-0', saver ? 'bt-drift' : showLyrics ? 'w-[min(24vh,56vw,20rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
           {cover ? <img src={cover} alt="" className="aspect-square w-full rounded-theme object-cover shadow-2xl" draggable={false} /> : <div className="aspect-square w-full rounded-theme bg-raised" />}
           {!saver && <div className="mt-2 min-w-0 text-center md:mt-4 md:text-left"><div className="truncate text-2xl font-bold md:text-3xl">{track.title}</div>
             <div className="truncate text-base text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}
@@ -156,8 +159,8 @@ export function NowPlaying() {
           </div>)}
       </div>
       {showLyrics && !saver && lines && !follow && !hidden && <button className="btn btn-accent absolute bottom-28 left-1/2 z-20 -translate-x-1/2 shadow-lg max-md:bottom-36" onClick={() => setFollow(true)}><Mic2 size={15} />Back to the current line</button>}
-      {saver && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[60vw] opacity-80"><div className="truncate text-lg font-semibold">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
-      <footer className={cn('relative z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', (hidden || saver) && 'pointer-events-none opacity-0')}>
+      {saver && hidden && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[60vw] opacity-80"><div className="truncate text-lg font-semibold">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
+      <footer className={cn('relative z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
         <div className="flex items-center gap-2 text-xs tabular-nums text-muted">
           <span className="w-10 text-right">{fmtTime(v.time)}</span>
           <input type="range" aria-label="Seek" className="bt-range bt-hit flex-1" style={{ '--p': `${v.duration > 0 ? Math.min(100, (v.time / v.duration) * 100) : 0}%` } as React.CSSProperties} min={0} max={v.duration || 1} step={0.1} value={v.time} onChange={(e) => v.seek(Number(e.target.value))} />
