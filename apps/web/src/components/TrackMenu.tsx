@@ -53,7 +53,6 @@ export function useTrackMenuItems() {
         // a single that promoted an album joins it here once the album is out (also: a song on one album can be added to another)
         { label: t.albumId ? 'Add to another album…' : 'Add this single to an album…', icon: <FolderInput size={15} />, run: open({ kind: 'add-to-album', id: t.id }) },
         ...(t.albumId ? [{ label: 'Make a single release (looks up its date)', icon: <Disc size={15} />, run: () => { void makeSingleRelease(lib, t).then((id) => id && edit({ kind: 'release', id })); } }] : []),
-        ...(t.comparisons > 0 ? [{ label: lib.profile?.settings?.tenLine === t.id ? 'Remove the 10/10 line from here' : 'This is my last 10/10 (draw the line here)', icon: <Flag size={15} />, run: () => updateProfile(lib, (p) => ({ ...p, settings: { ...p.settings, tenLine: p.settings?.tenLine === t.id ? null : t.id } })) } as MenuItem] : []),
         { label: 'Merge with another track…', icon: <GitMerge size={15} />, run: open({ kind: 'merge-with', id: `track:${t.id}` }) },
       ]),
     ];

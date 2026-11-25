@@ -34,6 +34,7 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pv, setPv] = useState<ImportPreview | null>(null);
+  const [source, setSource] = useState('');
   const configured = useStore((s) => !!s.settings.token);
   /** YouTube Music search results: the album's own search first (cached), or whatever was typed */
   const [hits, setHits] = useState<MatchCandidate[] | null>(null);
@@ -54,6 +55,7 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
     setBusy('Looking it up…'); setError(null);
     try {
       const p = await api().importPreview(u.trim());
+      setSource(u.trim());
       setPv(p); setReleaseTitle(''); // the name is left blank (= the album's name) until the user picks or types one
       setRows(matchEntries(have.map((t) => ({ id: t.id, title: t.title, youtubeMusicUrl: t.youtubeMusicUrl })), p.entries.map((e) => ({ id: e.id, title: e.title, url: e.url, duration: e.duration }))));
       setRename(!!rawAlbum?.needsSource && p.title.toLowerCase() !== album?.title.toLowerCase());
@@ -120,10 +122,10 @@ export function ImportIntoAlbumDialog({ albumId, initialUrl, onClose }: { albumI
       if (target) {
         // folded into an existing release: it keeps its name and date, gains the tracks it lacked (in the edition's order) and a cover if it had none
         releaseId = target.id;
-        patch('releases', target.id, { trackIds: foldIntoRelease(target.trackIds, included.map((r, i) => ({ trackId: r.trackId, newId: newIds.get(i) }))), ...(!target.cover && cover ? { cover } : {}), ...(!target.releaseDate ? { releaseDate: siblingDate(dates, album.defaultReleaseId, target.id) ?? pv.releaseDate ?? null } : {}) });
+        patch('releases', target.id, { ...(source && !target.youtubeMusicUrl ? { youtubeMusicUrl: source } : {}), trackIds: foldIntoRelease(target.trackIds, included.map((r, i) => ({ trackId: r.trackId, newId: newIds.get(i) }))), ...(!target.cover && cover ? { cover } : {}), ...(!target.releaseDate ? { releaseDate: siblingDate(dates, album.defaultReleaseId, target.id) ?? pv.releaseDate ?? null } : {}) });
       } else {
         // a new release starts with the date the album's other releases have (a Spotify import brings the real one)
-        releaseId = put('releases', { albumId: album.id, title: name, cover, releaseDate: siblingDate(dates, album.defaultReleaseId) ?? pv.releaseDate ?? null, trackIds: order });
+        releaseId = put('releases', { albumId: album.id, title: name, cover, releaseDate: siblingDate(dates, album.defaultReleaseId) ?? pv.releaseDate ?? null, trackIds: order, youtubeMusicUrl: source || null });
       }
       const albumPatch: Record<string, unknown> = {
         trackOrder: mergeAllTracksOrder(album.trackIds, included.map((r, i) => ({ trackId: r.trackId, newId: newIds.get(i), include: true }))),

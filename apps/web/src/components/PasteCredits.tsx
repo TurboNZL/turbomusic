@@ -3,12 +3,32 @@ import { Check } from 'lucide-react';
 import type { ArtistData, Credit } from '@turbomusic/core';
 import { Modal } from './forms.tsx';
 import { useLibrary } from '../lib/derive.ts';
+import type { Library } from '../lib/library.ts';
 import { useStore } from '../lib/store.ts';
 import { matchArtist, splitFeaturing } from '../lib/autofill.ts';
 import { FEATURED_ROLE, LEAD_ROLE } from '../lib/defaults.ts';
 import { parseYtmListing } from '../lib/ytmListing.ts';
 
 const fold = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/**
+ * Writes what a listing says into the songs it was matched to: each song's own lead artists, "(feat. …)" moved into Featured artist
+ * credits and out of the title, and the song stops following the album's credits. Artists that do not exist yet are created once.
+ * A song whose listing names no artist is left alone. Returns how many songs were changed.
+ */
+export function applyListedCredits(lib: Library, put: (t: 'artists', d: ArtistData) => string, patch: (t: 'tracks', id: string, d: Record<string, unknown>) => void,
+  pairs: { l: { title: string; leads: string[]; featured: string[] }; track: { id: string; allGenres: string[] } }[]): number {
+  const made = new Map<string, string>();
+  const artist = (n: string) => { const k = fold(n); let id = made.get(k) ?? matchArtist(lib.artists, n)?.id; if (!id) id = put('artists', { name: n.trim(), image: null } satisfies ArtistData); made.set(k, id); return id; };
+  let n = 0;
+  for (const { l, track } of pairs) {
+    const credits: Credit[] = [...l.leads.map((x) => ({ artistId: artist(x), role: [LEAD_ROLE] })), ...l.featured.map((x) => ({ artistId: artist(x), role: [FEATURED_ROLE] }))];
+    if (!credits.some((c) => c.role.includes(LEAD_ROLE))) continue; // no artist line for it: leave the track alone
+    patch('tracks', track.id, { title: l.title, credits, genres: track.allGenres, syncWithAlbumCredits: false });
+    n++;
+  }
+  return n;
+}
 
 /**
  * Album ⋯ > "Fix artists from a pasted list": for soundtracks and compilations, where every song has its own artist but the import gave
@@ -34,17 +54,7 @@ export function PasteCreditsDialog({ albumId, onClose }: { albumId: string; onCl
   if (!album) return null;
   const ok = rows.filter((r) => r.track);
 
-  function apply() {
-    const made = new Map<string, string>();
-    const artist = (n: string) => { const k = fold(n); let id = made.get(k) ?? matchArtist(lib.artists, n)?.id; if (!id) id = put('artists', { name: n.trim(), image: null } satisfies ArtistData); made.set(k, id); return id; };
-    for (const { l, track } of ok) {
-      if (!track) continue;
-      const credits: Credit[] = [...l.leads.map((n) => ({ artistId: artist(n), role: [LEAD_ROLE] })), ...l.featured.map((n) => ({ artistId: artist(n), role: [FEATURED_ROLE] }))];
-      if (!credits.some((c) => c.role.includes(LEAD_ROLE))) continue; // no artist line for it: leave the track alone
-      patch('tracks', track.id, { title: l.title, credits, genres: track.allGenres, syncWithAlbumCredits: false });
-    }
-    setDone(ok.length);
-  }
+  function apply() { setDone(applyListedCredits(lib, put, patch, ok.flatMap((r) => (r.track ? [{ l: r.l, track: r.track }] : [])))); }
   return (
     <Modal title={`Fix artists from a pasted list: ${album.title}`} onClose={onClose} wide
       footer={done !== null ? <button className="btn btn-accent ml-auto" onClick={onClose}>Done</button> : <><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-accent ml-auto" disabled={!ok.length} onClick={apply}><Check size={15} />Apply to {ok.length} songs</button></>}>

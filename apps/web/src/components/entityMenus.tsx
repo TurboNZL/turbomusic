@@ -95,6 +95,7 @@ export function useAlbumMenuItems() {
     ...group('Import and merge', <YouTubeMusicIcon size={15} />, [
       { label: 'Import a release from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => void openImportIntoAlbum(album.id), keepOpen: true },
       ...(full && lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <FolderInput size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
+      { label: 'Re-read credits from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => edit({ kind: 'reparse-credits', id: album.id }) },
       { label: 'Fix artists from a pasted list…', icon: <User size={15} />, run: () => edit({ kind: 'paste-credits', id: album.id }) },
       { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
       ...(full && planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),

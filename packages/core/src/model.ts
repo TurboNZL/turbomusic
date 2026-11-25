@@ -66,6 +66,8 @@ export interface ReleaseData {
   trackIds: string[];
   /** a release that stands for a single the song came out as: it has one track, needs no name, is left out of the album's release list and shows on the Singles page (and under the releases of its album) */
   single?: boolean;
+  /** the YouTube Music album page this release was read from (or was tied to by hand): "Re-read credits from YouTube Music" uses it */
+  youtubeMusicUrl?: string | null;
 }
 export interface TrackData {
   title: string;

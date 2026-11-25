@@ -7,6 +7,7 @@ import { DeleteAlbumDialog, DeleteTracksDialog, LooseSinglesDialog } from './Del
 import { MergeWithDialog, type MergeKind } from './MergeWith.tsx';
 import { SpotifyLinks } from './SpotifyLinks.tsx';
 import { PasteCreditsDialog } from './PasteCredits.tsx';
+import { ReparseCreditsDialog } from './ReparseCredits.tsx';
 import { Loader2, Search, X } from 'lucide-react';
 import { makePrimary } from '../lib/autofill.ts';
 import { Select, albumOptions } from './Select.tsx';
@@ -562,6 +563,7 @@ function ReleaseDialog({ releaseId, albumId, onClose }: { releaseId?: string; al
         <Select value={r.title} onChange={(v) => setR({ ...r, title: v })} searchable placeholder={`Same as the album (${album.title})`}
           options={[{ value: '', label: `Same as the album (${album.title})` }, ...[...lib.releaseNames].sort((a, b) => a.name.localeCompare(b.name)).map((n) => ({ value: n.name, label: n.name }))]}
           creatable={{ label: (n) => `Create name: “${n}”`, create: (n) => n }} /></Field>}
+      <Field label="YouTube Music link" hint="The album page this release was read from. “Re-read credits from YouTube Music” in the album menu uses it."><input className="input" placeholder="https://music.youtube.com/playlist?list=…" value={r.youtubeMusicUrl ?? ''} onChange={(e) => setR({ ...r, youtubeMusicUrl: e.target.value.trim() || null })} /></Field>
       <Field label="Release date"><input type="date" className="input" value={r.releaseDate ?? ''} onChange={(e) => setR({ ...r, releaseDate: e.target.value || null })} />
         <DateLookup title={lookup.album} artist={lookup.artist} onFound={(d) => setR({ ...r, releaseDate: d })} /></Field>
       <div className="space-y-1"><div className="text-sm text-muted">Tracklist ({live.length})</div>
@@ -635,6 +637,7 @@ export function EditorFor({ target, close }: { target: EditTarget; close: () => 
   if (target.kind === 'import-spotify') return <SpotifyImportDialog key="import-spotify" onClose={close} />;
   if (target.kind === 'new-synced-playlist') return <SyncedPlaylistDialog key="new-synced-playlist" onClose={close} />;
   if (target.kind === 'merge-playlist') return <MergePlaylistDialog key={key} spec={target.id} onClose={close} />;
+  if (target.kind === 'reparse-credits') return <ReparseCreditsDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'paste-credits') return <PasteCreditsDialog key={key} albumId={target.id} onClose={close} />;
   if (target.kind === 'merge-with') { const [k, ...rest] = target.id.split(':'); return <MergeWithDialog key={key} kind={k as MergeKind} id={rest.join(':')} onClose={close} />; }
   if (target.kind === 'delete-album') return <DeleteAlbumDialog key={key} albumId={target.id} onClose={close} />;
