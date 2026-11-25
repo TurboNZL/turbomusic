@@ -15,6 +15,7 @@ import { SingleGrid } from '../components/SingleCard.tsx';
 import { ArtistLinks } from '../components/ArtistLinks.tsx';
 import { idChip, searchHref } from '../lib/searchUrl.ts';
 import { akaLine } from '../lib/autofill.ts';
+import { Vault } from 'lucide-react';
 import { useChunks } from '../lib/useChunks.ts';
 import { useMenu } from '../components/Menu.tsx';
 import { useAlbumMenuItems, useArtistMenuItems } from '../components/entityMenus.tsx';
@@ -34,8 +35,8 @@ export function ArtistPage() {
   const artist = id ? lib.artistById.get(id) : undefined;
   const newestKey = newest ? 1 : 0;
   // derived once per artist/era/order, not on every scroll step
-  const { albums, singles, tracks, features, eraIds } = useMemo(() => {
-    if (!artist) return { albums: [], singles: [], tracks: [], features: [], eraIds: [] as string[] };
+  const { albums, singles, tracks, features, vaultAlbums, vaultSingles, vaultTracks, eraIds } = useMemo(() => {
+    if (!artist) return { albums: [], singles: [], tracks: [], features: [], vaultAlbums: [], vaultSingles: [], vaultTracks: [], eraIds: [] as string[] };
     const credited = (cs: { artistId: string }[]) => cs.some((c) => c.artistId === artist.id);
     const allAlbums = lib.albums.filter((a) => credited(a.credits));
     // a song counts as the artist's when it is credited to them OR sits on an album credited to them
@@ -52,15 +53,22 @@ export function ArtistPage() {
     const isFeature = (t: (typeof allTracks)[number]) => t.featured.some((f) => f.id === artist.id) && !t.leads.some((l) => l.id === artist.id);
     const tracks = inEra.filter((t) => !isFeature(t)).sort((a, b) => b.effectiveRating - a.effectiveRating || b.elo - a.elo);
     const features = inEra.filter(isFeature).sort((a, b) => b.effectiveRating - a.effectiveRating || b.elo - a.elo);
-    const singles = byDate(tracks.filter((t) => !t.albumId));
-    return { albums, singles, tracks, features, eraIds };
+    // from the vault: albums marked so (or whose every release is), singles marked so, and the songs only on vault releases; they are listed apart from the released music
+    const vaultAlbum = (a: (typeof allAlbums)[number]) => !!(a as { vault?: boolean }).vault || (() => { const rs = lib.releases.filter((r) => r.albumId === a.id); return rs.length > 0 && rs.every((r) => !!(r as { vault?: boolean }).vault); })();
+    const vaultAlbumIds = new Set(allAlbums.filter(vaultAlbum).map((a) => a.id));
+    const vaultTrackIds = new Set(inEra.filter((t) => t.vault || (t.albumId != null && vaultAlbumIds.has(t.albumId))).map((t) => t.id));
+    const vaultAlbums = albums.filter((a) => vaultAlbumIds.has(a.id));
+    const vaultSingles = byDate(tracks.filter((t) => !t.albumId && t.vault));
+    const vaultTracks = [...tracks, ...features].filter((t) => vaultTrackIds.has(t.id));
+    const released = { albums: albums.filter((a) => !vaultAlbumIds.has(a.id)), singles: byDate(tracks.filter((t) => !t.albumId && !t.vault)), tracks: tracks.filter((t) => !vaultTrackIds.has(t.id)), features: features.filter((t) => !vaultTrackIds.has(t.id)) };
+    return { ...released, vaultAlbums, vaultSingles, vaultTracks, eraIds };
   }, [lib, artist, era, newestKey]);
-  const [list, setList] = useState<'tracks' | 'features'>('tracks');
+  const [list, setList] = useState<'tracks' | 'features' | 'vault'>('tracks');
   const playable = useMemo(() => tracks.filter(canPlay).map((t) => t.id), [tracks]);
   const resetKey = `${id}|${era}|${newestKey}`;
   const albumChunks = useChunks(albums.length, ALBUM_CHUNK, resetKey);
   const singleChunks = useChunks(singles.length, SINGLE_CHUNK, resetKey);
-  const shownList = list === 'features' ? features : tracks;
+  const shownList = list === 'features' ? features : list === 'vault' ? vaultTracks : tracks;
   const trackChunks = useChunks(shownList.length, TRACK_CHUNK, `${resetKey}|${list}`);
   if (!artist) return <div className="text-muted">Artist not found.</div>;
   // a link to the search page with this artist as a chip, listing only that kind
@@ -97,13 +105,24 @@ export function ArtistPage() {
             </div>))}
         </div>{albumChunks.left > 0 && <div ref={albumChunks.sentinel} className="mt-3 text-center"><button className="btn" onClick={albumChunks.more}>Show more ({albumChunks.left} left)</button></div>}</section>}
       {singles.length > 0 && <section><h2 className="mb-3 text-lg font-semibold"><Link to={where('singles')} className="hover:underline" title="Search these singles">Singles</Link></h2><SingleGrid tracks={singles.slice(0, singleChunks.shown)} />{singleChunks.left > 0 && <div ref={singleChunks.sentinel} className="mt-3 text-center"><button className="btn" onClick={singleChunks.more}>Show more ({singleChunks.left} left)</button></div>}</section>}
+      {(vaultAlbums.length > 0 || vaultSingles.length > 0) && <section aria-label="From the vault"><h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Vault size={17} className="text-muted" />From the vault</h2>
+        {vaultAlbums.length > 0 && <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(var(--grid-min), 1fr))' }}>
+          {vaultAlbums.map((a) => (
+            <div key={a.id} className="bt-tile" onContextMenu={(e) => menu.onContextMenu(albumItems(a), `Actions for ${a.title}`, a.id)(e)}>
+              <Link to={`/albums/${a.id}`} className="block"><Cover hash={a.cover} seed={a.title} /><div className="bt-cap-t mt-2 truncate text-sm font-medium">{a.title}</div></Link>
+              <div className="bt-cap truncate text-xs text-muted"><ArtistLinks leads={a.leads} /></div>
+            </div>))}
+        </div>}
+        {vaultSingles.length > 0 && <div className={vaultAlbums.length ? 'mt-4' : ''}><SingleGrid tracks={vaultSingles} /></div>}
+      </section>}
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <div role="tablist" className="flex gap-1" aria-label="Tracks or features">
             <button role="tab" aria-selected={list === 'tracks'} className={cn('btn !py-1', list === 'tracks' && 'btn-accent')} onClick={() => setList('tracks')}>Tracks <span className="text-xs opacity-70">{tracks.length}</span></button>
             {features.length > 0 && <button role="tab" aria-selected={list === 'features'} className={cn('btn !py-1', list === 'features' && 'btn-accent')} onClick={() => setList('features')}>Features <span className="text-xs opacity-70">{features.length}</span></button>}
+            {vaultTracks.length > 0 && <button role="tab" aria-selected={list === 'vault'} className={cn('btn !py-1', list === 'vault' && 'btn-accent')} onClick={() => setList('vault')}>Vault <span className="text-xs opacity-70">{vaultTracks.length}</span></button>}
           </div>
-          <span className="text-sm text-muted">{list === 'features' ? 'songs by others they appear on' : 'best first'}</span>
+          <span className="text-sm text-muted">{list === 'features' ? 'songs by others they appear on' : list === 'vault' ? 'unreleased and unofficial songs' : 'best first'}</span>
           <Link to={where('tracks')} className="ml-auto text-xs text-muted hover:text-fg hover:underline" title="Search these tracks">Search them</Link>
         </div>
         <div className="card overflow-hidden"><TrackTable tracks={shownList.slice(0, trackChunks.shown)} queue={shownList} source="search" sourceId={`Artist: ${artist.name}`} covers /></div>
