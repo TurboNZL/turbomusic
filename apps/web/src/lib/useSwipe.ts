@@ -40,7 +40,7 @@ export function useSwipe({ dirs, onCommit, onStart }: SwipeOpts) {
     el.style.transition = SPRING;
     el.style.transform = 'translate3d(0,0,0) rotate(0deg)';
     el.style.setProperty('--sw-r', '0'); el.style.setProperty('--sw-l', '0');
-    const done = () => { el.style.transition = ''; el.style.transform = ''; el.removeEventListener('transitionend', done); };
+    const done = () => { el.style.transition = ''; el.style.transform = ''; el.style.zIndex = ''; el.removeEventListener('transitionend', done); };
     el.addEventListener('transitionend', done);
   };
 
@@ -55,6 +55,7 @@ export function useSwipe({ dirs, onCommit, onStart }: SwipeOpts) {
     if (!s.locked) {
       if (Math.hypot(dx, dy) < 8) return; // not a drag yet (the card's touch-action is none, so the page never scrolls from a card)
       s.locked = true; cb.current.onStart?.();
+      e.currentTarget.style.zIndex = '40'; // above its neighbour: a card dragged across the other one must not slide behind it (it looked like it hit a wall)
       e.currentTarget.setPointerCapture(e.pointerId);
     }
     const now = performance.now();

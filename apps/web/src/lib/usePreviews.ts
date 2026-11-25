@@ -59,6 +59,7 @@ export function usePreviews(tracks: Track[], enabled = true) {
       p.el.currentTime = middle(p.el);
       void p.el.play();
       timer.current = setTimeout(stop, SNIPPET_MS);
+      p.el.addEventListener('ended', () => { if (mine === seq.current) stop(); }, { once: true }); // a short track must deselect its card when it ends
     });
   }, [playing, stop]);
 
