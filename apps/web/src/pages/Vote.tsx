@@ -91,7 +91,7 @@ function DuelRank({ slot }: { slot: HTMLElement | null }) {
   const [pair, setPair] = useState<[string, string] | null>(() => (keptPair && lib.trackById.has(keptPair[0]) && lib.trackById.has(keptPair[1]) ? keptPair : null));
   useEffect(() => { keptPair = pair; }, [pair]);
   // ranking is about listening, so tracks with audio come first by default
-  const [onlyPlayable, setOnlyPlayable] = useState(true);
+  const onlyPlayable = useStore((st) => st.settings.rankWithAudio);
   /** the tracks of the pair on screen whose preview is buffered and can start at once */
   const [ready, setReady] = useState<ReadonlySet<string>>(new Set());
   const [playing, setPlaying] = useState<string | null>(null);
@@ -112,7 +112,7 @@ function DuelRank({ slot }: { slot: HTMLElement | null }) {
   // only tracks that were played at least once are ranked: ranking is about songs you know (the "Try something new" list on the home page is for the rest)
   const heard = useMemo(() => heardTrackIds(buildListens(lib)), [lib]);
   const { pool: knownPool, fellBack: noHistory } = useMemo(() => onlyHeard(lib.tracks.filter((t) => !t.versionOf), heard), [lib, heard]); // another recording of a song shares the main one's votes: it is not asked about twice
-  const { pool: audioPool, fellBack } = useMemo(() => rankPool(knownPool, onlyPlayable), [knownPool, onlyPlayable]);
+  const { pool: audioPool } = useMemo(() => rankPool(knownPool, onlyPlayable), [knownPool, onlyPlayable]);
   const tiered = useMemo(() => tierPool(audioPool, tier), [audioPool, tier]);
   const tooFew = tiered.length < 2;
   const pool = tooFew ? audioPool : tiered; // a band with fewer than two tracks cannot make a pair: use everything and say so
@@ -233,16 +233,10 @@ function DuelRank({ slot }: { slot: HTMLElement | null }) {
   if (lib.tracks.length < 2) return <div className="text-muted">Add at least two tracks to start ranking.</div>;
 
   return (
-    <div ref={fit.ref} className="mx-auto flex w-full max-w-5xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
+    <div ref={fit.ref} className="mx-auto flex w-full max-w-6xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
       {/* the controls sit in the page's top row, next to the mode button (see VotePage), so they cost no extra height */}
       {slot && createPortal(<>
         <TierSlider className="order-4 basis-full sm:order-2 sm:basis-auto" choice={tier} onChange={setTier} info={tier.tier !== 'any' && !compact ? (tooFew ? 'too few, using all' : `${tiered.length} songs`) : undefined} />
-        <label className="order-2 flex cursor-pointer items-center gap-1.5 text-sm text-muted sm:order-3" title="Only compare songs that have audio, so every card can be previewed"><input type="checkbox" checked={onlyPlayable} onChange={(e) => {
-          setOnlyPlayable(e.target.checked);
-          // the pair on screen stays unless it holds a track the filter now excludes
-          if (e.target.checked && pairLacksAudio(pair, lib.trackById)) setPair(null);
-        }} />With audio{onlyPlayable && fellBack ? ' (too few)' : ''}</label>
-        <span className="order-3 ml-auto text-xs tabular-nums text-muted sm:order-4">{lib.votes.length} votes</span>
         {noHistory && !compact && <span className="order-5 basis-full text-xs text-warn">Fewer than two tracks have been played yet, so every track is used.</span>}
       </>, slot)}
       {/* each card fills its share of the height that is left (on a phone they stack and share it), and lays itself out inside that space */}
@@ -262,11 +256,11 @@ function DuelRank({ slot }: { slot: HTMLElement | null }) {
       </div>
       {menu.element}
       <div className={cn('flex shrink-0 flex-col items-center gap-1', compact ? 'mt-1' : 'mt-2 sm:mt-3')}>
-        <div className="flex flex-nowrap justify-center gap-1.5">
-          <button className="btn !px-2.5 !py-1 text-xs" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={14} />Equal<span className="max-sm:hidden"> (↓)</span></button>
-          <button className={cn('btn !px-2.5 !py-1 text-xs', strong && 'btn-accent')} aria-pressed={strong} onClick={() => setStrong((x) => !x)} title="Your next pick counts for more: use it when the difference is obvious to you (M)"><ChevronsUp size={14} />Much better<span className="max-sm:hidden"> next (M)</span></button>
-          <button className={cn('btn btn-ghost !px-2.5 !py-1 text-xs', !last && 'invisible')} disabled={!last} tabIndex={last ? 0 : -1} onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={14} />Undo</button>
-          <button className="btn btn-ghost !px-2.5 !py-1 text-xs" onClick={() => !picked && next()} title="Not sure, or you don't want to rank this pair. Nothing is saved; you just get a new pair."><SkipForward size={14} />Skip<span className="max-sm:hidden">, save nothing (↑)</span></button>
+        <div className="flex flex-wrap justify-center gap-1.5">
+          <button className="btn shrink-0 whitespace-nowrap !px-2.5 !py-1 text-xs" onClick={() => vote(null, true)} title="Both are as good as each other. This is saved as a draw and moves both ratings towards each other."><Equal size={14} />Equal<Key k="↓" /></button>
+          <button className={cn('btn shrink-0 whitespace-nowrap !px-2.5 !py-1 text-xs', strong && 'btn-accent')} aria-pressed={strong} onClick={() => setStrong((x) => !x)} title="Your next pick counts for more: use it when the difference is obvious to you (M)"><ChevronsUp size={14} />Much better<Key k="M" /></button>
+          <button className="btn btn-ghost shrink-0 whitespace-nowrap !px-2.5 !py-1 text-xs" onClick={() => !picked && next()} title="Not sure, or you don't want to rank this pair. Nothing is saved; you just get a new pair."><SkipForward size={14} />Skip<Key k="↑" /></button>
+          {last && <button className="btn btn-ghost shrink-0 whitespace-nowrap !px-2.5 !py-1 text-xs" onClick={undo} title="Take back your last vote and see that pair again (Z)"><Undo2 size={14} />Undo<Key k="Z" /></button>}
         </div>
         {/* one fixed line, whatever it says: a long title must never change the height under the cards, or they move when the next pair loads */}
         <div className={cn('h-4 w-full truncate text-center text-[11px] leading-4 text-good', compact && 'sr-only')} aria-live="polite">{flash ?? <span className="text-muted"><span className="hidden sm:inline">← or → once previews, twice picks that track. </span><span className="sm:hidden">Tap to preview, swipe to pick. </span>Equal = draw; Skip = nothing.</span>}</div>
@@ -274,6 +268,9 @@ function DuelRank({ slot }: { slot: HTMLElement | null }) {
     </div>
   );
 }
+
+/** the keyboard key of a button, as a small cap (hidden on touch screens, which have no keyboard) */
+function Key({ k }: { k: string }) { return <kbd className="ml-1 rounded bg-fg/10 px-1 font-sans text-[10px] leading-4 text-muted max-sm:hidden">{k}</kbd>; }
 
 const MODE_KEY = 'turbomusic.rankMode';
 const storedMode = (): Mode | null => { try { const m = localStorage.getItem(MODE_KEY); return MODES.some((x) => x.id === m) ? (m as Mode) : null; } catch { return null; } };
@@ -289,11 +286,11 @@ export function VotePage() {
   if (picking || !mode) return <div className="min-h-0 flex-1"><ModePicker current={mode} onPick={setMode} onClose={mode ? () => setPicking(false) : undefined} /></div>;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-auto mb-2 flex w-full max-w-5xl shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+      <div className="mx-auto mb-2 flex w-full max-w-6xl shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
         <ModeButton mode={mode} onClick={() => setPicking(true)} />
         {mode === 'duel' ? <div ref={setSlot} className="contents" /> : <span className="min-w-0 truncate text-xs text-muted max-sm:hidden">{MODES.find((m) => m.id === mode)?.hint}</span>}
       </div>
-      {mode === 'duel' ? <DuelRank slot={slot} /> : mode === 'place' ? <PlaceRank key={place ?? 'pick'} initialId={place} /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-5xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
+      {mode === 'duel' ? <DuelRank slot={slot} /> : mode === 'place' ? <PlaceRank key={place ?? 'pick'} initialId={place} /> : mode === 'albums' ? <AlbumRank /> : <div className="mx-auto w-full max-w-6xl"><EloQuestions key={mode} kind={mode} embedded /></div>}
     </div>
   );
 }
@@ -328,7 +325,7 @@ function AlbumRank() {
   const answer = (winner: string | null) => { previews.stop(); put('votes', { trackAId: pair[0], trackBId: pair[1], winnerId: winner, isEqual: winner === null, album: true, timestamp: Date.now() }); haptic('confirm'); next(pair); };
   return (
     // the same cards as head to head, filling the screen: tap to hear a song from the album, swipe any way to pick it (nothing here scrolls)
-    <div ref={fit.ref} className="mx-auto flex w-full max-w-5xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
+    <div ref={fit.ref} className="mx-auto flex w-full max-w-6xl flex-col" style={{ height: fit.height ?? 'calc(100dvh - 16rem)' }}>
       <div className="mb-2 shrink-0 text-sm text-muted">Which album is better? <span className="max-sm:hidden">A high album gives its tracks a slightly higher starting rating.</span></div>
       <div className="rk-stage"><div className="rk-pair">
         {albums.map((a, i) => (

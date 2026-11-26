@@ -65,6 +65,14 @@ export interface DeviceSettings {
   /** the order of the pages in the navigation (their addresses), and which of them are tabs on a phone (lib/navOrder.ts); unset = the defaults */
   navOrder?: string[];
   phoneTabs?: string[];
+  /** Rank: only compare songs that have audio, so every card can be previewed */
+  rankWithAudio: boolean;
+  /** the size of the interface: a multiplier of the text size everything is drawn from (1 = normal) */
+  uiScale: number;
+  /** the full-screen player: what it opens with (lyrics on or off; the controls: none, the play bar, or all of them), and whether it instead reopens as it was left */
+  nowLyrics: boolean;
+  nowControls: 'none' | 'bar' | 'full';
+  nowRemember: boolean;
   /** vibration feedback on presses (the Android app and phones that support it) */
   haptics: boolean;
 }
@@ -121,7 +129,7 @@ export function loadSettings(): DeviceSettings {
   let saved: Partial<DeviceSettings> = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) ?? '{}'); } catch { /* storage blocked */ }
   const s: DeviceSettings = {
-    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, playReplacesLineup: false, ...saved,
+    deviceId: newId(), deviceName: '', serverUrl: '', token: '', cfAccessId: '', cfAccessSecret: '', theme: 'auto', ui: 'auto', layout: 'side', themeUpdates: true, themesToken: '', glass: 'regular', wallpaper: false, wallpaperDarkness: 0.45, wallpaperCustom: false, storageLimitOn: false, storageLimitMb: 2048, evictOldest: false, eqOn: false, eqBass: 4, eqBands: cleanBands([]), eqPreamp: 0, crossfade: 0, haptics: true, spotifyDeviceId: '', spotifyDeviceName: '', spotifyAuto: true, spotifySdk: false, spotifyBeam: true, spotifyMirror: false, offlineKbps: 0, preferLocalCopy: true, searchPlaysAll: false, playReplacesLineup: false, rankWithAudio: true, uiScale: 1, nowLyrics: true, nowControls: 'bar', nowRemember: false, ...saved,
   };
   s.eqBands = cleanBands(s.eqBands);
   s.eqPreamp = Math.min(12, Math.max(-12, Number(s.eqPreamp) || 0));

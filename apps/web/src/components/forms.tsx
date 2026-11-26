@@ -1,7 +1,7 @@
 import { Select } from './Select.tsx';
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { originFor } from '../lib/pointer.ts';
-import { FileAudio, ImagePlus, Plus, X } from 'lucide-react';
+import { FileAudio, ImagePlus, Info, Plus, X } from 'lucide-react';
 import type { ArtistData, Credit, EraData } from '@turbomusic/core';
 import { useLibrary } from '../lib/derive.ts';
 import { AUDIO_ACCEPT, FEATURED_ROLE, hasLead, isFeatured, LEAD_ROLE } from '../lib/defaults.ts';
@@ -35,18 +35,28 @@ export function Modal({ title, onClose, children, footer, wide }: { title: strin
   }
   return (
     <div className="bt-backdrop fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={win} role="dialog" aria-label={title} className={`bt-window flex max-h-[92vh] w-full flex-col overflow-hidden ${wide ? 'max-w-3xl' : 'max-w-xl'}`}>
+      <div ref={win} role="dialog" aria-label={title} className={`bt-window flex max-h-[92vh] w-full flex-col overflow-hidden ${wide ? 'max-w-5xl' : 'max-w-3xl'}`}>
         <div className="bt-titlebar flex items-center"><h2 className="font-semibold">{title}</h2>
           <button className="bt-close" aria-label="Close" onClick={onClose}><X size={18} /></button></div>
-        <div className="bt-body space-y-4 overflow-y-auto p-5">{children}</div>
+        <div className="bt-body grid grid-flow-row-dense grid-cols-1 content-start gap-x-5 gap-y-4 overflow-y-auto p-5 sm:grid-cols-2 [&>*]:col-span-full [&>[data-half]]:col-span-1">{children}</div>
         {footer && <div className="bt-footer flex items-center gap-2 px-5 py-3">{footer}</div>}
       </div>
     </div>
   );
 }
 
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  return <label className="block space-y-1 text-sm"><span className="bt-label text-muted">{label}</span>{children}{hint && <span className="block text-xs text-muted">{hint}</span>}</label>;
+/**
+ * A labelled field. The hint is kept out of the way: an (i) beside the label, and the sentence opens under the field while you are in it (hovering the
+ * label shows it as a tooltip), so a dialog is not a wall of small print. `half` lets two short fields share a row in a wide dialog.
+ */
+export function Field({ label, children, hint, half }: { label: string; children: ReactNode; hint?: string; half?: boolean }) {
+  return (
+    <label className="group block space-y-1 text-sm" data-half={half || undefined} title={hint}>
+      <span className="bt-label flex items-center gap-1.5 text-muted">{label}{hint && <Info size={12} className="shrink-0 opacity-60" aria-hidden />}</span>
+      {children}
+      {hint && <span className="block max-h-0 overflow-hidden text-xs text-muted opacity-0 transition-all duration-200 group-focus-within:max-h-24 group-focus-within:opacity-100">{hint}</span>}
+    </label>
+  );
 }
 
 /** Chips with suggestions from the existing genre list; unknown names are created as genre records on save. */

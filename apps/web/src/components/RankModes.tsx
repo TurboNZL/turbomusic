@@ -63,15 +63,15 @@ export function ModePicker({ current, onPick, onClose }: { current: Mode | null;
         {MODES.map((m, i) => (
           <button key={m.id} type="button" onClick={() => onPick(m.id)} data-selected={m.id === current || undefined} style={{ ['--i' as string]: i }}
             className={cn('rc-rise group card bt-sel relative flex min-w-0 flex-col overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1 active:scale-[0.985]', i === 0 && 'lg:col-span-2')}>
-            <div className={cn('relative grid place-items-center overflow-hidden px-4', i === 0 ? 'h-40 lg:h-48' : 'h-32')}>
+            <div className={cn('relative grid place-items-center overflow-hidden px-4', i === 0 ? 'h-[clamp(5rem,19dvh,12rem)]' : 'h-[clamp(4.5rem,14dvh,8rem)]')}>
               {/* the wash is the accent turned a different way round the colour wheel for each tile, so the screen is lively in any theme */}
               <div className="absolute inset-0 opacity-90" style={{ background: 'radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 72%)', filter: `hue-rotate(${m.hue}deg)` }} aria-hidden />
               <div className="relative flex h-full w-full items-center justify-center py-3 transition-transform duration-300 ease-out group-hover:scale-110 group-hover:-rotate-1"><Art mode={m.id} big={i === 0} /></div>
               {m.tag && <span className="chip absolute right-2.5 top-2.5 text-[10px] font-bold uppercase tracking-wider">{m.tag}</span>}
               {m.id === current && <span className="chip absolute left-2.5 top-2.5 bg-accent text-[10px] font-bold uppercase tracking-wider text-accent-fg">Current</span>}
             </div>
-            <div className="flex items-center gap-2 px-4 pt-3"><m.Icon size={17} className="shrink-0 text-accent" /><span className="truncate text-base font-bold">{m.label}</span></div>
-            <p className="px-4 pb-4 pt-1 text-sm leading-snug text-muted">{m.blurb}</p>
+            <div className="flex items-center gap-2 px-4 py-3 [@media(min-height:761px)]:pb-0"><m.Icon size={17} className="shrink-0 text-accent" /><span className="truncate text-base font-bold">{m.label}</span></div>
+            <p className="px-4 pb-3 pt-1 text-sm leading-snug text-muted [@media(max-height:760px)]:hidden">{m.blurb}</p>
           </button>
         ))}
       </div>

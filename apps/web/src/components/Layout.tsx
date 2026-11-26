@@ -5,6 +5,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { orderNav, phoneTabs } from '../lib/navOrder.ts';
 import { effectiveUi } from 'turbothemes';
 import { usePlayer } from '../lib/player.ts';
+import { useBottomOffset } from '../lib/useBottomOffset.ts';
 import { togglePlayback } from '../lib/connect.ts';
 import { cn } from '../lib/cn.ts';
 import { usePageDirection } from '../lib/pageDirection.ts';
@@ -200,6 +201,8 @@ export function Layout() {
   if (navIdx >= 0) lastIdx.current = navIdx;
   const pageDir = usePageDirection(lastIdx.current, pathname);
   const hasPlayer = usePlayer((s) => !!s.queue.currentId);
+  /** the side bar scrolls and stops above the player bar, so its last pages (Settings) are never underneath it */
+  const sideBottom = useBottomOffset(hasPlayer, 8);
   // Space always plays/pauses (also the device being controlled), except while typing text. It wins over the focused button's own
   // Space-to-click and over the list navigation, so it runs first (capture) and the matching key-up is swallowed too.
   useEffect(() => {
@@ -226,7 +229,7 @@ export function Layout() {
       {effectiveUi(ui) === 'lgux' && <CandyDefs />}
       <div className="bt-scrim" aria-hidden />
       <div className="flex min-h-0 flex-1">
-        {!noSide && <aside ref={sideRef} className="bt-side bt-shell relative hidden w-56 shrink-0 flex-col gap-1 p-3 md:flex">
+        {!noSide && <aside ref={sideRef} className="bt-side bt-shell relative hidden w-56 shrink-0 flex-col gap-1 overflow-y-auto overflow-x-hidden p-3 md:flex" style={hasPlayer ? { paddingBottom: sideBottom } : undefined}>
           <span className="bt-ind" aria-hidden />
           <div className="bt-brand mb-3 flex items-center gap-2.5 px-3 pt-1 text-lg font-bold tracking-tight"><img src={logo} alt="" width={26} height={26} className="h-[26px] w-[26px] shrink-0" draggable={false} /><span className="bt-label-text">TurboMusic</span></div>
           {sideNav.map(({ to, label, icon: Icon, ...rest }) => (

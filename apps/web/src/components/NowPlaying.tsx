@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { EyeOff, Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus, Volume2, Info, ListOrdered } from 'lucide-react';
+import { EyeOff, SlidersHorizontal, Maximize2, Minimize2, Moon, Pause, Pin, PinOff, Play, Loader2, SkipBack, SkipForward, X, Mic2, Minus, Plus, Volume2, Info, ListOrdered } from 'lucide-react';
 import { desktop } from '../lib/settings.ts';
 import { useLibrary } from '../lib/derive.ts';
 import { usePlaybackView } from '../lib/connect.ts';
@@ -13,6 +13,7 @@ import { ArtistLinks } from './ArtistLinks.tsx';
 import { Rating } from './Rating.tsx';
 import { RateBlock } from './RateBlock.tsx';
 import { useEditor } from '../lib/editor.ts';
+import { useStore } from '../lib/store.ts';
 
 /**
  * The full-screen now-playing view: the cover large over a blurred copy of itself, the lyrics scrolling with the song (synced when
@@ -21,6 +22,11 @@ import { useEditor } from '../lib/editor.ts';
  */
 const OFFSET_KEY = 'turbomusic.lyricsOffset';
 const PIN_KEY = 'turbomusic.nowControlsPinned';
+const STATE_KEY = 'turbomusic.nowState';
+type Ctl = 'none' | 'bar' | 'full';
+const CTL_LABEL: Record<Ctl, string> = { none: 'No controls', bar: 'Play bar', full: 'All controls' };
+/** the order the controls button steps through */
+const CTL_NEXT: Record<Ctl, Ctl> = { full: 'bar', bar: 'none', none: 'full' };
 const loadPinned = () => { try { return localStorage.getItem(PIN_KEY) === '1'; } catch { return false; } };
 /** the page is full screen: the Fullscreen API, or the window itself (F11 in the desktop app) */
 const isFullscreen = () => !!document.fullscreenElement || (typeof matchMedia === 'function' && matchMedia('(display-mode: fullscreen)').matches);
@@ -51,9 +57,15 @@ export function NowPlaying() {
   const track = v.trackId ? lib.trackById.get(v.trackId) : undefined;
   const [saver, setSaver] = useState(false);
   const [showLyrics, setShowLyrics] = useState(true);
+  const [ctl, setCtl] = useState<Ctl>('bar');
+  /** remembered per device when Settings > Playback > Full-screen player says so */
+  const remember = (lyricsOn: boolean, c: Ctl) => { if (useStore.getState().settings.nowRemember) { try { localStorage.setItem(STATE_KEY, JSON.stringify({ lyrics: lyricsOn, controls: c })); } catch { /* private mode */ } } };
+  const cycleCtl = () => { const n = CTL_NEXT[ctl]; setCtl(n); remember(showLyrics, n); };
+  const cycleRef = useRef<() => void>(() => undefined); cycleRef.current = cycleCtl;
   const [idle, setIdle] = useState(false);
   /** controls hidden by hand: they stay hidden until a click, not only until the pointer moves */
   const held = useRef(false);
+  const [heldNow, setHeldNow] = useState(false);
   const [full, setFull] = useState(isFullscreen);
   const [pinned, setPinnedState] = useState(loadPinned);
   const setPinned = (v: boolean) => { setPinnedState(v); try { localStorage.setItem(PIN_KEY, v ? '1' : '0'); } catch { /* private mode */ } };
@@ -73,19 +85,25 @@ export function NowPlaying() {
   /** From the screensaver the Lyrics button leaves it and shows the lyrics (it used to toggle them off as well); otherwise it toggles them. */
   const pickLyricsRef = useRef<() => void>(() => undefined);
   const pickLyrics = () => pickLyricsRef.current();
-  pickLyricsRef.current = () => { if (saver) { setSaver(false); setShowLyrics(true); } else setShowLyrics((x) => !x); };
+  pickLyricsRef.current = () => { if (saver) { setSaver(false); setShowLyrics(true); remember(true, ctl); } else { setShowLyrics(!showLyrics); remember(!showLyrics, ctl); } };
   // On a touch screen the controls stay until the screensaver is on (there is no pointer to bring them back, and a tap on invisible buttons used to do nothing).
   const touch = useRef(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
   const saverRef = useRef(saver); saverRef.current = saver;
   const pinnedRef = useRef(pinned); pinnedRef.current = pinned;
-  const wake = (force = false) => { if (force) held.current = false; if (held.current) return; setIdle(false); window.clearTimeout(idleTimer.current); if (pinnedRef.current) return; if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
+  const wake = (force = false) => { if (force) { held.current = false; setHeldNow(false); } if (held.current) return; setIdle(false); window.clearTimeout(idleTimer.current); if (pinnedRef.current) return; if (touch.current && !saverRef.current) return; idleTimer.current = window.setTimeout(() => setIdle(true), 4000); };
   useEffect(() => {
     if (!open) return;
+    // opens the way Settings says: the chosen start, or the way it was left on this device
+    const st = useStore.getState().settings;
+    let l = st.nowLyrics, c: Ctl = st.nowControls;
+    if (st.nowRemember) { try { const j = JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null') as { lyrics?: boolean; controls?: Ctl } | null; if (j) { l = j.lyrics !== false; if (j.controls && j.controls in CTL_LABEL) c = j.controls; } } catch { /* use the defaults */ } }
+    setShowLyrics(l); setCtl(c); setSaver(false); held.current = false; setHeldNow(false);
     wake();
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !document.fullscreenElement) setNow(false);
       else if (e.key.toLowerCase() === 'l') pickLyrics();
       else if (e.key.toLowerCase() === 's') setSaver((x) => !x);
+      else if (e.key.toLowerCase() === 'c') cycleRef.current();
       wake();
     };
     const fs = () => setFull(isFullscreen());
@@ -115,6 +133,8 @@ export function NowPlaying() {
   const plain = useMemo(() => (lyrics.state === 'ready' && !lines ? lyrics.plain : null), [lyrics, lines]);
   if (!open || !track) return null;
   const hidden = idle;
+  /** the bars give their room back (the cover grows into it) when they are hidden on purpose or in the screensaver */
+  const collapse = hidden && (saver || heldNow);
   const canFull = !!document.documentElement.requestFullscreen; // not on iPhones; the view already fills the screen there
 
   // a drawn title bar stays usable (and draggable) above the player unless the window is full screen
@@ -123,18 +143,20 @@ export function NowPlaying() {
     <div className={cn('bt-now fixed inset-x-0 z-[90] flex flex-col overflow-hidden bg-bg text-fg', hidden && 'cursor-none')} style={{ top: frame, height: `calc(100dvh - ${frame})` }} role="dialog" aria-modal="true" aria-label="Now playing" onMouseMove={() => wake()} onTouchStart={() => wake()} onClick={() => { if (held.current || idle) wake(true); else if (saver) setSaver(false); }}>
       {cover && <div className="absolute inset-0 scale-125 bg-cover bg-center opacity-50 blur-3xl" style={{ backgroundImage: `url(${cover})` }} aria-hidden />}
       <div className="absolute inset-0 bg-bg/55" aria-hidden />
-      <header className={cn('relative z-20 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
+      <header className={cn('z-20 flex items-center gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-opacity duration-500', collapse ? 'absolute inset-x-0 top-0' : 'relative', hidden && 'pointer-events-none opacity-0')}>
         <button className="btn" onClick={() => setNow(false)} aria-label="Close"><X size={18} /></button>
         <div className="ml-auto flex gap-2">
           <button className={cn('btn', showLyrics && !saver && 'btn-accent')} aria-pressed={showLyrics} title="Lyrics (L)" onClick={pickLyrics}><Mic2 size={16} /><span className="max-sm:hidden">Lyrics</span></button>
           <button className={cn('btn', saver && 'btn-accent')} aria-pressed={saver} title="Screensaver (S)" onClick={() => setSaver((x) => !x)}><Moon size={16} /><span className="max-sm:hidden">Screensaver</span></button>
-          <button className="btn" title="Hide the controls (click anywhere to bring them back)" aria-label="Hide the controls" onClick={(e) => { e.stopPropagation(); held.current = true; window.clearTimeout(idleTimer.current); setIdle(true); }}><EyeOff size={16} /></button>
+          <button className="btn" title={`Controls: ${CTL_LABEL[ctl]}. Click for ${CTL_LABEL[CTL_NEXT[ctl]].toLowerCase()} (C)`} aria-label={`Controls: ${CTL_LABEL[ctl]}`} onClick={(e) => { e.stopPropagation(); cycleCtl(); }}><SlidersHorizontal size={16} /><span className="max-lg:hidden">{CTL_LABEL[ctl]}</span></button>
+          <button className="btn" title="Hide everything (click anywhere to bring it back)" aria-label="Hide everything" onClick={(e) => { e.stopPropagation(); held.current = true; setHeldNow(true); window.clearTimeout(idleTimer.current); setIdle(true); }}><EyeOff size={16} /></button>
           <button className={cn('btn', pinned && 'btn-accent')} aria-pressed={pinned} title={pinned ? 'Controls stay on screen (click to let them hide)' : 'Keep the controls on screen'} aria-label="Pin the controls" onClick={() => setPinned(!pinned)}>{pinned ? <PinOff size={16} /> : <Pin size={16} />}</button>
           {canFull && <button className="btn" title="Full screen (F11 also works)" aria-label="Full screen" onClick={toggleFull}>{full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
         </div>
       </header>
-      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 max-md:flex-col max-md:justify-start max-md:gap-3 max-md:overflow-hidden max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'absolute inset-0 justify-center !p-6')}>
-        <div style={saver ? { width: `min(78vmin, 44rem, calc(100dvh - ${frame} - 8rem))` } : undefined} className={cn('shrink-0', saver ? 'bt-drift' : showLyrics ? 'w-[min(24vh,56vw,20rem)] md:w-[min(46vh,28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(60vh,34rem)]')}>
+      <div className={cn('relative z-10 flex min-h-0 flex-1 items-center justify-center gap-8 px-6 pb-4 [container-type:size] max-md:flex-col max-md:justify-start max-md:gap-3 max-md:overflow-hidden max-md:px-4 max-md:pb-2 md:gap-14 md:px-12', saver && 'justify-center !p-6', collapse && 'transition-[padding] duration-500')}>
+        {/* the cover is sized from the room this box has (container units), so it follows whichever bars are showing */}
+        <div style={saver ? { width: 'min(100cqw, 100cqh, 44rem)' } : undefined} className={cn('shrink-0 transition-[width] duration-500', saver ? (hidden && 'bt-drift') : showLyrics ? 'w-[min(24vh,56vw,20rem)] md:w-[min(46cqw,calc(100cqh-5.5rem),28rem)]' : 'w-[min(50vh,calc(100vw-2rem),34rem)] md:w-[min(100cqw,calc(100cqh-5.5rem),34rem)]')}>
           {cover ? <img src={cover} alt="" className="aspect-square w-full rounded-theme object-cover shadow-2xl" draggable={false} /> : <div className="aspect-square w-full rounded-theme bg-raised" />}
           {!saver && <div className="mt-2 min-w-0 text-center max-md:relative max-md:left-1/2 max-md:w-[calc(100vw-2rem)] max-md:-translate-x-1/2 md:mt-4 md:text-left"><div className="line-clamp-2 text-2xl font-bold leading-tight md:truncate md:text-3xl">{track.title}</div>
             <div className="truncate text-base text-muted"><ArtistLinks leads={track.leads} featured={track.featured} className="hover:underline" />{track.albumTitle && <> · <Link to={track.albumId ? `/albums/${track.albumId}` : '#'} onClick={() => setNow(false)} className="hover:underline">{track.albumTitle}</Link></>}</div></div>}
@@ -158,9 +180,9 @@ export function NowPlaying() {
             </div>}
           </div>)}
       </div>
-      {showLyrics && !saver && lines && !follow && !hidden && <button className="btn btn-accent absolute bottom-28 left-1/2 z-20 -translate-x-1/2 shadow-lg max-md:bottom-36" onClick={() => setFollow(true)}><Mic2 size={15} />Back to the current line</button>}
+      {showLyrics && !saver && lines && !follow && !hidden && <button className={cn('btn btn-accent absolute left-1/2 z-20 -translate-x-1/2 shadow-lg', ctl === 'none' ? 'bottom-6' : ctl === 'bar' ? 'bottom-32 max-md:bottom-36' : 'bottom-52 max-md:bottom-56')} onClick={() => setFollow(true)}><Mic2 size={15} />Back to the current line</button>}
       {saver && hidden && <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-[calc(100vw-3rem)] opacity-80 md:max-w-[60vw]"><div className="line-clamp-2 text-lg font-semibold md:truncate">{track.title}</div><div className="truncate text-sm text-muted">{track.artistName}</div></div>}
-      <footer className={cn('relative z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', hidden && 'pointer-events-none opacity-0')}>
+      {ctl !== 'none' && <footer className={cn('z-10 mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-opacity duration-500', collapse ? 'absolute inset-x-0 bottom-0' : 'relative', hidden && 'pointer-events-none opacity-0')}>
         <div className="flex items-center gap-2 text-xs tabular-nums text-muted">
           <span className="w-10 text-right">{fmtTime(v.time)}</span>
           <input type="range" aria-label="Seek" className="bt-range bt-hit flex-1" style={{ '--p': `${v.duration > 0 ? Math.min(100, (v.time / v.duration) * 100) : 0}%` } as React.CSSProperties} min={0} max={v.duration || 1} step={0.1} value={v.time} onChange={(e) => v.seek(Number(e.target.value))} />
@@ -172,7 +194,7 @@ export function NowPlaying() {
           <button className="btn" title="Next" onClick={v.next}><SkipForward size={20} /></button>
         </div>
         {/* the rest of the expanded player: rating, thumbs and memories, volume, info and the queue */}
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+        {ctl === 'full' && <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <Rating track={track} />
           <RateBlock track={track} />
           <label className="flex items-center gap-2 text-muted"><Volume2 size={16} className="shrink-0" />
@@ -181,8 +203,8 @@ export function NowPlaying() {
             <button type="button" className="btn btn-ghost !p-2" title="Track info" aria-label="Track info" onClick={() => { setNow(false); useEditor.getState().open({ kind: 'track-details', id: track.id }); }}><Info size={16} /></button>
             <Link to="/queue" className="btn btn-ghost !p-2" title="The queue" aria-label="The queue" onClick={() => setNow(false)}><ListOrdered size={16} /></Link>
           </div>
-        </div>
-      </footer>
+        </div>}
+      </footer>}
     </div>
   );
 }

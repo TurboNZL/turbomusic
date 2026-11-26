@@ -26,6 +26,7 @@ import { RatingModelCard, TenLineCard } from '../components/RatingModelCard.tsx'
 import { RecapDismissals } from '../components/RecapDismissals.tsx';
 import { LibraryFilesCard } from '../components/LibraryFilesCard.tsx';
 import { WidgetCard } from '../components/WidgetCard.tsx';
+import { UiScaleCard, NowPlayingSettings, RankSettings } from '../components/ViewSettings.tsx';
 import { NavOrderCard } from '../components/NavOrderCard.tsx';
 import { GuidesTab } from '../components/GuidesTab.tsx';
 import { ServerUpdateCard } from '../components/ServerUpdate.tsx';
@@ -85,6 +86,8 @@ export function SettingsPage() {
       {tab === 'look' && <>
       <AppearanceLayout />
       <Section title="Pages: order and phone tabs"><NavOrderCard /></Section>
+
+      <Section title="Interface size"><UiScaleCard /></Section>
 
       <Section title="Wallpaper"><WallpaperCard /></Section>
       </>}
@@ -180,6 +183,10 @@ export function SettingsPage() {
       <Section title="Playback rules"><PlaybackRules /></Section>
 
       <Section title="Menu defaults"><MenuDefaultsCard /></Section>
+
+      <Section title="Full-screen player"><NowPlayingSettings /></Section>
+
+      <Section title="Rank"><RankSettings /></Section>
 
       <Section title="Offline copies and streaming">
         <label className="block space-y-1 text-sm">Quality of tracks saved offline
