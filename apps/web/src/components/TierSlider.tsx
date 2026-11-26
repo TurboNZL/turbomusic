@@ -19,7 +19,7 @@ export function TierSlider({ choice, onChange, info, className }: { choice: Tier
   const set = (n: number) => { const t = ORDER[Math.max(0, Math.min(last, n))]; if (t !== choice.tier) { haptic('tick'); onChange({ ...choice, tier: t }); } };
   const at = (e: React.PointerEvent) => set(Math.round(fraction(e, ref.current!) * last));
   return (
-    <div className={cn('flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1', className)}>
+    <div className={cn('relative flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1', className)}>
       <span className="text-xs font-semibold uppercase tracking-wider text-muted">Compare</span>
       <div ref={ref} role="slider" tabIndex={0} aria-label="Which songs to compare" aria-valuemin={0} aria-valuemax={last} aria-valuenow={i} aria-valuetext={LABEL[choice.tier].label} title={LABEL[choice.tier].hint}
         className="relative h-8 w-44 shrink-0 cursor-pointer touch-none select-none rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent sm:w-60"
@@ -45,7 +45,8 @@ function BandSlider({ min, max, onChange }: { min: number; max: number; onChange
   const val = (e: React.PointerEvent) => Math.round(fraction(e, ref.current!) * 20) / 2;
   const move = (e: React.PointerEvent) => { const v = val(e); if (drag.current === 'min') onChange(Math.min(v, max), max); else if (drag.current === 'max') onChange(min, Math.max(v, min)); };
   return (
-    <div className="flex basis-full items-center gap-3 pt-1">
+    // floats under the dial instead of adding a row: the page's height (and so the size of the cards) never changes when it opens
+    <div className="absolute left-0 top-full z-30 mt-1.5 flex items-center gap-3 rounded-theme border border-line bg-surface px-3 py-1.5 shadow-lg">
       <span className="w-20 text-xs tabular-nums text-muted">{min.toFixed(1)} – {max.toFixed(1)}</span>
       <div ref={ref} className="relative h-6 w-60 max-w-full cursor-pointer touch-none select-none"
         onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const v = val(e); drag.current = Math.abs(v - min) <= Math.abs(v - max) && !(v >= max && min === max) ? 'min' : 'max'; move(e); }}

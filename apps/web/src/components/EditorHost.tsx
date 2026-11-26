@@ -26,6 +26,7 @@ import { MergeAlbumDialog } from './MergeAlbumDialog.tsx';
 import { TrackDetails } from './TrackDetails.tsx';
 import { ImportDialog } from './ImportDialog.tsx';
 import { logJournal } from '../lib/journal.ts';
+import { Sortable } from './Sortable.tsx';
 import { newAlbumData, newTrackData, inheritFromAlbum, appendTrack, moveTrack, removeTrack, cleanCredits, hasLead, leadCredit, LEAD_ROLE, withLeadFallback, ownCreditsFromAlbum } from '../lib/defaults.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { defaultChoice, defaultRelease, planAddToAlbum, type ReleaseChoice } from '../lib/albumOps.ts';
@@ -162,14 +163,14 @@ function TrackEditor({ id, onClose }: { id: string; onClose: () => void }) {
       <Field label="Eras" hint={albumSel ? 'Optional. Puts just this track in an era; the album’s own eras apply to all its tracks and are set on the album.' : 'Optional. A single can be in several eras.'}><EraPicker value={eraIds} onChange={setEraIds} /></Field>
       <Field label="Cover" hint={albumSel ? "Optional. Without one the track shows its album's cover. If you add a track that has one to another album, it becomes a release of its own." : 'The single’s artwork.'}>
         <ImagePicker hash={t.cover ?? null} onChange={(h) => set('cover', h)} seed={t.title || 'track'} /></Field>
-      {!albumSel && <Field label="Release date" hint="When the single came out. A track on an album uses its album's release date."><input type="date" className="input" value={t.releaseDate ?? ''} onChange={(e) => set('releaseDate', e.target.value || null)} />
+      {!albumSel && <Field half label="Release date" hint="When the single came out. A track on an album uses its album's release date."><input type="date" className="input" value={t.releaseDate ?? ''} onChange={(e) => set('releaseDate', e.target.value || null)} />
         <DateLookup title={t.title} artist={lib.artistById.get(credits.find((c) => c.artistId && (c.role ?? []).some((r) => r.toLowerCase() === LEAD_ROLE.toLowerCase()))?.artistId ?? credits.find((c) => c.artistId)?.artistId ?? '')?.name ?? ''} onFound={(d) => set('releaseDate', d)} /></Field>}
-      <Field label="Manual rating (0–10)" hint="A floor until votes take over"><input className="input" inputMode="decimal" value={t.initialRating ?? ''} onChange={(e) => set('initialRating', numOrNull(e.target.value))} /></Field>
+      <Field half label="Manual rating (0–10)" hint="A floor until votes take over"><input className="input" inputMode="decimal" value={t.initialRating ?? ''} onChange={(e) => set('initialRating', numOrNull(e.target.value))} /></Field>
       <Field label="Audio file" hint="Upload a file from this device, or add a YouTube link below and let the server download it"><AudioPicker hash={t.file} onChange={(file, bitrate) => setT((p) => ({ ...p!, file, bitrate: file ? bitrate ?? p!.bitrate : null }))} /></Field>
-      <Field label="YouTube Music URL" hint="Used to download the audio"><input className="input" value={t.youtubeMusicUrl ?? ''} onChange={(e) => set('youtubeMusicUrl', e.target.value || null)} /></Field>
-      <Field label="Spotify URLs" hint="The first one is the one played through Spotify. Add more when the same song is also another Spotify track (a single that later came out on an album has its own link).">
+      <Field half label="YouTube Music URL" hint="Used to download the audio"><input className="input" value={t.youtubeMusicUrl ?? ''} onChange={(e) => set('youtubeMusicUrl', e.target.value || null)} /></Field>
+      <Field half label="Spotify URLs" hint="The first one is the one played through Spotify. Add more when the same song is also another Spotify track (a single that later came out on an album has its own link).">
         <SpotifyLinks primary={t.spotifyUrl ?? null} others={t.spotifyUrls ?? []} onChange={(f) => setT((p) => ({ ...p!, ...f }))} /></Field>
-      <Field label="Genius URL"><input className="input" value={t.geniusUrl ?? ''} onChange={(e) => set('geniusUrl', e.target.value || null)} /></Field>
+      <Field half label="Genius URL"><input className="input" value={t.geniusUrl ?? ''} onChange={(e) => set('geniusUrl', e.target.value || null)} /></Field>
       <div className="space-y-2 rounded-theme border border-line p-3">
         <div className="text-sm font-medium">Same song, different recording</div>
         {!track.versions.length && <>
@@ -372,7 +373,7 @@ function NewAlbumDialog({ onClose }: { onClose: () => void }) {
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={asSingle} onChange={(e) => setAsSingle(e.target.checked)} /><span>This is a single <span className="text-muted">(one song with no album: it is added to Singles)</span></span></label>
       <Field label="Credits"><CreditsEditor requireLead value={credits} onChange={setCredits} /></Field>
       <Field label="Genres"><TagInput value={genres} onChange={setGenres} suggestions={lib.genres.map((g) => g.name)} /></Field>
-      <Field label="Release date" hint="Optional. It can be looked up later from Library health."><input type="date" className="input" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} /></Field>
+      <Field half label="Release date" hint="Optional. It can be looked up later from Library health."><input type="date" className="input" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} /></Field>
       {!asSingle && <Field label="Tracks" hint="One song per line, in order; a leading number is ignored. Optional: add them now or on the album's page. Audio is added to each track afterwards."><textarea className="input font-mono text-sm" rows={5} value={songs} onChange={(e) => setSongs(e.target.value)} placeholder={'Intro\nSecond song\nThird song'} /></Field>}
     </Modal>
   );
@@ -434,8 +435,8 @@ function NewTrackDialog({ albumId, onClose }: { albumId: string; onClose: () => 
         <ImagePicker hash={cover} onChange={(h) => { setCover(h); if (album) setChoice(defaultChoice(lib, album, !!h)); }} seed={title || 'new'} /></Field>
       <Field label="Credits" hint={album ? "Starts from the album's credits" : undefined}><CreditsEditor requireLead value={credits} onChange={setCredits} /></Field>
       <Field label="Audio file" hint="From this device. Or use a YouTube link below."><AudioPicker hash={file} onChange={(f, b) => { setFile(f); setBitrate(b); }} /></Field>
-      <Field label="YouTube Music URL" hint="Lets the server download the audio"><input className="input" value={yt} onChange={(e) => setYt(e.target.value)} /></Field>
-      <Field label="Spotify URL"><input className="input" value={sp} onChange={(e) => setSp(e.target.value)} /></Field>
+      <Field half label="YouTube Music URL" hint="Lets the server download the audio"><input className="input" value={yt} onChange={(e) => setYt(e.target.value)} /></Field>
+      <Field half label="Spotify URL"><input className="input" value={sp} onChange={(e) => setSp(e.target.value)} /></Field>
     </Modal>
   );
 }
@@ -566,15 +567,14 @@ function ReleaseDialog({ releaseId, albumId, onClose }: { releaseId?: string; al
           options={[{ value: '', label: `Same as the album (${album.title})` }, ...[...lib.releaseNames].sort((a, b) => a.name.localeCompare(b.name)).map((n) => ({ value: n.name, label: n.name }))]}
           creatable={{ label: (n) => `Create name: “${n}”`, create: (n) => n }} /></Field>}
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-0.5" checked={!!r.vault} onChange={(e) => setR({ ...r, vault: e.target.checked || undefined })} /><span><span className="font-medium">From the vault</span><span className="block text-xs text-muted">An unreleased, leaked or otherwise unofficial edition. The artist page lists an album whose releases are all from the vault apart from the released music.</span></span></label>
-      <Field label="YouTube Music link" hint="The album page this release was read from. “Re-read credits from YouTube Music” in the album menu uses it."><input className="input" placeholder="https://music.youtube.com/playlist?list=…" value={r.youtubeMusicUrl ?? ''} onChange={(e) => setR({ ...r, youtubeMusicUrl: e.target.value.trim() || null })} /></Field>
-      <Field label="Release date"><input type="date" className="input" value={r.releaseDate ?? ''} onChange={(e) => setR({ ...r, releaseDate: e.target.value || null })} />
+      <Field half label="YouTube Music link" hint="The album page this release was read from. “Re-read credits from YouTube Music” in the album menu uses it."><input className="input" placeholder="https://music.youtube.com/playlist?list=…" value={r.youtubeMusicUrl ?? ''} onChange={(e) => setR({ ...r, youtubeMusicUrl: e.target.value.trim() || null })} /></Field>
+      <Field half label="Release date"><input type="date" className="input" value={r.releaseDate ?? ''} onChange={(e) => setR({ ...r, releaseDate: e.target.value || null })} />
         <DateLookup title={lookup.album} artist={lookup.artist} onFound={(d) => setR({ ...r, releaseDate: d })} /></Field>
       <div className="space-y-1"><div className="text-sm text-muted">Tracklist ({live.length})</div>
-        {live.map((id, i) => (
-          <div key={id} className="flex items-center gap-2 rounded-theme bg-raised px-3 py-1.5 text-sm"><span className="w-5 text-right text-xs text-muted">{i + 1}</span><span className="min-w-0 flex-1 truncate">{lib.trackById.get(id)!.title}</span>
-            <button type="button" className="px-1 text-muted hover:text-fg disabled:opacity-30" aria-label="Move up" disabled={i === 0} onClick={() => setR({ ...r, trackIds: moveTrack(live, i, i - 1) })}>↑</button>
-            <button type="button" className="px-1 text-muted hover:text-fg disabled:opacity-30" aria-label="Move down" disabled={i === live.length - 1} onClick={() => setR({ ...r, trackIds: moveTrack(live, i, i + 1) })}>↓</button>
-            <button type="button" className="px-1 text-muted hover:text-bad" aria-label="Remove from release" onClick={() => setR({ ...r, trackIds: removeTrack(live, id) })}>×</button></div>))}
+        <Sortable items={live} keyOf={(id) => id} onReorder={(next) => setR({ ...r, trackIds: next })} className="space-y-1"
+          render={(id, { handle, index: i }) => (
+            <div className="flex items-center gap-2 rounded-theme bg-raised px-2 py-1.5 text-sm">{handle}<span className="w-5 text-right text-xs text-muted">{i + 1}</span><span className="min-w-0 flex-1 truncate">{lib.trackById.get(id)!.title}</span>
+              <button type="button" className="px-1 text-muted hover:text-bad" aria-label="Remove from release" onClick={() => setR({ ...r, trackIds: removeTrack(live, id) })}>×</button></div>)} />
         <TrackPicker value={null} onChange={(id) => id && setR({ ...r, trackIds: appendTrack(live, id) })} /></div>
       {releaseId && <button className="btn" onClick={() => { patch('albums', album.id, { defaultReleaseId: releaseId, trackOrder: live }); onClose(); }}>Use this tracklist and edition as the album's default</button>}
       {releaseId && <MergeReleaseInto releaseId={releaseId} onDone={onClose} />}

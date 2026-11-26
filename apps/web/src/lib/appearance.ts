@@ -33,6 +33,8 @@ function ensure(s: DeviceSettings): TurboThemes {
 /** Applies the whole look from the device settings. */
 export function applyAppearance(s: DeviceSettings) {
   ensure(s).apply(s as Appearance);
+  // the interface size: every rem-based size (text, spacing) follows the root text size
+  document.documentElement.style.fontSize = s.uiScale && s.uiScale !== 1 ? `${Math.round(16 * Math.max(0.7, Math.min(1.6, s.uiScale)) * 100) / 100}px` : '';
   document.documentElement.dataset.layout = isLayout(s.layout) ? s.layout : 'side'; // layouts are this app's, not the themes'
 }
 

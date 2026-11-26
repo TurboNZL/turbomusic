@@ -6,7 +6,7 @@ import { readShuffle, writeShuffle } from './PlayControls.tsx';
 import { openImportIntoAlbum } from '../lib/openImport.ts';
 import { statsPath } from '../lib/entityStats.ts';
 import { YouTubeMusicIcon } from './BrandIcons.tsx';
-import { ListOrdered, FolderInput, PackagePlus, RotateCcw, GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListMusic, ListPlus, ListStart, Pencil, Replace, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff, Trash2, Vault } from 'lucide-react';
+import { ListOrdered, FolderInput, PackagePlus, RotateCcw, GitMerge, BarChart3, Disc, Download, FileAudio, ListEnd, ListMusic, ListPlus, ListStart, Pencil, Replace, Play, Plus, Shuffle, User, Layers, Search, Check, Eye, EyeOff, Trash2, Vault, Ban, Bell, BellOff, ClipboardPaste, RefreshCw, FolderOpen } from 'lucide-react';
 import { shuffleWithRules } from '@turbomusic/core';
 import { useLibrary, type Library } from '../lib/derive.ts';
 import { useEditor } from '../lib/editor.ts';
@@ -89,17 +89,20 @@ export function useAlbumMenuItems() {
     ...actions(ids, { type: 'album', id: album.id }, album.title),
     { separator: true },
     { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('album', album.id) },
-    { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) },
-    (album as { vault?: boolean }).vault
-      ? { label: 'Not from the vault after all', icon: <Vault size={15} />, run: () => patch('albums', album.id, { vault: false }) }
-      : { label: 'Mark as from the vault', icon: <Vault size={15} />, run: () => patch('albums', album.id, { vault: true }) },
-    ...(album.trackIds.length > 1 ? [{ label: 'Order its songs by preference…', icon: <ListOrdered size={15} />, to: `/order/${album.id}` } as MenuItem] : []),
-    { label: 'Add to an album playlist…', icon: <ListMusic size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) },
+    // editing and organising live in one flyout (pressing the row edits the album)
+    ...group('Edit and organise', <Pencil size={15} />, [
+      { label: 'Edit album…', icon: <Pencil size={15} />, run: () => edit({ kind: 'album', id: album.id }) } as MenuItem,
+      ...(album.trackIds.length > 1 ? [{ label: 'Order its songs by preference…', icon: <ListOrdered size={15} />, to: `/order/${album.id}` } as MenuItem] : []),
+      { label: 'Add to an album playlist…', icon: <ListMusic size={15} />, run: () => edit({ kind: 'add-album-to-playlist', id: album.id }) } as MenuItem,
+      (album as { vault?: boolean }).vault
+        ? { label: 'Not from the vault after all', icon: <Vault size={15} />, run: () => patch('albums', album.id, { vault: false }) } as MenuItem
+        : { label: 'Mark as from the vault', icon: <Vault size={15} />, run: () => patch('albums', album.id, { vault: true }) } as MenuItem,
+    ]),
     ...group('Import and merge', <YouTubeMusicIcon size={15} />, [
       { label: 'Import a release from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => void openImportIntoAlbum(album.id), keepOpen: true },
       ...(full && lib.releases.filter((r) => r.albumId === album.id).length === 1 ? [{ label: 'Add to another album…', icon: <FolderInput size={15} />, run: () => edit({ kind: 'merge-album', id: album.id }) }] : []),
-      { label: 'Re-read credits from YouTube Music…', icon: <YouTubeMusicIcon size={15} />, run: () => edit({ kind: 'reparse-credits', id: album.id }) },
-      { label: 'Fix artists from a pasted list…', icon: <User size={15} />, run: () => edit({ kind: 'paste-credits', id: album.id }) },
+      { label: 'Re-read credits from YouTube Music…', icon: <RefreshCw size={15} />, run: () => edit({ kind: 'reparse-credits', id: album.id }) },
+      { label: 'Fix artists from a pasted list…', icon: <ClipboardPaste size={15} />, run: () => edit({ kind: 'paste-credits', id: album.id }) },
       { label: 'Merge with another album…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `album:${album.id}` }) },
       ...(full && planConvertToSingle(lib, album) ? [{ label: 'Convert to a single…', icon: <Disc size={15} />, run: () => convert(album) }] : []),
     ]),
@@ -107,14 +110,14 @@ export function useAlbumMenuItems() {
       { label: 'Add audio files…', icon: <FileAudio size={15} />, run: () => edit({ kind: 'upload', id: album.id }) } as MenuItem,
       { label: 'New release…', icon: <PackagePlus size={15} />, run: () => edit({ kind: 'new-release', id: album.id }) } as MenuItem,
       (album as { complete?: boolean }).complete
-        ? { label: 'Suggest a YouTube Music link for it again', icon: <RotateCcw size={15} />, run: () => patch('albums', album.id, { complete: false }) }
-        : { label: 'Stop suggesting a YouTube Music link for it', icon: <Check size={15} />, run: () => patch('albums', album.id, { complete: true }) },
+        ? { label: 'Suggest a YouTube Music link for it again', icon: <Bell size={15} />, run: () => patch('albums', album.id, { complete: false }) }
+        : { label: 'Stop suggesting a YouTube Music link for it', icon: <BellOff size={15} />, run: () => patch('albums', album.id, { complete: true }) },
       (album as { hidden?: boolean }).hidden
         ? { label: 'Show this album again', icon: <Eye size={15} />, run: () => patch('albums', album.id, { hidden: false }) }
         : { label: 'Hide this album', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { hidden: true }) },
       (album as { noYoutube?: boolean }).noYoutube
         ? { label: 'Has a YouTube Music link after all', icon: <YouTubeMusicIcon size={15} />, run: () => patch('albums', album.id, { noYoutube: false }) }
-        : { label: 'Not on YouTube Music', icon: <EyeOff size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
+        : { label: 'Not on YouTube Music', icon: <Ban size={15} />, run: () => patch('albums', album.id, { noYoutube: true }) },
       { label: 'Delete album…', icon: <Trash2 size={15} />, run: () => edit({ kind: 'delete-album', id: album.id }) } as MenuItem,
     ]) : []),
     ...group('Go to', <User size={15} />, [
@@ -140,11 +143,13 @@ export function useArtistMenuItems() {
       ...actions(ids, { type: 'search', id: `Artist: ${lib.artistById.get(artistId)?.name ?? ''}` }, lib.artistById.get(artistId)?.name),
       { separator: true },
       { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('artist', artistId) },
-      { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) },
-      (lib.artistById.get(artistId) as { hidden?: boolean } | undefined)?.hidden
-        ? { label: 'Show this artist again', icon: <Eye size={15} />, run: () => patch('artists', artistId, { hidden: false }) }
-        : { label: 'Hide this artist', icon: <EyeOff size={15} />, run: () => patch('artists', artistId, { hidden: true }) },
-      { label: 'Merge with another artist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `artist:${artistId}` }) },
+      ...group('Edit and organise', <Pencil size={15} />, [
+        { label: 'Edit artist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'artist', id: artistId }) } as MenuItem,
+        ((lib.artistById.get(artistId) as { hidden?: boolean } | undefined)?.hidden
+          ? { label: 'Show this artist again', icon: <Eye size={15} />, run: () => patch('artists', artistId, { hidden: false }) }
+          : { label: 'Hide this artist', icon: <EyeOff size={15} />, run: () => patch('artists', artistId, { hidden: true }) }) as MenuItem,
+        { label: 'Merge with another artist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-with', id: `artist:${artistId}` }) } as MenuItem,
+      ]),
     ];
   };
 }
@@ -161,16 +166,18 @@ export function usePlaylistMenuItems() {
     const playable = playlistTrackIds(lib, playlist).filter((id) => canPlay(lib.trackById.get(id)));
     const source = { type: 'playlist' as const, id: playlist.id };
     return [
-      { label: 'Open', icon: <Play size={15} />, to: `/playlists/${playlist.id}` },
+      { label: 'Open', icon: <FolderOpen size={15} />, to: `/playlists/${playlist.id}` },
       ...actions(playlistTrackIds(lib, playlist), source, playlist.name),
       ...(isQuickPlaylist(playlist.id) ? [] : [
         { separator: true } as MenuItem,
         { label: 'Stats page', icon: <BarChart3 size={15} />, to: statsPath('playlist', playlist.id) },
-        { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) },
-        ...(playlist.kind === 'albums' ? [] : group('Merge', <GitMerge size={15} />, [
-          { label: 'Merge other playlists into this…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `into:${playlist.id}` }) } as MenuItem,
-          { label: playlist.spotify ? 'Merge into another playlist…' : 'Merge into a synced playlist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `from:${playlist.id}` }) } as MenuItem,
-        ])),
+        ...group('Edit and organise', <Pencil size={15} />, [
+          { label: 'Edit playlist…', icon: <Pencil size={15} />, run: () => edit({ kind: 'playlist', id: playlist.id }) } as MenuItem,
+          ...(playlist.kind === 'albums' ? [] : [
+            { label: 'Merge other playlists into this…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `into:${playlist.id}` }) } as MenuItem,
+            { label: playlist.spotify ? 'Merge into another playlist…' : 'Merge into a synced playlist…', icon: <GitMerge size={15} />, run: () => edit({ kind: 'merge-playlist', id: `from:${playlist.id}` }) } as MenuItem,
+          ]),
+        ]),
       ]),
     ];
   };
